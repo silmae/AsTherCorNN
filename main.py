@@ -5,7 +5,7 @@ def bb_radiance(T, eps, wavelength):
     :param T: float. Temperature in Kelvins
     :param eps: float. Emissivity = sample emission spectrum divided by ideal bb spectrum. Maybe in future accepts
     a vector, but only constants for now
-    :param wavelength: vector of floats. Wavelengths where the emission is to be calculated, in nanometers.
+    :param wavelength: vector of floats. Wavelengths where the emission is to be calculated, in micrometers.
     :return L_th: vector of floats. Spectral radiance emitted by the surface.
     """
 
@@ -18,9 +18,9 @@ def bb_radiance(T, eps, wavelength):
     L_th[:,0] = wavelength
 
     for i in range(0, len(wavelength)):
-        wl = wavelength[i] / 1e9  # Convert wavelength from nanometers to meters
+        wl = wavelength[i] / 1e6  # Convert wavelength from micrometers to meters
         L_th[i,1] = eps * (2 * h * c**2) / ((wl**5) * (np.exp((h * c)/(wl * kB * T)) - 1))  # Apply Planck's law
-        L_th[i,1] = L_th[i,1] / 1e9  # Convert radiance from (W / m² / sr / m) to (W / m² / sr / nm)
+        L_th[i,1] = L_th[i,1] / 1e6  # Convert radiance from (W / m² / sr / m) to (W / m² / sr / µm)
 
     return L_th
 
@@ -44,12 +44,45 @@ def reflected_radiance(reflectance, irradiance, phi):
 
     return reflrad
 
+def analogue_reflectances():
+    """
+    Load reflectance spectra from asteroid analogues measured by Maturilli et al. 2016 (DOI: 10.1186/s40623-016-0489-y)
+    :return: a list of Pandas DataArrays containing wavelength vectors and reflectance spectra
+    """
+    # Path to folder of reflectance spectra from asteroid analogues
+    refl_analogue_path = Path('./spectral_data/asteroid_analogues/refle/MIR')
+    MIR_refl_list = os.listdir(refl_analogue_path)
+
+    analogues = []  # A dictionary for holding data frames
+
+    for filename in MIR_refl_list:
+        filepath = Path.joinpath(refl_analogue_path, filename)
+        frame = pd.read_csv(filepath, sep='    ', engine='python')#.values[:, 1:3]  # Read reflectance from file, leave wavenumber out
+        frame.columns = ['wavenumber', 'wl', 'reflectance']
+        frame.drop('wavenumber', inplace=True, axis=1)  # Drop the wavenumbers, because who uses them anyway
+        frame = frame.loc[frame['wl'] <= 4]  # Cut away wl:s above 4 µm. Also below 1.5 µm? Noisy.
+
+        analogues.append(frame)
+
+        # plt.figure()
+        # plt.plot(frame['wl'], frame['reflectance'])
+        # plt.show()
+        # plt.figure()
+        # plt.plot(range(0,len(frame['wl'])), frame['wl'],'*')
+        # plt.show()
+
+    return analogues
+
 if __name__ == '__main__':
     import numpy as np
     from os import path
+    import os
     from matplotlib import pyplot as plt
     from solar import solar_irradiance
     from astropy.io import fits
+    from pathlib import Path
+    from scipy import io
+    import pandas as pd
 
     # # Accessing measurements of Ryugu by the Hayabusa2:
     # hdulist = fits.open('hyb2_nirs3_20180710_cal.fit')
@@ -66,18 +99,32 @@ if __name__ == '__main__':
     # plt.title('Ryugu')
     # plt.show()
 
+
+
+    reflectance_spectra = analogue_reflectances()
+    # print(reflectance_spectra[0]['wl'])
+    # Interpolate insolation to match the reflectance data
+
     irradiance_1au = solar_irradiance(1)
-    wavelength = irradiance_1au[:,0]  # Using the irradiance wls is not very nice: will have to interpolate other data to this. Consider something else.
+    wavelength = irradiance_1au[:,0]  # Using the irradiance wls is not very nice: will have to interpolate other data to this. Consider something else?
+
+    # plt.figure()
+    # plt.plot(range(0, len(irradiance_1au[:,0])), irradiance_1au[:, 0], '*')
+    # plt.show()
 
     reflectance = np.zeros((len(wavelength), 2))
     reflectance[:, 0] = wavelength
-    reflectance[:, 1] = reflectance[:, 1] + 0.1
-    # reflectance[:, 1] = np.log(wavelength)  # A test reflectance
-    # reflectance[:, 1] = reflectance[:, 1] / max(reflectance[:, 1])
+    reflectance[:, 1] = reflectance[:, 1] + 0.1  # A constant test reflectance of 0.1
+
+    interp_insolation = np.zeros(shape=np.shape(reflectance_spectra[0].values))
+    interp_insolation[:, 0] = reflectance_spectra[0]['wl']
+
+    interp_insolation[:, 1] = np.interp(reflectance_spectra[0]['wl'], wavelength, irradiance_1au[:,1])
 
     phase_angle = 30  # degrees
 
-    reflrad = reflected_radiance(reflectance, irradiance_1au, phase_angle)
+    reflectance = reflectance_spectra[5].values
+    reflrad = reflected_radiance(reflectance, interp_insolation, phase_angle)
 
     T = 400  # Asteroid surface temperature in Kelvins
     eps = 0.9  # Emittance

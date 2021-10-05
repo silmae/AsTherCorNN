@@ -46,15 +46,16 @@ def solar_irradiance(distance):
     """
     sol_path = Path('./solar_spectrum.txt')
     solar = pd.read_table(sol_path).values
-    # Convert from µm to nm, and 1/µm to 1/nm
-    solar[:, 0] = solar[:, 0] * 1000
-    solar[:, 1] = solar[:, 1] / 1000
+
+    # Convert from µm to nm, and 1/µm to 1/nm: don't use with IR
+    # solar[:, 0] = solar[:, 0] * 1000
+    # solar[:, 1] = solar[:, 1] / 1000
 
     solar[:,1] = solar[:,1] / distance**2
 
     plt.plot(solar[:,0], solar[:,1])
-    plt.xlabel('Wavelength [nm]')
-    plt.ylabel('Irradiance [W/m^2/nm]')
+    plt.xlabel('Wavelength [µm]')
+    plt.ylabel('Irradiance [W/m^2/µm]')
     plt.show()
 
     return solar
