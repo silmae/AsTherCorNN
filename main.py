@@ -99,46 +99,55 @@ if __name__ == '__main__':
     # plt.title('Ryugu')
     # plt.show()
 
-
-
+    # Load seven meteorite reflectance spectra from files
     reflectance_spectra = analogue_reflectances()
-    # print(reflectance_spectra[0]['wl'])
-    # Interpolate insolation to match the reflectance data
 
-    irradiance_1au = solar_irradiance(1)
-    wavelength = irradiance_1au[:,0]  # Using the irradiance wls is not very nice: will have to interpolate other data to this. Consider something else?
+    # Take wavelength vector of one reflectance spectrum, to be used for all the things
+    waves = reflectance_spectra[0]['wl']
 
-    # plt.figure()
-    # plt.plot(range(0, len(irradiance_1au[:,0])), irradiance_1au[:, 0], '*')
-    # plt.show()
+    # Calculate insolation (incident solar irradiance) at heliocentric distance of 1 AU
+    insolation_1au = solar_irradiance(1)
 
-    reflectance = np.zeros((len(wavelength), 2))
-    reflectance[:, 0] = wavelength
-    reflectance[:, 1] = reflectance[:, 1] + 0.1  # A constant test reflectance of 0.1
+    # # A constant test reflectance of 0.1
+    # reflectance = np.zeros((len(wavelength), 2))
+    # reflectance[:, 0] = wavelength
+    # reflectance[:, 1] = reflectance[:, 1] + 0.1
 
+    # Interpolating insolation to match the reflectance spectra
     interp_insolation = np.zeros(shape=np.shape(reflectance_spectra[0].values))
-    interp_insolation[:, 0] = reflectance_spectra[0]['wl']
+    interp_insolation[:, 0] = waves
 
-    interp_insolation[:, 1] = np.interp(reflectance_spectra[0]['wl'], wavelength, irradiance_1au[:,1])
+    interp_insolation[:, 1] = np.interp(reflectance_spectra[0]['wl'], insolation_1au[:, 0], insolation_1au[:, 1])
 
+    # Take one of the reflectance spectra and use it for calculating theoretical radiance reflected from an asteroid
+    spectrum_number = 2  # Which reflectance spectrum to use, from 0 to 6
+    reflectance = reflectance_spectra[spectrum_number].values
     phase_angle = 30  # degrees
-
-    reflectance = reflectance_spectra[5].values
     reflrad = reflected_radiance(reflectance, interp_insolation, phase_angle)
 
+    # Calculate theoretical thermal emission from an asteroid's surface
     T = 400  # Asteroid surface temperature in Kelvins
-    eps = 0.9  # Emittance
-    L_th = bb_radiance(T, eps, wavelength)
+    eps = 0.9  # Emittance TODO Use Kirchoff's law (eps = 1-R) to get emittance from reflectance?
+    thermrad = bb_radiance(T, eps, waves)
 
-    plt.figure()
-    plt.plot(L_th[:,0], L_th[:,1])
+    figfolder = Path('./figs')
 
     plt.figure()
     plt.plot(reflectance[:,0], reflectance[:,1])
+    plt.xlabel('Wavelength [µm]')
+    plt.ylabel('Reflectance')
+    figpath = Path.joinpath(figfolder , Path('reflectance.png'))
+    plt.savefig(figpath)
 
     plt.figure()
-    plt.plot(reflrad[:,0], reflrad[:,1])
-    plt.plot(L_th[:, 0], L_th[:, 1])
+    plt.plot(reflrad[:,0], reflrad[:,1])  # Reflected radiance
+    plt.plot(thermrad[:, 0], thermrad[:, 1])  # Thermally emitted radiance
+    plt.plot(waves, reflrad[:, 1] + thermrad[:, 1])  # Sum of the two radiances
+    plt.xlabel('Wavelength [µm]')
+    plt.ylabel('Radiance')
+    plt.legend(('Reflected', 'Thermal', 'Sum'))
+    figpath = Path.joinpath(figfolder, Path('radiances.png'))
+    plt.savefig(figpath)
     plt.show()
 
 

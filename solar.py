@@ -44,19 +44,20 @@ def solar_irradiance(distance):
     :param distance: float. Heliocentric distance in astronomical units
     :return: wavelength vector (in nanometers) and spectral irradiance in one array
     """
-    sol_path = Path('./solar_spectrum.txt')
+    sol_path = Path('./solar_spectrum.txt')  # A collection of channels from 1 to 4 µm saved into a txt file
     solar = pd.read_table(sol_path).values
 
-    # Convert from µm to nm, and 1/µm to 1/nm: don't use with IR
+    # Convert from µm to nm, and 1/µm to 1/nm. Comment these away is working with IR wavelengths
     # solar[:, 0] = solar[:, 0] * 1000
     # solar[:, 1] = solar[:, 1] / 1000
 
+    # Scale with heliocentric distance, using the inverse square law
     solar[:,1] = solar[:,1] / distance**2
 
-    plt.plot(solar[:,0], solar[:,1])
-    plt.xlabel('Wavelength [µm]')
-    plt.ylabel('Irradiance [W/m^2/µm]')
-    plt.show()
+    # plt.plot(solar[:,0], solar[:,1])
+    # plt.xlabel('Wavelength [µm]')
+    # plt.ylabel('Irradiance [W/m^2/µm]')
+    # plt.show()
 
     return solar
 
