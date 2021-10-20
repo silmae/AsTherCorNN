@@ -10,7 +10,7 @@ def bb_radiance(T, eps, wavelength):
     """
 
     # Define constants
-    c = 2.998e8  # speed of light, m / s
+    c = 2.998e8  # speed of light in vacuum, m / s
     kB = 1.381e-23  # Boltzmann constant, m² kg / s² / K (= J / K)
     h = 6.626e-34  # Planck constant, m² kg / s (= J s)
 
@@ -44,7 +44,7 @@ def reflected_radiance(reflectance, irradiance, phi):
 
     return reflrad
 
-def analogue_reflectances():
+def read_Maturilli():
     """
     Load reflectance spectra from asteroid analogues measured by Maturilli et al. 2016 (DOI: 10.1186/s40623-016-0489-y)
     :return: a list of Pandas DataArrays containing wavelength vectors and reflectance spectra
@@ -53,14 +53,14 @@ def analogue_reflectances():
     refl_analogue_path = Path('./spectral_data/asteroid_analogues/refle/MIR')
     MIR_refl_list = os.listdir(refl_analogue_path)
 
-    analogues = []  # A dictionary for holding data frames
+    analogues = []  # A table for holding data frames
 
     for filename in MIR_refl_list:
         filepath = Path.joinpath(refl_analogue_path, filename)
         frame = pd.read_csv(filepath, sep='    ', engine='python')#.values[:, 1:3]  # Read reflectance from file, leave wavenumber out
         frame.columns = ['wavenumber', 'wl', 'reflectance']
         frame.drop('wavenumber', inplace=True, axis=1)  # Drop the wavenumbers, because who uses them anyway
-        frame = frame.loc[frame['wl'] <= 4]  # Cut away wl:s above 4 µm. Also below 1.5 µm? Noisy.
+        frame = frame.loc[frame['wl'] <= 2.5]  # Cut away wl:s above 2.5 µm. Also below 1.5 µm? Noisy.
 
         analogues.append(frame)
 
@@ -70,6 +70,32 @@ def analogue_reflectances():
         # plt.figure()
         # plt.plot(range(0,len(frame['wl'])), frame['wl'],'*')
         # plt.show()
+
+    return analogues
+
+def read_Gaffey():
+
+    # Path to folder of meteorite reflectance spectra
+    refl_path = Path('./spectral_data/Gaffey_meteorite_spectra/data/spectra')
+    Gaffey_refl_list = os.listdir(refl_path)
+    analogues = []  # A table for holding data frames
+
+    for filename in Gaffey_refl_list:
+        if filename.endswith('.tab'):
+            filepath = Path.joinpath(refl_path, filename)
+            data = pd.read_table(filepath, sep=' +', header=None, names=('wl', 'R', 'error'), engine='python')
+            data.drop('error', inplace=True, axis=1)
+            analogues.append(data)
+
+            plt.figure()
+            plt.plot(data['wl'], data['R'])
+            plt.show()
+
+        else: continue
+
+    # plt.figure()
+    # plt.plot(range(0,len(data['wl'])), data['wl'],'*')
+    # plt.show()
 
     return analogues
 
@@ -99,11 +125,15 @@ if __name__ == '__main__':
     # plt.title('Ryugu')
     # plt.show()
 
+    waves = np.arange(1, 2.505, step = 0.002)  # Create wl-vector from 1 to 2.5 µm, with 5 nm step
+
+    Gaffey_spectra = read_Gaffey()
+
     # Load seven meteorite reflectance spectra from files
-    reflectance_spectra = analogue_reflectances()
+    reflectance_spectra = read_Maturilli()
 
     # Take wavelength vector of one reflectance spectrum, to be used for all the things
-    waves = reflectance_spectra[0]['wl']
+    # waves = reflectance_spectra[0]['wl']
 
     # Calculate insolation (incident solar irradiance) at heliocentric distance of 1 AU
     insolation_1au = solar_irradiance(1)
@@ -113,7 +143,7 @@ if __name__ == '__main__':
     # reflectance[:, 0] = wavelength
     # reflectance[:, 1] = reflectance[:, 1] + 0.1
 
-    # Interpolating insolation to match the reflectance spectra
+    # Interpolating insolation to match the reflectance chosen wavelength vector
     interp_insolation = np.zeros(shape=np.shape(reflectance_spectra[0].values))
     interp_insolation[:, 0] = waves
 
@@ -127,7 +157,7 @@ if __name__ == '__main__':
 
     # Calculate theoretical thermal emission from an asteroid's surface
     T = 400  # Asteroid surface temperature in Kelvins
-    eps = 0.9  # Emittance TODO Use Kirchoff's law (eps = 1-R) to get emittance from reflectance?
+    eps = 0.9  # Emittance TODO Use Kirchoff's law (eps = 1-R) to get emittance from reflectance? Maybe not.
     thermrad = bb_radiance(T, eps, waves)
 
     figfolder = Path('./figs')
