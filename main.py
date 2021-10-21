@@ -44,25 +44,40 @@ def reflected_radiance(reflectance, irradiance, phi):
 
     return reflrad
 
-def read_Maturilli():
+
+def read_meteorites(waves):
     """
     Load reflectance spectra from asteroid analogues measured by Maturilli et al. 2016 (DOI: 10.1186/s40623-016-0489-y)
+    and from meteorite spectra measured by Gaffey in 1976 (https://doi.org/10.26033/4nsb-mc72)
+    :param waves: a vector of floats, wavelengths to which the data will be interpolated
     :return: a list of Pandas DataArrays containing wavelength vectors and reflectance spectra
     """
     # Path to folder of reflectance spectra from asteroid analogues
-    refl_analogue_path = Path('./spectral_data/asteroid_analogues/refle/MIR')
-    MIR_refl_list = os.listdir(refl_analogue_path)
+    Maturilli_path = Path('./spectral_data/asteroid_analogues/refle/MIR')
+    MIR_refl_list = os.listdir(Maturilli_path)
 
-    analogues = []  # A table for holding data frames
+    # Path to folder of Gaffey meteorite spectra
+    refl_path = Path('./spectral_data/Gaffey_meteorite_spectra/data/spectra')
+    Gaffey_refl_list = os.listdir(refl_path)
+
+    reflectances = []  # A table for holding data frames
 
     for filename in MIR_refl_list:
-        filepath = Path.joinpath(refl_analogue_path, filename)
-        frame = pd.read_csv(filepath, sep='    ', engine='python')#.values[:, 1:3]  # Read reflectance from file, leave wavenumber out
+        filepath = Path.joinpath(Maturilli_path, filename)
+        frame = pd.read_csv(filepath, sep='    ', engine='python') # Read wl and reflectance from file
         frame.columns = ['wavenumber', 'wl', 'reflectance']
         frame.drop('wavenumber', inplace=True, axis=1)  # Drop the wavenumbers, because who uses them anyway
-        frame = frame.loc[frame['wl'] <= 2.5]  # Cut away wl:s above 2.5 µm. Also below 1.5 µm? Noisy.
 
-        analogues.append(frame)
+        # frame = frame.loc[frame['wl'] <= 2.5]  # Cut away wl:s above 2.5 µm. Also below 1.5 µm? Noisy.
+
+        # Interpolate reflectance data to match the input wl-vector, and store into new dataFrame
+        interp_refl = np.interp(waves, frame.wl.values, frame.reflectance.values)
+        data = np.zeros((len(waves),2))
+        data[:,0] = waves
+        data[:,1] = interp_refl
+        frame = pd.DataFrame(data, columns=['wl', 'reflectance'])
+
+        reflectances.append(frame)
 
         # plt.figure()
         # plt.plot(frame['wl'], frame['reflectance'])
@@ -71,33 +86,32 @@ def read_Maturilli():
         # plt.plot(range(0,len(frame['wl'])), frame['wl'],'*')
         # plt.show()
 
-    return analogues
-
-def read_Gaffey():
-
-    # Path to folder of meteorite reflectance spectra
-    refl_path = Path('./spectral_data/Gaffey_meteorite_spectra/data/spectra')
-    Gaffey_refl_list = os.listdir(refl_path)
-    analogues = []  # A table for holding data frames
-
     for filename in Gaffey_refl_list:
         if filename.endswith('.tab'):
             filepath = Path.joinpath(refl_path, filename)
-            data = pd.read_table(filepath, sep=' +', header=None, names=('wl', 'R', 'error'), engine='python')
-            data.drop('error', inplace=True, axis=1)
-            analogues.append(data)
+            frame = pd.read_table(filepath, sep=' +', header=None, names=('wl', 'reflectance', 'error'), engine='python')
+            frame.drop('error', inplace=True, axis=1)  # Drop the error -column, only a few have sensible data there
+            frame.wl = frame.wl / 1000  # Convert nm to µm
 
-            plt.figure()
-            plt.plot(data['wl'], data['R'])
-            plt.show()
+            # frame = frame.loc[frame['wl'] <= 2.5]  # Only include data from 1 µm to 2.5 µm
+            # frame = frame.loc[frame['wl'] >= 1.0]
 
-        else: continue
+            # Interpolate reflectance data to match the input wl-vector, and store into new dataFrame
+            interp_refl = np.interp(waves, frame.wl.values, frame.reflectance.values)
+            data = np.zeros((len(waves), 2))
+            data[:, 0] = waves
+            data[:, 1] = interp_refl
+            frame = pd.DataFrame(data, columns=['wl', 'reflectance'])
 
-    # plt.figure()
-    # plt.plot(range(0,len(data['wl'])), data['wl'],'*')
-    # plt.show()
+            reflectances.append(frame)
 
-    return analogues
+            # plt.figure()
+            # plt.plot(frame['wl'], frame['R'])
+            # plt.show()
+
+        else: continue  # Skip files with extension other than .tab
+
+    return reflectances
 
 if __name__ == '__main__':
     import numpy as np
@@ -124,14 +138,40 @@ if __name__ == '__main__':
     # plt.plot(mystery_spectra)
     # plt.title('Ryugu')
     # plt.show()
+    step = 0.002
+    waves = np.arange(1, 2.5+step, step=step)  # Create wl-vector from 1 to 2.5 µm, with step given above
 
-    waves = np.arange(1, 2.505, step = 0.002)  # Create wl-vector from 1 to 2.5 µm, with 5 nm step
+    # Load meteorite reflectance spectra from files
+    reflectance_spectra = read_meteorites(waves)
 
-    Gaffey_spectra = read_Gaffey()
+    # Augment reflectance spectra with slope, multiplication, and offset
+    #TODO First just one for testing, later do this for all
+    aug_number = 10  # How many new spectra to generate from each meteorite spectrum
+    # augmentation_factors = np.zeros((aug_number, 3)) # np.zeros((len(waves), 3))
 
-    # Load seven meteorite reflectance spectra from files
-    reflectance_spectra = read_Maturilli()
+    spectrum = reflectance_spectra[0].values
 
+    for i in range(0, aug_number):
+        vals = np.random.rand(3)
+        s = (vals[0] - 0.5) * 0.1  # Slope
+        m = vals[1] + 0.5  # Multiplication
+        o = (vals[2] - 0.5) * 0.1  # Offset
+        # augmentation_factors[i, :] = [s, m, o]
+        spectrum_multiplied = spectrum.copy()
+        spectrum_multiplied[:, 1] = spectrum_multiplied[:, 1] * m
+
+        spectrum_multiplied_offset = spectrum_multiplied.copy()
+        spectrum_multiplied_offset[:, 1] = spectrum_multiplied_offset[:, 1] + o
+
+        spectrum_sloped = spectrum_multiplied_offset.copy()
+
+        plt.figure()
+        plt.plot(spectrum[:,0], spectrum[:,1])
+        plt.plot(spectrum_multiplied[:, 0], spectrum_multiplied[:, 1])
+        plt.plot(spectrum_multiplied_offset[:, 0], spectrum_multiplied_offset[:, 1])
+        plt.show()
+
+    print('test')
     # Take wavelength vector of one reflectance spectrum, to be used for all the things
     # waves = reflectance_spectra[0]['wl']
 
