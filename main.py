@@ -17,7 +17,7 @@ def bb_radiance(T, eps, wavelength):
     L_th = np.zeros((len(wavelength),2))
     L_th[:,0] = wavelength
 
-    for i in range(0, len(wavelength)):
+    for i in range(0, len(wavelength)): # TODO: nollan voi jättää pois, se on defaultti
         wl = wavelength[i] / 1e6  # Convert wavelength from micrometers to meters
         L_th[i,1] = eps * (2 * h * c**2) / ((wl**5) * (np.exp((h * c)/(wl * kB * T)) - 1))  # Apply Planck's law
         L_th[i,1] = L_th[i,1] / 1e6  # Convert radiance from (W / m² / sr / m) to (W / m² / sr / µm)
@@ -25,10 +25,17 @@ def bb_radiance(T, eps, wavelength):
     return L_th
 
 
-def reflected_radiance(reflectance, irradiance, phi):
+def reflected_radiance(reflectance, irradiance, phi): # TODO: muuttujille voi laittaa myös vinkit niiden datatyypista esim. phi: float
     """
     Calculate spectral radiance reflected from a surface, based on the surface reflectance, irradiance incident on it,
     and the phase angle of the measurement. The surface normal is assumed to point towards the observer.
+
+    TODO: jätä rivinvaihto ennenku alotat parametrilistan
+    TODO: parametrilistasta tulee siistimpi kun laitat rivinvaihdon ennen selitystä esim.
+
+    :param reflectance: vector of floats.
+        Spectral reflectance.
+
     :param reflectance: vector of floats. Spectral reflectance.
     :param irradiance: vector of floats. Spectral irradiance incident on the surface.
     :param phi: float. Phase angle of the measurement, in degrees
@@ -51,9 +58,9 @@ def read_meteorites(waves):
     and from meteorite spectra measured by Gaffey in 1976 (https://doi.org/10.26033/4nsb-mc72)
     :param waves: a vector of floats, wavelengths to which the data will be interpolated
     :return: a list of Pandas DataArrays containing wavelength vectors and reflectance spectra
-    """
+    """ # TODO tapana jättää yks rivinvaihto metodikommentin jälkeen ennen ku koodi alkaa
     # Path to folder of reflectance spectra from asteroid analogues
-    Maturilli_path = Path('./spectral_data/asteroid_analogues/refle/MIR')
+    Maturilli_path = Path('./spectral_data/asteroid_analogues/refle/MIR') # TODO tää polkuluokka on mulle uus. ite oon käyttänu os.path
     MIR_refl_list = os.listdir(Maturilli_path)
 
     # Path to folder of Gaffey meteorite spectra
@@ -64,6 +71,7 @@ def read_meteorites(waves):
 
     for filename in MIR_refl_list:
         filepath = Path.joinpath(Maturilli_path, filename)
+        # TODO tässä ois myös siistimpi käyttää sitä regexpii mikä kirjotettiin jonnekin. ihan siltäkin varalta että välilyöntejä ei satu olemaan just tuo määrä
         frame = pd.read_csv(filepath, sep='    ', engine='python') # Read wl and reflectance from file
         frame.columns = ['wavenumber', 'wl', 'reflectance']
         frame.drop('wavenumber', inplace=True, axis=1)  # Drop the wavenumbers, because who uses them anyway
@@ -85,7 +93,7 @@ def read_meteorites(waves):
         # plt.figure()
         # plt.plot(range(0,len(frame['wl'])), frame['wl'],'*')
         # plt.show()
-
+    # TODO ja tosiaan tee tästä mieluummin apumetodi niin bugien korjaus onnistuu yhtä juttua muuttamalla
     for filename in Gaffey_refl_list:
         if filename.endswith('.tab'):
             filepath = Path.joinpath(refl_path, filename)
@@ -113,7 +121,25 @@ def read_meteorites(waves):
 
     return reflectances
 
+def sloper(spectrum):
+
+    return spectrum
+
+def multiplier(spectrum):
+    val = np.random.rand(1) + 0.5
+    multiplied = spectrum * val
+    return multiplied
+
+def offsetter(spectrum):
+    val = (np.random.rand(1) - 0.5) * 0.1
+    offsetted = spectrum + val
+    return offsetted
+
+# def checker_fixer(spectrum):
+
+
 if __name__ == '__main__':
+    # TODO impotit on yleensä tiedoston alussa järjestyksessä 1. python sisäänrakennetut, 2. julkiset moduulit 3. ite tehdyt moduulit
     import numpy as np
     from os import path
     import os
@@ -186,7 +212,9 @@ if __name__ == '__main__':
     # Interpolating insolation to match the reflectance chosen wavelength vector
     interp_insolation = np.zeros(shape=np.shape(reflectance_spectra[0].values))
     interp_insolation[:, 0] = waves
-
+    # TODO tämmöset kovakoodatut stringit tekee koodista vaikeeta muuttaa. tökkää toi wl nimi mieluummin muuttujaan ja käytä sitä
+    # TODO mielellään vielä erilliseen filuun joka on sitten importattu kaikkialle missä niitä nimiä tarvitaan. voi tuntuu turhalta
+    # TODO vielä ku koodi on nii lyhyt, mutta säästät hermoja myöhemmin
     interp_insolation[:, 1] = np.interp(reflectance_spectra[0]['wl'], insolation_1au[:, 0], insolation_1au[:, 1])
 
     # Take one of the reflectance spectra and use it for calculating theoretical radiance reflected from an asteroid
@@ -219,6 +247,8 @@ if __name__ == '__main__':
     figpath = Path.joinpath(figfolder, Path('radiances.png'))
     plt.savefig(figpath)
     plt.show()
+    # TODO mainissa aika paljon tauhkaa. siirrä tavara omiksi metodeiksi sitä mukaa kun saat testailtua että ne toimii
+    # TODO muuten menee sotkuseks ja aiheuttaa tuskaa myöhemmin
 
 
 

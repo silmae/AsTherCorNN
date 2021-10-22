@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def solar_illuminance(distance):
-    mat_path = Path('./D65_A_xyz.mat')
+    mat_path = Path('./D65_A_xyz.mat') # TODO nää polut kans mieluummin kootusti jonnekin yhteen paikkaan
     mat = io.loadmat(mat_path)
     xyz = mat['xyz']
     V_lambda = xyz[:, [0, 2]]
