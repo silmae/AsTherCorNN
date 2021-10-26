@@ -3,6 +3,10 @@ from scipy import io
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import constants as C
+
+import constants
+
 
 def solar_illuminance(distance):
     mat_path = Path('./D65_A_xyz.mat') # TODO nää polut kans mieluummin kootusti jonnekin yhteen paikkaan
@@ -10,7 +14,7 @@ def solar_illuminance(distance):
     xyz = mat['xyz']
     V_lambda = xyz[:, [0, 2]]
 
-    sol_path = Path('./solar_spectrum.txt')
+    sol_path = C.solar_path
     solar = pd.read_table(sol_path).values
     # Convert from µm to nm, and 1/µm to 1/nm
     solar[:, 0] = solar[:, 0] * 1000
@@ -37,27 +41,38 @@ def solar_illuminance(distance):
     return(solar_illuminance)
 
 
-def solar_irradiance(distance):
+def solar_irradiance(distance, wavelengths):
     """
-    Calculate solar spectral irradiance at a specified heliocentric distance.
+    Calculate solar spectral irradiance at a specified heliocentric distance, interpolate to match wl-vector
     Irradiance data from NREL: https://www.nrel.gov/grid/solar-resource/spectra-astm-e490.html
-    :param distance: float. Heliocentric distance in astronomical units
-    :return: wavelength vector (in nanometers) and spectral irradiance in one array
+
+    :param distance: float
+        Heliocentric distance in astronomical units
+    :param wavelengths: vector of floats
+        Wavelength vector (in µm), to which the insolation will be interpolated
+
+    :return:
+        wavelength vector (in nanometers) and spectral irradiance in one ndarray
     """
-    sol_path = Path('./solar_spectrum.txt')  # A collection of channels from 1 to 4 µm saved into a txt file
+    sol_path = C.solar_path  # A collection of channels from 1 to 4 µm saved into a txt file
     solar = pd.read_table(sol_path).values
 
-    # Convert from µm to nm, and 1/µm to 1/nm. Comment these away is working with IR wavelengths
+    # Convert from µm to nm, and 1/µm to 1/nm. Comment these away if working with IR wavelengths
     # solar[:, 0] = solar[:, 0] * 1000
     # solar[:, 1] = solar[:, 1] / 1000
 
     # Scale with heliocentric distance, using the inverse square law
     solar[:,1] = solar[:,1] / distance**2
 
+    # Interpolate to match the given wavelength vector
+    interp_insolation = np.zeros((len(wavelengths), 2))
+    interp_insolation[:, 0] = wavelengths
+    interp_insolation[:, 1] = np.interp(wavelengths, solar[:, 0], solar[:, 1])
+
     # plt.plot(solar[:,0], solar[:,1])
     # plt.xlabel('Wavelength [µm]')
     # plt.ylabel('Irradiance [W/m^2/µm]')
     # plt.show()
 
-    return solar
+    return interp_insolation
 
