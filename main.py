@@ -33,15 +33,17 @@ if __name__ == '__main__':
     # Create wl-vector from 1 to 2.5 µm, with step size in µm
     waves = C.wavelengths
 
+    ##############################
     # # Load meteorite reflectances from files and create more from them through augmentation
     # R.augmented_reflectances(waves)
+    ##############################
 
     # Parameters
     d_S = 1  # AU
     phase_angle = 30  # degrees
     theta = 10  # degrees
     T = 400  # Asteroid surface temperature in Kelvins
-    spectrum_number = 100  # Which reflectance spectrum to use, from 0 to 170
+    spectrum_number = 120  # Which reflectance spectrum to use, from 0 to 1880
     aug_list = os.listdir(C.augmented_path)
     aug_filepath = C.augmented_path.joinpath(aug_list[spectrum_number])
     reflectance = tomler.read_aug_reflectance(aug_filepath)

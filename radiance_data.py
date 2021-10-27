@@ -39,6 +39,8 @@ def bb_radiance(T: float, eps: float, theta: float, wavelength: np.ndarray):
         L_th[i, 1] = L_th[i, 1] * np.cos(np.deg2rad(theta))  # Apply Lambert's cosine law
         L_th[i, 1] = L_th[i,1] / 1e6  # Convert radiance from (W / m² / sr / m) to (W / m² / sr / µm)
 
+    L_th = noising(L_th)
+
     return L_th
 
 
@@ -67,7 +69,22 @@ def reflected_radiance(reflectance: np.ndarray, irradiance: np.ndarray, phi: flo
     reflrad[:, 1] = reflectance[:, 1] * (irradiance[:, 1] * np.cos(np.deg2rad(phi))) / np.pi
     reflrad[:, 1] = reflrad[:, 1] * np.cos(np.deg2rad(theta))
 
+    # Applying noise to the data
+    reflrad = noising(reflrad)
+
     return reflrad
+
+
+def noising(rad_data):
+
+    mu = C.mu  # mean and standard deviation
+    sigma = C.sigma
+
+    s = np.random.default_rng().normal(mu, sigma, len(rad_data))
+
+    rad_data[:, 1] = rad_data[:, 1] + s
+
+    return rad_data
 
 
 def observed_radiance(d_S: float, phi: float, theta: float, T: float, reflectance: np.ndarray, waves: np.ndarray, filename: str):
@@ -87,8 +104,6 @@ def observed_radiance(d_S: float, phi: float, theta: float, T: float, reflectanc
     sumrad[:, 0] = waves
     sumrad[:, 1] = reflrad[:, 1] + thermrad[:, 1]
 
-    # TODO Add noise to these. Here or somewhere else? Noisify the components separately? And what sort of noise?
-
     # Collect the data into a dict
     rad_dict = {}
     meta = {}
@@ -106,6 +121,7 @@ def observed_radiance(d_S: float, phi: float, theta: float, T: float, reflectanc
     # Save the dict as .toml
     tomler.save_radiances(rad_dict, filename)
 
+    # Plotting reflectance and radiances, saving as .png
     figfolder = C.figfolder
 
     plt.figure()
