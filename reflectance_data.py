@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 import constants as C
 import toml_handler as tomler
 
@@ -34,7 +35,7 @@ def read_meteorites(waves):
         frame.drop('wavenumber', inplace=True, axis=1)  # Drop the wavenumbers, because who uses them anyway
 
         # Interpolate reflectance data to match the input wl-vector, and store into new dataFrame
-        interp_refl = np.interp(waves, frame.wl.values, frame.reflectance.values)
+        interp_refl = np.interp(waves, frame[C.wl_key].values, frame[C.R_key].values)
         data = np.zeros((len(waves),2))
         data[:, 0] = waves
         data[:, 1] = interp_refl
@@ -44,7 +45,7 @@ def read_meteorites(waves):
         reflectances.append(data)
 
         # plt.figure()
-        # plt.plot(frame['wl'], frame['reflectance'])
+        # plt.plot(data[:, 0], data[:, 1])
         # plt.show()
 
     # TODO tee tästä mieluummin apumetodi niin bugien korjaus onnistuu yhtä juttua muuttamalla
@@ -53,10 +54,10 @@ def read_meteorites(waves):
             filepath = Path.joinpath(refl_path, filename)
             frame = pd.read_table(filepath, sep=' +', header=None, names=(C.wl_key, C.R_key, 'error'), engine='python')
             frame.drop('error', inplace=True, axis=1)  # Drop the error -column, only a few have sensible data there
-            frame.wl = frame.wl / 1000  # Convert nm to µm
+            frame[C.wl_key] = frame[C.wl_key] / 1000  # Convert nm to µm
 
             # Interpolate reflectance data to match the input wl-vector, and store into new dataFrame
-            interp_refl = np.interp(waves, frame.wl.values, frame.reflectance.values)
+            interp_refl = np.interp(waves, frame[C.wl_key].values, frame[C.R_key].values)
             data = np.zeros((len(waves), 2))
             data[:, 0] = waves
             data[:, 1] = interp_refl
@@ -66,8 +67,11 @@ def read_meteorites(waves):
             reflectances.append(data)
 
             # plt.figure()
-            # plt.plot(frame['wl'], frame['R'])
-            # plt.show()
+            # plt.plot(data[:, 0], data[:, 1])
+            # plt.xlabel('Wavelength [µm]')
+            # plt.ylabel('Reflectance')
+            # plt.savefig(Path.joinpath(C.figfolder, filename+'.png'))
+            # # plt.show()
 
         else: continue  # Skip files with extension other than .tab
 
@@ -135,9 +139,9 @@ def checker_fixer(spectrum: np.ndarray):
         Fixed spectrum, in the same shape as the one given as parameter
     """
 
-    # If reflectance has negative values, offset by adding the minimum value to it
+    # If reflectance has negative values, offset by adding the absolute value of the minimum to each element
     if min(spectrum[:, 1]) < 0:
-        spectrum[:, 1] = spectrum[:, 1] + min(spectrum[:, 1])
+        spectrum[:, 1] = spectrum[:, 1] + abs(min(spectrum[:, 1]))
 
     # If reflectance has values over 1, normalize by dividing each reflectance with the maximum
     if max(spectrum[:, 1]) > 1:

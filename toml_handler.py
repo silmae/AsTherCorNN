@@ -58,5 +58,12 @@ def save_radiances(rad_dict, filename):
     print(f'Saved a spectrum into {p}')
 
 
+def read_radiance(filename):
+    rad_path = C.radiance_path
+    p = rad_path.joinpath(filename + '.toml')
+    with open(p, 'r') as file:
+        radiance_dict = toml.load(file)
+
+
 
 

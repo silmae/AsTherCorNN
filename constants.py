@@ -28,11 +28,12 @@ R_key = 'reflectance'
 
 # Gaussian distribution for noising
 mu = 0  # mean
-sigma = 0.1  # standard deviation
+sigma = 0.01  # standard deviation
 
 # Constraints for modeled radiances
 d_S_min, d_S_max = 0.7, 2  # Heliocentric distance, in AU
 T_min, T_max = 200, 400  # Asteroid surface temperature, in Kelvins
 phi_min, phi_max = 0, 80  # Measurement phase angle, in degrees
+theta = 10  # Angle between surface normal and observer direction, in degrees
 
 

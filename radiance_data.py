@@ -1,5 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import random
+import os
 from pathlib import Path
 
 import constants as C
@@ -76,8 +78,17 @@ def reflected_radiance(reflectance: np.ndarray, irradiance: np.ndarray, phi: flo
 
 
 def noising(rad_data):
+    """
+    Apply Gaussian noise to spectral data
 
-    mu = C.mu  # mean and standard deviation
+    :param rad_data: ndarray
+
+        Radiance data to which the noise will be applied: first column is wavelength, second is spectral radiance
+
+    :return:
+        Noisified radiance data
+    """
+    mu = C.mu  # mean and standard deviation, defined with other constants
     sigma = C.sigma
 
     s = np.random.default_rng().normal(mu, sigma, len(rad_data))
@@ -87,7 +98,7 @@ def noising(rad_data):
     return rad_data
 
 
-def observed_radiance(d_S: float, phi: float, theta: float, T: float, reflectance: np.ndarray, waves: np.ndarray, filename: str):
+def observed_radiance(d_S: float, phi: float, theta: float, T: float, reflectance: np.ndarray, waves: np.ndarray, filename: str, plots=False):
 
     # Calculate insolation at heliocentric distance of d_S
     insolation = sol.solar_irradiance(d_S, waves)
@@ -106,12 +117,8 @@ def observed_radiance(d_S: float, phi: float, theta: float, T: float, reflectanc
 
     # Collect the data into a dict
     rad_dict = {}
-    meta = {}
-    meta['heliocentric_distance'] = d_S
-    meta['phase_angle'] = phi
-    meta['emission_angle'] = theta
-    meta['surface_temperature'] = T
-    meta['emittance'] = eps
+    meta = {'heliocentric_distance': d_S, 'phase_angle': phi, 'emission_angle': theta, 'surface_temperature': T,
+            'emittance': eps}
     rad_dict['metadata'] = meta
     rad_dict['wavelength'] = waves
     rad_dict['reflected_radiance'] = reflrad[:, 1]
@@ -121,24 +128,49 @@ def observed_radiance(d_S: float, phi: float, theta: float, T: float, reflectanc
     # Save the dict as .toml
     tomler.save_radiances(rad_dict, filename)
 
-    # Plotting reflectance and radiances, saving as .png
-    figfolder = C.figfolder
+    if plots == True:
 
-    plt.figure()
-    plt.plot(reflectance[:, 0], reflectance[:, 1])
-    plt.xlabel('Wavelength [µm]')
-    plt.ylabel('Reflectance')
-    figpath = figfolder.joinpath(filename + '_reflectance.png')
-    plt.savefig(figpath)
+        # Plotting reflectance and radiances, saving as .png
+        figfolder = C.figfolder
 
-    plt.figure()
-    plt.plot(reflrad[:,0], reflrad[:,1])  # Reflected radiance
-    plt.plot(thermrad[:, 0], thermrad[:, 1])  # Thermally emitted radiance
-    plt.plot(waves, reflrad[:, 1] + thermrad[:, 1])  # Sum of the two radiances
-    plt.xlabel('Wavelength [µm]')
-    plt.ylabel('Radiance')
-    plt.legend(('Reflected', 'Thermal', 'Sum'))
-    figpath = figfolder.joinpath(filename + ('_radiances.png'))
-    plt.savefig(figpath)
-    # plt.show()
+        plt.figure()
+        plt.plot(reflectance[:, 0], reflectance[:, 1])
+        plt.xlabel('Wavelength [µm]')
+        plt.ylabel('Reflectance')
+        figpath = figfolder.joinpath(filename + '_reflectance.png')
+        plt.savefig(figpath)
 
+        plt.figure()
+        plt.title(f'Radiances: d_S = {d_S}, \phi = {phi}, T = {T}')
+        plt.plot(reflrad[:, 0], reflrad[:,1])  # Reflected radiance
+        plt.plot(thermrad[:, 0], thermrad[:, 1])  # Thermally emitted radiance
+        plt.plot(waves, reflrad[:, 1] + thermrad[:, 1])  # Sum of the two radiances
+        plt.xlabel('Wavelength [µm]')
+        plt.ylabel('Radiance')
+        plt.legend(('Reflected', 'Thermal', 'Sum'))
+        figpath = figfolder.joinpath(filename + ('_radiances.png'))
+        plt.savefig(figpath)
+        # plt.show()
+
+def calculate_radiances():
+
+    waves = C.wavelengths
+    theta = C.theta
+    aug_list = os.listdir(C.augmented_path)
+
+    j = 1
+    for filename in aug_list:
+        aug_filepath = C.augmented_path.joinpath(filename)
+        reflectance = tomler.read_aug_reflectance(aug_filepath)
+        for i in range(10):
+            d_S = random.random() * (C.d_S_max - C.d_S_min) + C.d_S_min
+            phi = random.randint(C.phi_min, C.phi_max)
+            T = random.randint(C.T_min, C.T_max)
+            if j % 100 == 0:
+                # Calculate radiances with the given parameters and
+                # Save plots for every hundredth radiance and reflectance
+                observed_radiance(d_S, phi, theta, T, reflectance, waves, 'rads_'+str(j), plots=True)
+            else:
+                observed_radiance(d_S, phi, theta, T, reflectance, waves, 'rads_' + str(j))
+
+            j = j+1
