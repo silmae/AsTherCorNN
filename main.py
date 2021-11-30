@@ -14,6 +14,7 @@ import constants as C
 import reflectance_data as refl
 import radiance_data as rad
 import toml_handler as tomler
+import neural_network as NN
 
 
 if __name__ == '__main__':

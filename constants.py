@@ -21,6 +21,8 @@ figfolder = Path('./figs')
 solar_path = Path('./spectral_data/solar_spectrum.txt')  # Solar irradiance spectrum
 augmented_path = Path('./spectral_data/reflectances/augmented')  # A folder of augmented spectra
 radiance_path = Path('./spectral_data/radiances')
+training_path = Path('./training')
+weights_path = Path('./training/weights')
 
 # Keys for variables
 wl_key = 'wavelength'
@@ -35,5 +37,17 @@ d_S_min, d_S_max = 0.7, 2  # Heliocentric distance, in AU
 T_min, T_max = 200, 400  # Asteroid surface temperature, in Kelvins
 phi_min, phi_max = 0, 80  # Measurement phase angle, in degrees
 theta = 10  # Angle between surface normal and observer direction, in degrees
+
+# Neural network parameters
+# length = 700
+# samples = 10000
+activation = 'relu'
+learning_rate = 1e-5
+batches = 32
+epochs = 700
+waist = 128  # Autoencoder middle layer node count
+# Early stop:
+min_delta = 0.001
+patience = 100
 
 
