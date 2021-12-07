@@ -174,3 +174,24 @@ def calculate_radiances():
                 observed_radiance(d_S, phi, theta, T, reflectance, waves, 'rads_' + str(j))
 
             j = j+1
+
+def read_radiances():
+    file_list = os.listdir(C.radiance_path)
+    length = len(C.wavelengths)
+    samples = len(file_list)
+    summed = reflected = therm = np.zeros((samples, length))
+
+    i = 0
+    for filename in file_list:
+        rad_dict = tomler.read_radiance(filename)
+        # Extract the radiances, discard the metadata
+        summed[i, :] = rad_dict['sum_radiance']
+        reflected[i, :] = rad_dict['reflected_radiance']
+        therm[i, :] = rad_dict['emitted_radiance']
+        i = i + 1
+
+    separate = np.zeros((samples, length, 2))
+    separate[:, :, 0] = reflected
+    separate[:, :, 1] = therm
+
+    return summed, separate

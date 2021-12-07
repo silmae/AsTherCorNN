@@ -18,11 +18,15 @@ wavelengths = np.arange(1, 2.5 + step, step=step)
 Maturilli_path = Path('./spectral_data/reflectances/asteroid_analogues/refle/MIR')  # Reflectance spectra of asteroid analogues
 Gaffey_path = Path('./spectral_data/reflectances/Gaffey_meteorite_spectra/data/spectra')  # Reflectance spectra of meteorites
 figfolder = Path('./figs')
+spectral_path = Path('./spectral_data')
 solar_path = Path('./spectral_data/solar_spectrum.txt')  # Solar irradiance spectrum
 augmented_path = Path('./spectral_data/reflectances/augmented')  # A folder of augmented spectra
 radiance_path = Path('./spectral_data/radiances')
 training_path = Path('./training')
+training_history_path = Path('./training/trainHistoryDict')
 weights_path = Path('./training/weights')
+spectral_path = Path('./spectral_data')
+rad_bunch_path = Path('./spectral_data/rad_bunch')  # All radiances, saved as a dict
 
 # Keys for variables
 wl_key = 'wavelength'

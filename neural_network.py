@@ -151,6 +151,7 @@ def init_autoencoder(length):
 
 def train_autoencoder(data, ground, early_stop=True, checkpoints=True, save_history=True):
 
+    length = len(C.wavelengths)
     model = init_autoencoder(length)
 
     # Early stop callback
@@ -186,7 +187,7 @@ def train_autoencoder(data, ground, early_stop=True, checkpoints=True, save_hist
 
     # Save training history
     if save_history == True:
-        with open('./trainHistoryDict', 'wb') as file_pi:
+        with open(C.training_history_path, 'wb') as file_pi:
             pickle.dump(history.history, file_pi)
 
     # Summarize and plot history of loss

@@ -49,7 +49,7 @@ def read_aug_reflectance(filepath: Path):
     return reflectance
 
 
-def save_radiances(rad_dict, filename):
+def save_radiances(rad_dict: dict, filename: str):
     rad_path = C.radiance_path
     p = rad_path.joinpath(filename + '.toml')
 
@@ -58,11 +58,30 @@ def save_radiances(rad_dict, filename):
     print(f'Saved a spectrum into {p}')
 
 
-def read_radiance(filename):
+def read_radiance(filename: str):
     rad_path = C.radiance_path
-    p = rad_path.joinpath(filename + '.toml')
+    p = rad_path.joinpath(filename)# + '.toml')
     with open(p, 'r') as file:
         radiance_dict = toml.load(file)
+
+    return radiance_dict
+
+def save_rad_bunch(dict):
+
+    # Combine given filename with predetermined folder path and save as .toml
+    p = C.rad_bunch_path
+    with open(p, 'w+') as file:
+        toml.dump(dict, file, encoder=toml.encoder.TomlNumpyEncoder())
+    print(f'Saved radiances into {p}')
+
+def load_rad_bunch():
+    p = C.rad_bunch_path
+    with open(p, 'r') as file:
+        rad_bunch_dict = toml.load(file)
+
+    return rad_bunch_dict
+
+
 
 
 

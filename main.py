@@ -8,6 +8,7 @@ from astropy.io import fits
 from scipy import io
 import pandas as pd
 from tensorflow import keras
+import pickle
 
 from solar import solar_irradiance
 import constants as C
@@ -44,6 +45,29 @@ if __name__ == '__main__':
     ##############################
 
     # rad.calculate_radiances()
+
+    # summed, separate = rad.read_radiances()
+    #
+    # rad_bunch = {}
+    # rad_bunch['summed'] = summed
+    # rad_bunch['separate'] = separate
+    # # tomler.save_rad_bunch(rad_bunch)
+    # with open(C.rad_bunch_path, 'wb') as file_pi:
+    #     pickle.dump(rad_bunch, file_pi)
+
+    with open(C.rad_bunch_path, 'rb') as file_pi:
+        rad_bunch = pickle.load(file_pi)
+
+    # rad_bunch = tomler.load_rad_bunch()
+    print('test')
+
+    # Build and train autoencoder
+
+    # Data in the form of:
+    # data, ground1, ground2 = create_data(length, samples)
+    # ground = np.zeros((samples, length, 2))
+    # ground[:, :, 0] = ground1
+    # ground[:, :, 1] = ground2
 
 
 
