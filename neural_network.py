@@ -199,10 +199,13 @@ def train_autoencoder(data, ground, early_stop=True, checkpoints=True, save_hist
     plt.ylabel('loss')
     plt.xlabel('epoch')
     plt.legend(['train', 'test'], loc='upper left')
-    filename = f'loss_history_{C.waist}_waist.png'
+    filename = f'loss_history_{C.waist}_waist3.png'
     plt.savefig(Path(C.training_path, filename))
     # plt.show()
     #
+
+    # Return model to make predictions elsewhere
+    return model
 
 # # Testing by creating new data and predicting with the model
 # for i in range(10):

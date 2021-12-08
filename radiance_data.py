@@ -179,7 +179,9 @@ def read_radiances():
     file_list = os.listdir(C.radiance_path)
     length = len(C.wavelengths)
     samples = len(file_list)
-    summed = reflected = therm = np.zeros((samples, length))
+    summed = np.zeros((samples, length))
+    reflected =np.zeros((samples, length))
+    therm = np.zeros((samples, length))
 
     i = 0
     for filename in file_list:

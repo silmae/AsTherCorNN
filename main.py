@@ -9,6 +9,7 @@ from scipy import io
 import pandas as pd
 from tensorflow import keras
 import pickle
+from sklearn.model_selection import train_test_split
 
 from solar import solar_irradiance
 import constants as C
@@ -58,7 +59,29 @@ if __name__ == '__main__':
     with open(C.rad_bunch_path, 'rb') as file_pi:
         rad_bunch = pickle.load(file_pi)
 
-    # rad_bunch = tomler.load_rad_bunch()
+    X = rad_bunch['summed']
+    y = rad_bunch['separate']
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.1, random_state = 42)
+
+    model = NN.train_autoencoder(X_train, y_train, early_stop=False, checkpoints=False, save_history=False)
+
+    for i in range(10):
+        test_sample = np.expand_dims(X_test[i, :], axis=0)
+        prediction = model.predict(test_sample).squeeze() #model.predict(np.array([summed.T])).squeeze()
+        pred1 = prediction[0:int(len(prediction) / 2)]
+        pred2 = prediction[int(len(prediction) / 2):len(prediction) + 1]
+
+        plt.figure()
+        x = waves
+        plt.plot(x, y_test[i, :, 0], 'r')
+        plt.plot(x, y_test[i, :, 1], 'b')
+        plt.plot(x, pred1.squeeze(), '--c')
+        plt.plot(x, pred2.squeeze(), '--m')
+
+        plt.legend(('ground 1', 'ground 2', 'prediction 1', 'prediction 2'))
+
+    plt.show()
     print('test')
 
     # Build and train autoencoder
