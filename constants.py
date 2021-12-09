@@ -48,7 +48,7 @@ theta = 10  # Angle between surface normal and observer direction, in degrees
 activation = 'relu'
 learning_rate = 1e-6
 batches = 32
-epochs = 100
+epochs = 200
 waist = 64  # Autoencoder middle layer node count
 # Early stop:
 min_delta = 0.001

@@ -47,6 +47,22 @@ if __name__ == '__main__':
 
     # rad.calculate_radiances()
 
+    # ##############################
+    # # Plot uncorrected and (ideally) corrected reflectance from one radiance sample to illustrate why this is relevant
+    # rad_dict = tomler.read_radiance('rads_5700.toml')
+    # meta = rad_dict['metadata']
+    # uncorrected = rad.radiance2reflectance(rad_dict['sum_radiance'], meta['heliocentric_distance'], meta['phase_angle'], meta['emission_angle'])
+    # corrected = rad.radiance2reflectance(rad_dict['reflected_radiance'], meta['heliocentric_distance'], meta['phase_angle'], meta['emission_angle'])
+    #
+    # plt.figure()
+    # plt.plot(C.wavelengths, corrected)
+    # plt.plot(C.wavelengths, uncorrected)
+    # plt.legend(('Corrected', 'Uncorrected'))
+    # plt.xlabel('Wavelength [µm]')
+    # plt.ylabel('Reflectance')
+    # plt.show()
+    # ##############################
+
     # summed, separate = rad.read_radiances()
     #
     # rad_bunch = {}
@@ -66,7 +82,7 @@ if __name__ == '__main__':
 
     model = NN.train_autoencoder(X_train, y_train, early_stop=False, checkpoints=False, save_history=False)
 
-    for i in range(10):
+    for i in range(20):
         test_sample = np.expand_dims(X_test[i, :], axis=0)
         prediction = model.predict(test_sample).squeeze() #model.predict(np.array([summed.T])).squeeze()
         pred1 = prediction[0:int(len(prediction) / 2)]

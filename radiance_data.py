@@ -76,6 +76,11 @@ def reflected_radiance(reflectance: np.ndarray, irradiance: np.ndarray, phi: flo
 
     return reflrad
 
+def radiance2reflectance(radiance, d_S, phi, theta):
+    insolation = sol.solar_irradiance(d_S, C.wavelengths)
+    radiance = radiance / np.cos(np.deg2rad(theta))
+    reflectance = radiance / ((insolation[:, 1] * np.cos(np.deg2rad(phi))) / np.pi)
+    return reflectance
 
 def noising(rad_data):
     """
@@ -180,7 +185,7 @@ def read_radiances():
     length = len(C.wavelengths)
     samples = len(file_list)
     summed = np.zeros((samples, length))
-    reflected =np.zeros((samples, length))
+    reflected = np.zeros((samples, length))
     therm = np.zeros((samples, length))
 
     i = 0
