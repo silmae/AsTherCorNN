@@ -4,7 +4,7 @@ import toml
 import constants as C
 
 
-def save_aug_reflectance(reflectance: np.ndarray, filename: str):
+def save_aug_reflectance(reflectance: np.ndarray, filename: str, test: bool):
     """
     Save augmented reflectance to a predetermined folder with the filename given as parameter
 
@@ -13,6 +13,8 @@ def save_aug_reflectance(reflectance: np.ndarray, filename: str):
 
     :param filename: str
         Filename the data will be saved as. The extension (.toml) will be added during saving
+    :param test: bool
+        is the calculated spectrum for training or testing, affects saving location
     """
 
     # Create a dict of the reflectance data
@@ -21,7 +23,11 @@ def save_aug_reflectance(reflectance: np.ndarray, filename: str):
     d[C.R_key] = reflectance[:, 1]
 
     # Combine given filename with predetermined folder path and save as .toml
-    p = C.augmented_path.joinpath(filename + '.toml')
+    if test == True:
+        p = C.augmented_test_path.joinpath(filename + '.toml')
+    else:
+        p = C.augmented_training_path.joinpath(filename + '.toml')
+
     with open(p, 'w+') as file:
         toml.dump(d, file, encoder=toml.encoder.TomlNumpyEncoder())
     print(f'Saved a spectrum into {p}')
@@ -49,8 +55,13 @@ def read_aug_reflectance(filepath: Path):
     return reflectance
 
 
-def save_radiances(rad_dict: dict, filename: str):
-    rad_path = C.radiance_path
+def save_radiances(rad_dict: dict, filename: str, test: bool):
+
+    if test == True:
+        rad_path = C.radiance_test_path
+    else:
+        rad_path = C.radiance_training_path
+
     p = rad_path.joinpath(filename + '.toml')
 
     with open(p, 'w+') as file:
@@ -58,9 +69,14 @@ def save_radiances(rad_dict: dict, filename: str):
     print(f'Saved a spectrum into {p}')
 
 
-def read_radiance(filename: str):
-    rad_path = C.radiance_path
+def read_radiance(filename: str, test: bool):
+    if test == True:
+        rad_path = C.radiance_test_path
+    else:
+        rad_path = C.radiance_training_path
+
     p = rad_path.joinpath(filename)# + '.toml')
+
     with open(p, 'r') as file:
         radiance_dict = toml.load(file)
 

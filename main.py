@@ -46,13 +46,15 @@ if __name__ == '__main__':
     # Create wl-vector from 1 to 2.5 µm, with step size in µm
     waves = C.wavelengths
 
-    #############################
-    # Load meteorite reflectances from files and create more from them through augmentation
-    # refl.augmented_reflectances(waves)
-    # foo = refl.read_meteorites(waves)
-    #############################
+    # #############################
+    # # Load meteorite reflectances from files and create more from them through augmentation
+    # train_reflectances, test_reflectances = refl.read_meteorites(waves)
+    # refl.augmented_reflectances(train_reflectances, waves, test=False)
+    # refl.augmented_reflectances(test_reflectances, waves, test=True)
+    # #############################
 
-    # rad.calculate_radiances()
+    # rad.calculate_radiances(test=True)
+    # rad.calculate_radiances(test=False)
 
     # ##############################
     # # Plot uncorrected and (ideally) corrected reflectance from one radiance sample to illustrate why this is relevant
@@ -70,25 +72,45 @@ if __name__ == '__main__':
     # plt.show()
     # ##############################
 
-    # summed, separate = rad.read_radiances()
-
-    # rad_bunch = {}
-    # rad_bunch['summed'] = summed
-    # rad_bunch['separate'] = separate
-    # # tomler.save_rad_bunch(rad_bunch)
-    # with open(C.rad_bunch_path, 'wb') as file_pi:
-    #     pickle.dump(rad_bunch, file_pi)
+    # def bunch_rads(summed, separate, filepath: Path):
     #
-    # Load radiances from one file as dicts
-    with open(C.rad_bunch_path, 'rb') as file_pi:
-        rad_bunch = pickle.load(file_pi)
+    #     rad_bunch = {}
+    #     rad_bunch['summed'] = summed
+    #     rad_bunch['separate'] = separate
+    #
+    #     with open(filepath, 'wb') as file_pi:
+    #         pickle.dump(rad_bunch, file_pi)
+    #
+    #
+    # summed_test, separate_test = rad.read_radiances(test=True)
+    # bunch_rads(summed_test, separate_test, C.rad_bunch_test_path)
+    #
+    # summed_training, separate_training = rad.read_radiances(test=False)
+    # bunch_rads(summed_training, separate_training, C.rad_bunch_training_path)
 
-    X = rad_bunch['summed']
-    y = rad_bunch['separate']
+    # ##############################
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.1, random_state = 42)
+    # Load training radiances from one file as dicts
+    with open(C.rad_bunch_training_path, 'rb') as file_pi:
+        rad_bunch_training = pickle.load(file_pi)
+
+    X_train = rad_bunch_training['summed']
+    y_train = rad_bunch_training['separate']
+
+    # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=42)
 
     model = NN.train_autoencoder(X_train, y_train, early_stop=True, checkpoints=True, save_history=True)
+
+    ##############################
+
+    # Load test radiances from one file as dicts
+    with open(C.rad_bunch_test_path, 'rb') as file_pi:
+        rad_bunch_test = pickle.load(file_pi)
+
+    X_test = rad_bunch_test['summed']
+    y_test = rad_bunch_test['separate']
+
+    test_history = model.evaluate(X_test, y_test)
 
     for i in range(20):
         test_sample = np.expand_dims(X_test[i, :], axis=0)

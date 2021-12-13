@@ -98,7 +98,7 @@ def noising(rad_data):
     return rad_data
 
 
-def observed_radiance(d_S: float, phi: float, theta: float, T: float, reflectance: np.ndarray, waves: np.ndarray, filename: str, plots=False):
+def observed_radiance(d_S: float, phi: float, theta: float, T: float, reflectance: np.ndarray, waves: np.ndarray, filename: str, test: bool, plots=False):
 
     # Calculate insolation at heliocentric distance of d_S
     insolation = sol.solar_irradiance(d_S, waves)
@@ -114,7 +114,8 @@ def observed_radiance(d_S: float, phi: float, theta: float, T: float, reflectanc
     sumrad = np.zeros((len(waves), 2))
     sumrad[:, 0] = waves
     sumrad[:, 1] = reflrad[:, 1] + thermrad[:, 1]
-    # Applying noise to the data
+
+    # Applying noise to the summed data
     sumrad = noising(sumrad)
 
     # Collect the data into a dict
@@ -128,7 +129,7 @@ def observed_radiance(d_S: float, phi: float, theta: float, T: float, reflectanc
     rad_dict['sum_radiance'] = sumrad[:, 1]
 
     # Save the dict as .toml
-    tomler.save_radiances(rad_dict, filename)
+    tomler.save_radiances(rad_dict, filename, test)
 
     if plots == True:
 
@@ -154,15 +155,20 @@ def observed_radiance(d_S: float, phi: float, theta: float, T: float, reflectanc
         plt.savefig(figpath)
         # plt.show()
 
-def calculate_radiances():
+def calculate_radiances(test: bool):
 
     waves = C.wavelengths
     theta = C.theta
-    aug_list = os.listdir(C.augmented_path)
+    if test == True:
+        aug_path = C.augmented_test_path
+    else:
+        aug_path = C.augmented_training_path
+
+    aug_list = os.listdir(aug_path)
 
     j = 1
     for filename in aug_list:
-        aug_filepath = C.augmented_path.joinpath(filename)
+        aug_filepath = aug_path.joinpath(filename)
         reflectance = tomler.read_aug_reflectance(aug_filepath)
         for i in range(10):
             d_S = random.random() * (C.d_S_max - C.d_S_min) + C.d_S_min
@@ -171,14 +177,23 @@ def calculate_radiances():
             if j % 100 == 0:
                 # Calculate radiances with the given parameters and
                 # Save plots for every hundredth radiance and reflectance
-                observed_radiance(d_S, phi, theta, T, reflectance, waves, 'rads_'+str(j), plots=True)
+                observed_radiance(d_S, phi, theta, T, reflectance, waves, 'rads_'+str(j), test, plots=True)
             else:
-                observed_radiance(d_S, phi, theta, T, reflectance, waves, 'rads_' + str(j))
+                observed_radiance(d_S, phi, theta, T, reflectance, waves, 'rads_' + str(j), test)
 
             j = j+1
 
-def read_radiances():
-    file_list = os.listdir(C.radiance_path)
+def read_radiances(test: bool):
+    if test == True:
+        folder_path = C.radiance_test_path
+    else:
+        folder_path = C.radiance_training_path
+
+    file_list = os.listdir(folder_path)
+    # Shuffle the list of files, so they are not read in the order they were created: data next to each other are not
+    # calculated from the same reflectance after shuffling
+    random.shuffle(file_list)
+
     length = len(C.wavelengths)
     samples = len(file_list)
     summed = np.zeros((samples, length))
@@ -187,11 +202,12 @@ def read_radiances():
 
     i = 0
     for filename in file_list:
-        rad_dict = tomler.read_radiance(filename)
+        rad_dict = tomler.read_radiance(filename, test)
         # Extract the radiances, discard the metadata
         summed[i, :] = rad_dict['sum_radiance']
         reflected[i, :] = rad_dict['reflected_radiance']
         therm[i, :] = rad_dict['emitted_radiance']
+        print(f'Read file {filename}')
         i = i + 1
 
     separate = np.zeros((samples, length, 2))

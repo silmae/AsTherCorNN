@@ -1,4 +1,5 @@
 import os
+import random
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -11,7 +12,7 @@ def read_meteorites(waves):
     """
     Load reflectance spectra from asteroid analogues measured by Maturilli et al. 2016 (DOI: 10.1186/s40623-016-0489-y)
     and from meteorite spectra measured by Gaffey in 1976 (https://doi.org/10.26033/4nsb-mc72)
-
+    Shuffle the order of reflectances, and partition to training and testing
     :param waves: a vector of floats
         wavelengths to which the reflectance data will be interpolated
 
@@ -26,7 +27,7 @@ def read_meteorites(waves):
     refl_path = C.Gaffey_path
     Gaffey_refl_list = os.listdir(refl_path)
 
-    reflectances = []  # A table for holding data frames
+    reflectances = []  # A list for holding data frames
 
     for filename in MIR_refl_list:
         filepath = Path.joinpath(Maturilli_path, filename)
@@ -75,7 +76,16 @@ def read_meteorites(waves):
 
         else: continue  # Skip files with extension other than .tab
 
-    return reflectances
+    # Shuffle the order of the reflectance list
+    random.shuffle(reflectances)
+
+    # Take 30% for testing and 70% for training
+    sample_count = len(reflectances)
+    test_part = int(sample_count * 0.3)
+    test_reflectances = reflectances[:test_part]
+    train_reflectances = reflectances[test_part:]
+
+    return train_reflectances, test_reflectances
 
 
 def sloper(spectrum: np.ndarray):
@@ -150,16 +160,18 @@ def checker_fixer(spectrum: np.ndarray):
     return spectrum
 
 
-def augmented_reflectances(waves: np.ndarray):
+def augmented_reflectances(reflectance_spectra: list, waves: np.ndarray, test: bool):
     """
     Load meteorite reflectance spectra from Maturilli's and Gaffey's data, and create more spectra through augmentation.
     Save the created spectra into separate .toml -files.
 
     :param waves:
         wavelength vector to which the loaded reflectance spectra will be interpolated
+    :param reflectance_spectra:
+        list of reflectance spectra to be augmented
+    :param test:
+        is the spectrum from testing or training pool, affects save location
     """
-    # Load meteorite reflectance spectra from files, interpolating to match the wavelength vector
-    reflectance_spectra = read_meteorites(waves)
 
     # Augment reflectance spectra with slope, multiplication, and offset
     aug_number = 10  # How many new spectra to generate from each meteorite spectrum
@@ -185,7 +197,7 @@ def augmented_reflectances(waves: np.ndarray):
     # Save the augmented spectra into toml -files
     for j in range(len(reflectance_spectra)):
         spectrum = reflectance_spectra[j]
-        tomler.save_aug_reflectance(spectrum, f'reflectance{j}')
+        tomler.save_aug_reflectance(spectrum, f'reflectance{j}', test)
 
 
 

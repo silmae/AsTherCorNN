@@ -21,11 +21,16 @@ figfolder = Path('./figs')
 spectral_path = Path('./spectral_data')
 solar_path = Path('./spectral_data/solar_spectrum.txt')  # Solar irradiance spectrum
 augmented_path = Path('./spectral_data/reflectances/augmented')  # A folder of augmented spectra
+augmented_training_path = Path(augmented_path, 'training')
+augmented_test_path = Path(augmented_path, 'test')
 radiance_path = Path('./spectral_data/radiances')
+radiance_training_path = Path(radiance_path, 'training')
+radiance_test_path = Path(radiance_path, 'test')
 training_path = Path('./training')
 weights_path = Path('./training/weights')
 spectral_path = Path('./spectral_data')
-rad_bunch_path = Path('./spectral_data/rad_bunch')  # All radiances, saved as a dict
+rad_bunch_test_path = Path('./spectral_data/rad_bunch_test')  # All radiances, saved as a dict
+rad_bunch_training_path = Path('./spectral_data/rad_bunch_training')
 
 # Keys for variables
 wl_key = 'wavelength'
@@ -47,7 +52,7 @@ theta = 10  # Angle between surface normal and observer direction, in degrees
 activation = 'relu'
 learning_rate = 1e-6
 batches = 32
-epochs = 1000
+epochs = 1
 waist = 64  # Autoencoder middle layer node count
 run_figname = f'{epochs}epochs_{waist}waist_{learning_rate}lr'
 training_history_path = Path(f'./training/{run_figname}_trainHistory')
