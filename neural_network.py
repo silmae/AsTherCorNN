@@ -200,7 +200,7 @@ def train_autoencoder(data, ground, early_stop=True, checkpoints=True, save_hist
     plt.xlabel('epoch')
     plt.legend(['train', 'test'], loc='upper left')
     filename = C.run_figname + '_history.png'
-    plt.savefig(Path(C.training_path, filename))
+    plt.savefig(Path(C.training_path, filename), dpi=300)
     # plt.show()
     #
 

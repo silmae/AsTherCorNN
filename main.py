@@ -21,7 +21,7 @@ import neural_network as NN
 # For running with GPU on server:
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 # Check available GPU with command nvidia-smi in terminal
-os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+os.environ["CUDA_VISIBLE_DEVICES"] = "5"
 
 # To show plots from server, make X11 connection and add this to Run configuration > Environment variables:
 # DISPLAY=localhost:10.0
@@ -109,6 +109,8 @@ if __name__ == '__main__':
 
     X_test = rad_bunch_test['summed']
     y_test = rad_bunch_test['separate']
+
+
 
     test_history = model.evaluate(X_test, y_test)
 
