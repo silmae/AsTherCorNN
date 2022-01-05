@@ -200,4 +200,16 @@ def augmented_reflectances(reflectance_spectra: list, waves: np.ndarray, test: b
         tomler.save_aug_reflectance(spectrum, f'reflectance{j}', test)
 
 
+def read_asteroids():
+    aug_path = C.Penttila_aug_path
+    orig_path = C.Penttila_orig_path
 
+    aug_frame = pd.read_csv(aug_path, sep='\t', header=None, engine='python')  # Read wl and reflectance from file
+    orig_frame = pd.read_csv(orig_path, sep='\t', header=None, engine='python')
+
+    # Extract wl vector from the original: the same as in augmented, but that one does not have it
+    wavelengths = orig_frame.values[0, 2:]
+
+    # TODO Should I extract a row and send it elsewhere for albedoing, send the whole data, or just do it here?
+
+    print('test')
