@@ -99,7 +99,7 @@ if __name__ == '__main__':
 
     # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=42)
 
-    model = NN.train_autoencoder(X_train, y_train, early_stop=True, checkpoints=True, save_history=True)
+    model = NN.train_autoencoder(X_train, y_train, early_stop=False, checkpoints=True, save_history=True)
 
     ##############################
 
