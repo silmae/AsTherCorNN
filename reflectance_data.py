@@ -200,16 +200,57 @@ def augmented_reflectances(reflectance_spectra: list, waves: np.ndarray, test: b
         tomler.save_aug_reflectance(spectrum, f'reflectance{j}', test)
 
 
+def scale_asteroid_reflectances(normalized_frame, albedo_frame):
+
+    # Empty list for the reflectances
+    spectral_reflectances = []
+
+    plot_index = 0
+    # Convert dataframe to ndarray and iterate over the rows
+    for row in normalized_frame.values:
+        # The first value of a row is the asteroid class, the rest is normalized reflectance
+        asteroid_class, norm_reflectance = row[0], row[1:]
+
+        # Fetch the asteroid class albedo and its range. Take three values using the min, mid, and max of the range
+        alb = albedo_frame.loc[asteroid_class].values
+        geom_albedos = np.array([alb[0] - 0.5*alb[1], alb[0], alb[0] + 0.5*alb[1]])
+
+        # Convert geometrical albedo to Bond albedo TODO Formula by Penttilä, find a reference or make it yoself
+        bond_albedos = 16 * geom_albedos * (1 - np.log(2)) / 3
+
+        # Scale normalized reflectance with the three albedo values
+        for i in range(3):
+            # R = norm_reflectance - (np.mean(norm_reflectance) - bond_albedos[i])
+            R = norm_reflectance * bond_albedos[i]
+            spectral_reflectances.append(R)
+
+        if plot_index % 100 == 0:
+            wl = C.wavelengths
+            plt.figure()
+            plt.plot(C.wavelengths, spectral_reflectances[-1])
+            plt.plot(C.wavelengths, spectral_reflectances[-2])
+            plt.plot(C.wavelengths, spectral_reflectances[-3])
+            plt.savefig(Path(C.refl_plots_path, f'{plot_index}.png'), dpi=400)
+
+
+        plot_index = plot_index + 1
+
+
+    return
+
 def read_asteroids():
     aug_path = C.Penttila_aug_path
     orig_path = C.Penttila_orig_path
 
     aug_frame = pd.read_csv(aug_path, sep='\t', header=None, engine='python')  # Read wl and reflectance from file
     orig_frame = pd.read_csv(orig_path, sep='\t', header=None, engine='python')
+    albedo_frame = pd.read_csv(C.albedo_path, sep='\t', header=None, engine='python', index_col=0)  # Read mean albedos for classes
 
     # Extract wl vector from the original: the same as in augmented, but that one does not have it
     wavelengths = orig_frame.values[0, 2:]
 
-    # TODO Should I extract a row and send it elsewhere for albedoing, send the whole data, or just do it here?
+    spectral_reflectances = scale_asteroid_reflectances(aug_frame, albedo_frame)
 
     print('test')
+
+

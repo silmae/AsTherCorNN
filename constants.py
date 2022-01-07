@@ -11,15 +11,19 @@ h = 6.626e-34  # Planck constant, m² kg / s (= J s)
 emittance = 0.9  # Emittance of an asteroid TODO Use Kirchoff's law (eps = 1-R) to get emittance from reflectance?
 
 # Wavelength vector
-step = 0.002  # µm
-wavelengths = np.arange(1, 2.5 + step, step=step)
+# step = 0.002  # µm
+# wavelengths = np.arange(1, 2.5 + step, step=step)
+step = 0.01  # µm
+wavelengths = np.arange(0.46, 2.45 + step, step=step)  # TODO Should run from 0.45 to 2.45, why doesn't it?
 
 # Paths
 Maturilli_path = Path('./spectral_data/reflectances/asteroid_analogues/refle/MIR')  # Reflectance spectra of asteroid analogues
 Gaffey_path = Path('./spectral_data/reflectances/Gaffey_meteorite_spectra/data/spectra')  # Reflectance spectra of meteorites
 Penttila_orig_path = Path('./spectral_data/reflectances/Penttila_asteroid_spectra/MyVISNIR-final-sampled-collection.dat')   # Reflectances of asteroids
 Penttila_aug_path = Path('./spectral_data/reflectances/Penttila_asteroid_spectra/MyVISNIR-simulated-simplified-taxonomy.dat')  # Reflectance spectra of asteroids, augmented
+albedo_path = Path('./spectral_data/reflectances/Penttila_asteroid_spectra/class-mean-albedos.tab')
 figfolder = Path('./figs')
+refl_plots_path = Path(figfolder, 'asteroid-reflectance-plots')
 spectral_path = Path('./spectral_data')
 solar_path = Path('./spectral_data/solar_spectrum.txt')  # Solar irradiance spectrum
 augmented_path = Path('./spectral_data/reflectances/augmented')  # A folder of augmented spectra
