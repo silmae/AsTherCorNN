@@ -201,6 +201,18 @@ def augmented_reflectances(reflectance_spectra: list, waves: np.ndarray, test: b
 
 
 def scale_asteroid_reflectances(normalized_frame, albedo_frame):
+    """
+    Scale normalized asteroid reflectance spectra to absolute reflectances using typical albedo values for each
+    asteroid class.
+
+    :param normalized_frame: 
+        Pandas dataframe of normalized asteroid reflectances, with class of each asteroid included
+    :param albedo_frame:
+        Pandas dataframe of typical albedos for asteroid classes, including a range of variation for each
+    
+    :return: list
+        Scaled spectra reflectances in a list
+    """
 
     # Empty list for the reflectances
     spectral_reflectances = []
@@ -215,30 +227,46 @@ def scale_asteroid_reflectances(normalized_frame, albedo_frame):
         alb = albedo_frame.loc[asteroid_class].values
         geom_albedos = np.array([alb[0] - 0.5*alb[1], alb[0], alb[0] + 0.5*alb[1]])
 
-        # Convert geometrical albedo to Bond albedo TODO Formula by Penttilä, find a reference or make it yoself
+        # Convert geometrical albedo to Bond albedo, assuming Lommel-Seeliger TODO Formula by Penttilä, find a reference or make it yoself
         bond_albedos = 16 * geom_albedos * (1 - np.log(2)) / 3
 
         # Scale normalized reflectance with the three albedo values
         for i in range(3):
-            # R = norm_reflectance - (np.mean(norm_reflectance) - bond_albedos[i])
-            R = norm_reflectance * bond_albedos[i]
+            # Scale by multiplying with p/mean(norm_refl): values stay between 0 and 1, mean of scaled vector will be p
+            R = norm_reflectance * (bond_albedos[i] / np.mean(norm_reflectance))
+
+            # Print if the physical limits of min and max reflectance are exceeded
+            if np.max(R) > 1 or np.min(R) < 0:
+                print(f'Unphysical reflectance detected! Max {np.max(R)}, min {np.min(R)}')
+            if np.mean(R) - bond_albedos[i] > 0.001:
+                print(f'Deviation from albedo detected! Difference between albedo and mean R {np.mean(R) - bond_albedos[i]}')
             spectral_reflectances.append(R)
 
+        # Plot every hundreth set of three reflectances, save plots to disc
         if plot_index % 100 == 0:
-            wl = C.wavelengths
             plt.figure()
             plt.plot(C.wavelengths, spectral_reflectances[-1])
             plt.plot(C.wavelengths, spectral_reflectances[-2])
             plt.plot(C.wavelengths, spectral_reflectances[-3])
+            plt.xlabel('Wavelength [µm]')
+            plt.ylabel('Reflectance')
             plt.savefig(Path(C.refl_plots_path, f'{plot_index}.png'), dpi=400)
-
 
         plot_index = plot_index + 1
 
+    return spectral_reflectances
 
-    return
 
 def read_asteroids():
+    """
+    Read asteroid reflectances from a file, and normalize them using typical albedos of each asteroid type. The
+    asteroid reflectance data was provided by A. Penttilä, and the dataset is described in
+    DOI: 10.1051/0004-6361/202038545
+
+    :return: training reflectance list, test reflectance list
+    Scaled reflectance spectra, partitioned according to split given in constants.py
+
+    """
     aug_path = C.Penttila_aug_path
     orig_path = C.Penttila_orig_path
 
@@ -249,8 +277,18 @@ def read_asteroids():
     # Extract wl vector from the original: the same as in augmented, but that one does not have it
     wavelengths = orig_frame.values[0, 2:]
 
+    # Scale normalized spectra using class mean albedos
     spectral_reflectances = scale_asteroid_reflectances(aug_frame, albedo_frame)
 
-    print('test')
+    # Shuffle the reflectances, to not get the samples of each class one after another
+    random.shuffle(spectral_reflectances)
+
+    # Partition the data into train and test reflectances, according to split parameter given in constants
+    sample_count = len(spectral_reflectances)
+    test_part = int(sample_count * C.refl_test_partition)
+    test_reflectances = spectral_reflectances[:test_part]
+    train_reflectances = spectral_reflectances[test_part:]
+
+    return train_reflectances, test_reflectances
 
 

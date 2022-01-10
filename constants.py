@@ -53,8 +53,7 @@ phi_min, phi_max = 0, 80  # Measurement phase angle, in degrees
 theta = 10  # Angle between surface normal and observer direction, in degrees
 
 # Neural network parameters
-# length = 700
-# samples = 10000
+refl_test_partition = 0.1  # Part of reflectances to be used for test data
 activation = 'relu'
 learning_rate = 1e-6
 batches = 32
