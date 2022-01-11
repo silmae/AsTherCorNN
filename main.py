@@ -58,9 +58,9 @@ if __name__ == '__main__':
     train_reflectances, test_reflectances = refl.read_asteroids()
 
     #############################
-    # TODO Modify radiance calculation to take reflectance lists as parameter, and use Lommel-Seeliger instead of
-    #  Lambertian angular distribution
-    # rad.calculate_radiances(test=True)
+    # TODO Remove phase angle and use just incidence and emission angles
+
+    rad.calculate_radiances(test_reflectances, test=True)
     # rad.calculate_radiances(test=False)
 
     # ##############################

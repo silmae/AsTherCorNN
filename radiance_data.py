@@ -8,18 +8,16 @@ import constants as C
 import toml_handler as tomler
 import solar as sol
 
-def bb_radiance(T: float, eps: float, theta: float, wavelength: np.ndarray):
+def bb_radiance(T: float, eps: float, wavelength: np.ndarray):
     """
     Calculate and return approximate thermal emission (blackbody, bb) radiance spectrum using Planck's law. Angle
-    dependence of emitted radiance is calculated with Lambert's cosine law.
+    dependence of emitted radiance is approximated as Lambertian. TODO If this does not work, change Lambert?
 
     :param T: float.
         Surface temperature, in Kelvins
     :param eps: float.
-        Emissivity = sample emission spectrum divided by ideal bb spectrum. Maybe in future accepts
+        Emissivity = sample emission spectrum divided by ideal bb spectrum of same temperature. Maybe in future accepts
         a vector, but only constants for now
-    :param theta: float
-        Angle between surface normal and observer direction (emission angle), in degrees
     :param wavelength:
         vector of floats. Wavelengths where the emission is to be calculated, in micrometers
 
@@ -38,24 +36,23 @@ def bb_radiance(T: float, eps: float, theta: float, wavelength: np.ndarray):
     for i in range(len(wavelength)):
         wl = wavelength[i] / 1e6  # Convert wavelength from micrometers to meters
         L_th[i, 1] = eps * (2 * h * c**2) / ((wl**5) * (np.exp((h * c)/(wl * kB * T)) - 1))  # Apply Planck's law
-        L_th[i, 1] = L_th[i, 1] * np.cos(np.deg2rad(theta))  # Apply Lambert's cosine law
         L_th[i, 1] = L_th[i,1] / 1e6  # Convert radiance from (W / m² / sr / m) to (W / m² / sr / µm)
 
     return L_th
 
 
-def reflected_radiance(reflectance: np.ndarray, irradiance: np.ndarray, phi: float, theta: float):
+def reflected_radiance(reflectance: np.ndarray, irradiance: np.ndarray, phase_angle: float, emission_angle: float):
     """
     Calculate spectral radiance reflected from a surface, based on the surface reflectance, irradiance incident on it,
-    and the phase angle of the measurement. The surface normal is assumed to point towards the observer.
+    and the phase angle of the measurement. Angle dependence is calculated using the Lommel-Seeliger model.
 
     :param reflectance: vector of floats
         Spectral reflectance.
     :param irradiance: vector of floats
         Spectral irradiance incident on the surface.
-    :param phi: float
+    :param phase_angle: float
         Phase angle of the measurement, in degrees
-    :param theta: float
+    :param emission_angle: float
         Angle between surface normal and observer direction, in degrees
 
     :return: vector of floats.
@@ -66,10 +63,17 @@ def reflected_radiance(reflectance: np.ndarray, irradiance: np.ndarray, phi: flo
     reflrad = np.zeros((len(wavelength), 2))
     reflrad[:, 0] = wavelength
 
-    reflrad[:, 1] = reflectance[:, 1] * (irradiance[:, 1] * np.cos(np.deg2rad(phi))) / np.pi
-    reflrad[:, 1] = reflrad[:, 1] * np.cos(np.deg2rad(theta))
+    # Calculate incidence angle from phase angle and emission angle given as parameters
+    incidence_angle = phase_angle - emission_angle
+
+    # Reflected radiance from flat surface with 0 phase angle
+    reflrad[:, 1] = irradiance[:, 1] * reflectance
+
+    # Angle dependence with L-S
+    reflrad[:, 1] = (reflrad[:, 1] / (4 * np.pi)) * (1 / (np.cos(np.deg2rad(incidence_angle)) + np.cos(np.deg2rad(emission_angle))))
 
     return reflrad
+
 
 def radiance2reflectance(radiance, d_S, phi, theta):
     insolation = sol.solar_irradiance(d_S, C.wavelengths)
@@ -108,7 +112,7 @@ def observed_radiance(d_S: float, phi: float, theta: float, T: float, reflectanc
 
     # Calculate theoretical thermal emission from an asteroid's surface
     eps = C.emittance
-    thermrad = bb_radiance(T, eps, theta, waves)
+    thermrad = bb_radiance(T, eps, waves)
 
     # Sum the two calculated spectral radiances
     sumrad = np.zeros((len(waves), 2))
@@ -155,33 +159,30 @@ def observed_radiance(d_S: float, phi: float, theta: float, T: float, reflectanc
         plt.savefig(figpath)
         # plt.show()
 
-def calculate_radiances(test: bool):
+
+def calculate_radiances(reflectance_list: list, test: bool):
 
     waves = C.wavelengths
-    theta = C.theta
-    if test == True:
-        aug_path = C.augmented_test_path
-    else:
-        aug_path = C.augmented_training_path
-
-    aug_list = os.listdir(aug_path)
-
     j = 1
-    for filename in aug_list:
-        aug_filepath = aug_path.joinpath(filename)
-        reflectance = tomler.read_aug_reflectance(aug_filepath)
+
+    # From each reflectance, create 10 radiances calculated with different parameters
+    for reflectance in reflectance_list:
         for i in range(10):
+            # Create random variables from min-max ranges given in constants
             d_S = random.random() * (C.d_S_max - C.d_S_min) + C.d_S_min
             phi = random.randint(C.phi_min, C.phi_max)
+            theta = random.randint(C.theta_min, C.theta_max)
             T = random.randint(C.T_min, C.T_max)
+
             if j % 100 == 0:
                 # Calculate radiances with the given parameters and
-                # Save plots for every hundredth radiance and reflectance
-                observed_radiance(d_S, phi, theta, T, reflectance, waves, 'rads_'+str(j), test, plots=True)
+                # save plots for every hundredth radiance and reflectance
+                observed_radiance(d_S, phi, theta, T, reflectance, waves, 'rads_' + str(j), test, plots=True)
             else:
                 observed_radiance(d_S, phi, theta, T, reflectance, waves, 'rads_' + str(j), test)
 
             j = j+1
+
 
 def read_radiances(test: bool):
     if test == True:

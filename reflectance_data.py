@@ -200,7 +200,7 @@ def augmented_reflectances(reflectance_spectra: list, waves: np.ndarray, test: b
         tomler.save_aug_reflectance(spectrum, f'reflectance{j}', test)
 
 
-def scale_asteroid_reflectances(normalized_frame, albedo_frame):
+def scale_asteroid_reflectances(normalized_frame: pd.DataFrame, albedo_frame: pd.DataFrame):
     """
     Scale normalized asteroid reflectance spectra to absolute reflectances using typical albedo values for each
     asteroid class.

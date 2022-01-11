@@ -48,9 +48,9 @@ sigma = 0.01  # standard deviation
 
 # Constraints for modeled radiances
 d_S_min, d_S_max = 0.7, 2  # Heliocentric distance, in AU
-T_min, T_max = 200, 400  # Asteroid surface temperature, in Kelvins
-phi_min, phi_max = 0, 80  # Measurement phase angle, in degrees
-theta = 10  # Angle between surface normal and observer direction, in degrees
+T_min, T_max = 200, 450  # Asteroid surface temperature, in Kelvins
+phi_min, phi_max = 0, 120  # Measurement phase angle, in degrees
+theta_min, theta_max = 0, 90  # Emission angle, angle between surface normal and observer direction, in degrees
 
 # Neural network parameters
 refl_test_partition = 0.1  # Part of reflectances to be used for test data
