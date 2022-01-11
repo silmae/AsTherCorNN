@@ -58,10 +58,9 @@ if __name__ == '__main__':
     train_reflectances, test_reflectances = refl.read_asteroids()
 
     #############################
-    # TODO Remove phase angle and use just incidence and emission angles
-
+    # Calculate 10 radiances from each reflectance, and save them on disc as toml
     rad.calculate_radiances(test_reflectances, test=True)
-    # rad.calculate_radiances(test=False)
+    rad.calculate_radiances(train_reflectances, test=False)
 
     # ##############################
     # # Plot uncorrected and (ideally) corrected reflectance from one radiance sample to illustrate why this is relevant

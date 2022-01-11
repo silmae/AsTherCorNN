@@ -41,7 +41,7 @@ def bb_radiance(T: float, eps: float, wavelength: np.ndarray):
     return L_th
 
 
-def reflected_radiance(reflectance: np.ndarray, irradiance: np.ndarray, phase_angle: float, emission_angle: float):
+def reflected_radiance(reflectance: np.ndarray, irradiance: np.ndarray, incidence_angle: float, emission_angle: float):
     """
     Calculate spectral radiance reflected from a surface, based on the surface reflectance, irradiance incident on it,
     and the phase angle of the measurement. Angle dependence is calculated using the Lommel-Seeliger model.
@@ -50,8 +50,8 @@ def reflected_radiance(reflectance: np.ndarray, irradiance: np.ndarray, phase_an
         Spectral reflectance.
     :param irradiance: vector of floats
         Spectral irradiance incident on the surface.
-    :param phase_angle: float
-        Phase angle of the measurement, in degrees
+    :param incidence_angle: float
+        Incidence angle of light in degrees, measured from surface normal
     :param emission_angle: float
         Angle between surface normal and observer direction, in degrees
 
@@ -62,9 +62,6 @@ def reflected_radiance(reflectance: np.ndarray, irradiance: np.ndarray, phase_an
     wavelength = irradiance[:, 0]
     reflrad = np.zeros((len(wavelength), 2))
     reflrad[:, 0] = wavelength
-
-    # Calculate incidence angle from phase angle and emission angle given as parameters
-    incidence_angle = phase_angle - emission_angle
 
     # Reflected radiance from flat surface with 0 phase angle
     reflrad[:, 1] = irradiance[:, 1] * reflectance
@@ -102,13 +99,13 @@ def noising(rad_data):
     return rad_data
 
 
-def observed_radiance(d_S: float, phi: float, theta: float, T: float, reflectance: np.ndarray, waves: np.ndarray, filename: str, test: bool, plots=False):
+def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: float, reflectance: np.ndarray, waves: np.ndarray, filename: str, test: bool, plots=False):
 
     # Calculate insolation at heliocentric distance of d_S
     insolation = sol.solar_irradiance(d_S, waves)
 
     # Calculate theoretical radiance reflected from an asteroid toward observer
-    reflrad = reflected_radiance(reflectance, insolation, phi, theta)
+    reflrad = reflected_radiance(reflectance, insolation, incidence_ang, emission_ang)
 
     # Calculate theoretical thermal emission from an asteroid's surface
     eps = C.emittance
@@ -124,7 +121,7 @@ def observed_radiance(d_S: float, phi: float, theta: float, T: float, reflectanc
 
     # Collect the data into a dict
     rad_dict = {}
-    meta = {'heliocentric_distance': d_S, 'phase_angle': phi, 'emission_angle': theta, 'surface_temperature': T,
+    meta = {'heliocentric_distance': d_S, 'incidence_angle': incidence_ang, 'emission_angle': emission_ang, 'surface_temperature': T,
             'emittance': eps}
     rad_dict['metadata'] = meta
     rad_dict['wavelength'] = waves
@@ -141,14 +138,14 @@ def observed_radiance(d_S: float, phi: float, theta: float, T: float, reflectanc
         figfolder = C.figfolder
 
         plt.figure()
-        plt.plot(reflectance[:, 0], reflectance[:, 1])
+        plt.plot(C.wavelengths, reflectance)
         plt.xlabel('Wavelength [µm]')
         plt.ylabel('Reflectance')
         figpath = figfolder.joinpath(filename + '_reflectance.png')
         plt.savefig(figpath)
 
         plt.figure()
-        plt.title(f'Radiances: d_S = {d_S}, \phi = {phi}, T = {T}')
+        plt.title(f'Radiances: d_S = {d_S}, i = {incidence_ang}, e = {emission_ang}, T = {T}')
         plt.plot(reflrad[:, 0], reflrad[:,1])  # Reflected radiance
         plt.plot(thermrad[:, 0], thermrad[:, 1])  # Thermally emitted radiance
         plt.plot(waves, reflrad[:, 1] + thermrad[:, 1])  # Sum of the two radiances
@@ -170,16 +167,16 @@ def calculate_radiances(reflectance_list: list, test: bool):
         for i in range(10):
             # Create random variables from min-max ranges given in constants
             d_S = random.random() * (C.d_S_max - C.d_S_min) + C.d_S_min
-            phi = random.randint(C.phi_min, C.phi_max)
-            theta = random.randint(C.theta_min, C.theta_max)
+            incidence_ang = random.randint(C.i_min, C.i_max)
+            emission_ang = random.randint(C.e_min, C.e_max)
             T = random.randint(C.T_min, C.T_max)
 
-            if j % 100 == 0:
+            if j % 1000 == 0:
                 # Calculate radiances with the given parameters and
                 # save plots for every hundredth radiance and reflectance
-                observed_radiance(d_S, phi, theta, T, reflectance, waves, 'rads_' + str(j), test, plots=True)
+                observed_radiance(d_S, incidence_ang, emission_ang, T, reflectance, waves, 'rads_' + str(j), test, plots=True)
             else:
-                observed_radiance(d_S, phi, theta, T, reflectance, waves, 'rads_' + str(j), test)
+                observed_radiance(d_S, incidence_ang, emission_ang, T, reflectance, waves, 'rads_' + str(j), test)
 
             j = j+1
 
