@@ -205,7 +205,7 @@ def read_radiances(test: bool):
         summed[i, :] = rad_dict['sum_radiance']
         reflected[i, :] = rad_dict['reflected_radiance']
         therm[i, :] = rad_dict['emitted_radiance']
-        print(f'Read file {filename}')
+        print(f'Read file {i} out of {len(file_list)}')
         i = i + 1
 
     separate = np.zeros((samples, length, 2))
