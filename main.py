@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import numpy as np
 from matplotlib import pyplot as plt
-# from astropy.io import fits
+from astropy.io import fits
 from scipy import io
 import pandas as pd
 from tensorflow import keras
@@ -50,6 +50,85 @@ if __name__ == '__main__':
     # plt.plot(mystery_spectra)
     # plt.title('Ryugu')
     # plt.show()
+
+    # Opening OVIRS spectra measured from Bennu
+    Bennu_path = Path(C.spectral_path, 'Bennu_OVIRS')
+    file_list = os.listdir(Bennu_path)
+
+    # Group files by time of day: 20190425 is 3pm data, 20190509 is 12 pm data, 20190516 is 10 am data
+    # Empty lists with two elements each for holding the fits data
+    Bennu_10 = [None] * 2
+    Bennu_12 = [None] * 2
+    Bennu_15 = [None] * 2
+    for filename in file_list:
+        filepath = Path(Bennu_path, filename)
+        # Open .fits file with astropy, append to a list
+
+        # A is uncorrected radiance, B is thermal tail removed radiance: make first element the uncorrected
+        if 'A' in filename:
+            index = 0
+        elif 'B' in filename:
+            index = 1
+
+        if '20190425' in filename:
+            hdulist = fits.open(filepath)
+            Bennu_15[index] = hdulist
+        elif '20190509' in filename:
+            hdulist = fits.open(filepath)
+            Bennu_12[index] = hdulist
+        elif '20190516' in filename:
+            hdulist = fits.open(filepath)
+            Bennu_10[index] = hdulist
+
+    def bennu_refine(fitslist):
+
+        uncorrected_fits = fitslist[0]
+        corrected_fits = fitslist[1]
+
+        # # Handy info print of what the fits file includes:
+        # corrected_fits.info()
+
+        wavelengths = uncorrected_fits[1].data
+        # header = corrected_fits[0].header
+        uncorrected_rad = uncorrected_fits[0].data[:, 0, :]
+        corrected_rad = corrected_fits[0].data[:, 0, :]
+
+        uncor_sum_rad = np.sum(uncorrected_rad, 1)
+        cor_sum_rad = np.sum(corrected_rad, 1)
+
+        # Data is from several scans over Bennu's surface, each scan beginning and ending off-asteroid. See plot of
+        # radiances summed over wl:s:
+        plt.figure()
+        plt.plot(range(len(uncor_sum_rad)), uncor_sum_rad)
+        plt.xlabel('Measurement number')
+        plt.ylabel('Radiance summed over wavelengths')
+        plt.show()
+
+        # Go over the summed uncorrected radiances, and save the indices where radiance is over 0.02 (value from plots):
+        # gives indices of datapoints where the FOV was on Bennu
+        Bennu_indices = []
+        index = 0
+        for sum_rad in uncor_sum_rad:
+            if sum_rad > 0.02:
+                Bennu_indices.append(index)
+            index = index + 1
+
+        # Pick out the spectra where sum radiance was over threshold value
+        uncorrected_Bennu = uncorrected_rad[Bennu_indices, :]
+        corrected_Bennu = corrected_rad[Bennu_indices, :]
+
+        plt.figure()
+        plt.plot(wavelengths, uncorrected_Bennu[0, :])
+        plt.plot(wavelengths, corrected_Bennu[0, :])
+
+        plt.show()
+
+        foo = 0
+
+    bennu_refine(Bennu_15)
+    bennu_refine(Bennu_12)
+    bennu_refine(Bennu_10)
+
 
     # Create wl-vector from 1 to 2.5 µm, with step size in µm
     waves = C.wavelengths

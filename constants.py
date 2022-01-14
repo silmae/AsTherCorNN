@@ -55,10 +55,10 @@ e_min, e_max = 0, 90  # Emission angle, angle between surface normal and observe
 # Neural network parameters
 refl_test_partition = 0.1  # Part of reflectances to be used for test data
 activation = 'relu'
-learning_rate = 5e-6
+learning_rate = 5e-7
 batches = 32
-epochs = 2000
-waist = 32 # Autoencoder middle layer node count
+epochs = 1000
+waist = 8  # Autoencoder middle layer node count
 run_figname = f'{epochs}epochs_{waist}waist_{learning_rate}lr'
 training_history_path = Path(f'./training/{run_figname}_trainHistory')
 # Early stop:

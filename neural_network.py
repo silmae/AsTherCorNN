@@ -109,7 +109,7 @@ def loss_fn(ground, prediction):
     # print(y1.shape[1])
     y2 = ground[:, :, 1]
     y1_pred = prediction[:, 0:y1.shape[1]]
-    y2_pred = prediction[:, y1.shape[1]:2*y1.shape[1]+1]
+    y2_pred = prediction[:, y1.shape[1]:]
 
     L2_dist1 = tf.norm(y1 - y1_pred, axis=1, keepdims=True)
     L2_dist2 = tf.norm(y2 - y2_pred, axis=1, keepdims=True)
