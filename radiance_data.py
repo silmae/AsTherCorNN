@@ -11,7 +11,7 @@ import solar as sol
 def bb_radiance(T: float, eps: float, wavelength: np.ndarray):
     """
     Calculate and return approximate thermal emission (blackbody, bb) radiance spectrum using Planck's law. Angle
-    dependence of emitted radiance is approximated as Lambertian. TODO If this does not work, change Lambert?
+    dependence of emitted radiance is approximated as Lambertian. TODO If this does not work with OREX, change Lambert?
 
     :param T: float.
         Surface temperature, in Kelvins

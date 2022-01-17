@@ -1,6 +1,7 @@
 '''
-This file has all the constants, including the physical ones and string names and paths, and such.
+This file has all the constants, including the physical constants and paths, and such.
 '''
+import os
 from pathlib import Path
 import numpy as np
 
@@ -33,7 +34,6 @@ radiance_path = Path('./spectral_data/radiances')
 radiance_training_path = Path(radiance_path, 'training')
 radiance_test_path = Path(radiance_path, 'test')
 training_path = Path('./training')
-weights_path = Path('./training/weights')
 spectral_path = Path('./spectral_data')
 rad_bunch_test_path = Path('./spectral_data/rad_bunch_test')  # All radiances, saved as a dict
 rad_bunch_training_path = Path('./spectral_data/rad_bunch_training')
@@ -49,18 +49,24 @@ sigma = 0.01  # standard deviation
 # Constraints for modeled radiances
 d_S_min, d_S_max = 0.7, 2  # Heliocentric distance, in AU
 T_min, T_max = 200, 450  # Asteroid surface temperature, in Kelvins
-i_min, i_max = 0, 90  # Measurement phase angle, in degrees
-e_min, e_max = 0, 90  # Emission angle, angle between surface normal and observer direction, in degrees
+i_min, i_max = 0, 89  # Measurement phase angle, in degrees
+e_min, e_max = 0, 89  # Emission angle, angle between surface normal and observer direction, in degrees
+# IN TRUTH both emission and incidence angles can go up to 90... but if both hit 90, we get division by zero when
+# calculating reflected radiance, and everything explodes
 
 # Neural network parameters
 refl_test_partition = 0.1  # Part of reflectances to be used for test data
 activation = 'relu'
-learning_rate = 5e-7
+learning_rate = 5e-6
 batches = 32
 epochs = 1000
-waist = 8  # Autoencoder middle layer node count
-run_figname = f'{epochs}epochs_{waist}waist_{learning_rate}lr'
-training_history_path = Path(f'./training/{run_figname}_trainHistory')
+waist = 32  # Autoencoder middle layer node count
+training_run_name = f'{epochs}epochs_{waist}waist_{learning_rate}lr'
+training_run_path = Path(training_path, training_run_name)
+os.mkdir(training_run_path)  # Create directory for saving all the thing related to a training run
+weights_path = Path(training_run_path, 'weights')
+os.mkdir(weights_path)
+training_history_path = Path(training_run_path, f'{training_run_name}_trainHistory')
 # Early stop:
 min_delta = 1
 patience = 50

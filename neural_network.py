@@ -64,7 +64,7 @@ def create_model(input_length, waist_size, activation):
     input_data = Input(shape=(input_length, ))
 
     # Calculate node count for first hidden layer by taking the nearest power of 2
-    node_count = 2 ** np.floor(np.log2(input_length))
+    node_count = 2 ** np.floor(np.log2(input_length))  # 512
     # Create first hidden layer for encoder
     encoder = Dense(node_count, activation=activation)(input_data)
 
@@ -122,6 +122,8 @@ def loss_fn(ground, prediction):
     grad_norm2 = tf.norm(predict2_grad, axis=1, keepdims=True)
 
     loss = L2_dist #+ 0.0001 * (grad_norm1 + grad_norm2)  # TODO add cos_dist?
+
+    # tf.compat.v1.control_dependencies([tf.print(loss)])  # This will print the loss into console
 
     return loss
 
@@ -199,8 +201,8 @@ def train_autoencoder(data, ground, early_stop=True, checkpoints=True, save_hist
     plt.ylabel('loss')
     plt.xlabel('epoch')
     plt.legend(['train', 'test'], loc='upper left')
-    filename = C.run_figname + '_history.png'
-    plt.savefig(Path(C.training_path, filename), dpi=300)
+    filename = C.training_run_name + '_history.png'
+    plt.savefig(Path(C.training_run_path, filename), dpi=300)
     # plt.show()
     #
 
