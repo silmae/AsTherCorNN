@@ -71,7 +71,7 @@ def reflected_radiance(reflectance: np.ndarray, irradiance: np.ndarray, incidenc
 
     return reflrad
 
-
+@DeprecationWarning
 def radiance2reflectance(radiance, d_S, phi, theta):
     insolation = sol.solar_irradiance(d_S, C.wavelengths)
     radiance = radiance / np.cos(np.deg2rad(theta))

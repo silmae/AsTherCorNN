@@ -25,6 +25,7 @@ Penttila_aug_path = Path('./spectral_data/reflectances/Penttila_asteroid_spectra
 albedo_path = Path('./spectral_data/reflectances/Penttila_asteroid_spectra/class-mean-albedos.tab')
 figfolder = Path('./figs')
 refl_plots_path = Path(figfolder, 'asteroid-reflectance-plots')
+bennu_plots_path = Path(figfolder, 'Bennu-plots')
 spectral_path = Path('./spectral_data')
 solar_path = Path('./spectral_data/solar_spectrum.txt')  # Solar irradiance spectrum
 augmented_path = Path('./spectral_data/reflectances/augmented')  # A folder of augmented spectra
@@ -63,9 +64,11 @@ epochs = 1000
 waist = 32  # Autoencoder middle layer node count
 training_run_name = f'{epochs}epochs_{waist}waist_{learning_rate}lr'
 training_run_path = Path(training_path, training_run_name)
-os.mkdir(training_run_path)  # Create directory for saving all the thing related to a training run
+if os.path.isdir(training_run_path) == False:
+    os.mkdir(training_run_path)  # Create directory for saving all the thing related to a training run
 weights_path = Path(training_run_path, 'weights')
-os.mkdir(weights_path)
+if os.path.isdir(weights_path) == False:
+    os.mkdir(weights_path)
 training_history_path = Path(training_run_path, f'{training_run_name}_trainHistory')
 # Early stop:
 min_delta = 1

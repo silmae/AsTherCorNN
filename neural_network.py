@@ -7,7 +7,10 @@ from pathlib import Path
 import pickle
 from tensorflow.keras.layers import Input, Dense, Flatten, Conv1D, MaxPooling1D, Dropout, Concatenate
 from tensorflow.keras.models import Model, load_model
+
 import constants as C
+import reflectance_data as refl
+import radiance_data as rad
 
 # # For running with GPU on server:
 # os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
@@ -16,6 +19,41 @@ import constants as C
 
 # To show plots from server, make X11 connection and add this to Run configuration > Environment variables:
 # DISPLAY=localhost:10.0
+
+def prepare_training_data():
+    # #############################
+    # # Load meteorite reflectances from files and create more from them through augmentation
+    # train_reflectances, test_reflectances = refl.read_meteorites(waves)
+    # refl.augmented_reflectances(train_reflectances, waves, test=False)
+    # refl.augmented_reflectances(test_reflectances, waves, test=True)
+    # #############################
+
+    #############################
+    # Load asteroid reflectances, they are already augmented
+    train_reflectances, test_reflectances = refl.read_asteroids()
+
+    ############################
+    # Calculate 10 radiances from each reflectance, and save them on disc as toml
+    rad.calculate_radiances(test_reflectances, test=True)
+    rad.calculate_radiances(train_reflectances, test=False)
+
+    # ##############################
+    # Create a "bunch" from training and testing radiances and save both in their own files. This is orders of
+    # magnitude faster than reading each radiance from its own toml
+
+    def bunch_rads(summed, separate, filepath: Path):
+        rad_bunch = {}
+        rad_bunch['summed'] = summed
+        rad_bunch['separate'] = separate
+
+        with open(filepath, 'wb') as file_pi:
+            pickle.dump(rad_bunch, file_pi)
+
+    summed_test, separate_test = rad.read_radiances(test=True)
+    bunch_rads(summed_test, separate_test, C.rad_bunch_test_path)
+
+    summed_training, separate_training = rad.read_radiances(test=False)
+    bunch_rads(summed_training, separate_training, C.rad_bunch_training_path)
 
 def create_slope(length):
     val = (np.random.rand(1) - 0.5) * 0.3
@@ -147,11 +185,10 @@ def init_autoencoder(length):
     # Compile model
     model.compile(optimizer=opt, loss=loss_fn)
 
-
-
     return model
 
-def train_autoencoder(data, ground, early_stop=True, checkpoints=True, save_history=True):
+
+def train_autoencoder(early_stop=True, checkpoints=True, save_history=True):
 
     length = len(C.wavelengths)
     model = init_autoencoder(length)
@@ -183,6 +220,12 @@ def train_autoencoder(data, ground, early_stop=True, checkpoints=True, save_hist
     if checkpoints == True:
         model_callbacks.append(model_checkpoint_callback)
 
+    # Load training radiances from one file as dicts
+    with open(C.rad_bunch_training_path, 'rb') as file_pi:
+        rad_bunch_training = pickle.load(file_pi)
+    data = rad_bunch_training['summed']
+    ground = rad_bunch_training['separate']
+
     # Train model and save history
     history = model.fit([data], [ground], batch_size=C.batches, epochs=C.epochs, validation_split=0.2,
                         callbacks=model_callbacks)
@@ -203,31 +246,14 @@ def train_autoencoder(data, ground, early_stop=True, checkpoints=True, save_hist
     plt.legend(['train', 'test'], loc='upper left')
     filename = C.training_run_name + '_history.png'
     plt.savefig(Path(C.training_run_path, filename), dpi=300)
-    # plt.show()
-    #
 
     # Return model to make predictions elsewhere
     return model
 
-# # Testing by creating new data and predicting with the model
-# for i in range(10):
-#     slope = create_slope(length)
-#     normal = create_normal(length) + create_normal(length)
-#     summed = normal + slope
-#     prediction = model.predict(np.array([summed.T])).squeeze()
-#     pred1 = prediction[0:int(len(prediction)/2)]
-#     pred2 = prediction[int(len(prediction)/2):len(prediction) + 1]
-#
-#     plt.figure()
-#     x = range(length)
-#     plt.plot(x, slope, 'r')
-#     plt.plot(x, normal, 'b')
-#     plt.plot(x, pred1.squeeze(), '--c')
-#     plt.plot(x, pred2.squeeze(), '--m')
-#
-#     plt.legend(('ground 1', 'ground 2', 'prediction 1', 'prediction 2'))
-#
-# plt.show(block=True)
 
+def load_model(weight_path):
+    model = init_autoencoder(len(C.wavelengths))
+    model.load_weights(weight_path)
 
+    return model
 
