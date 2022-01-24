@@ -71,12 +71,19 @@ def reflected_radiance(reflectance: np.ndarray, irradiance: np.ndarray, incidenc
 
     return reflrad
 
-@DeprecationWarning
-def radiance2reflectance(radiance, d_S, phi, theta):
-    insolation = sol.solar_irradiance(d_S, C.wavelengths)
-    radiance = radiance / np.cos(np.deg2rad(theta))
-    reflectance = radiance / ((insolation[:, 1] * np.cos(np.deg2rad(phi))) / np.pi)
-    return reflectance
+
+def radiance2norm_reflectance(radiance):
+    # Insolation at 1.0, the heliocentric distance does not matter with normalized data
+    insolation = sol.solar_irradiance(1.0, C.wavelengths)
+    reflectance = radiance / insolation[:, 1]
+
+    # Find the index where wavelength is closest to 0.55 µm
+    array = np.asarray(C.wavelengths)
+    idx = (np.abs(array - 0.55)).argmin()
+
+    norm_reflectance = reflectance / reflectance.squeeze()[idx]
+    return norm_reflectance
+
 
 def noising(rad_data):
     """

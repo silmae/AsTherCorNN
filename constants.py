@@ -25,7 +25,6 @@ Penttila_aug_path = Path('./spectral_data/reflectances/Penttila_asteroid_spectra
 albedo_path = Path('./spectral_data/reflectances/Penttila_asteroid_spectra/class-mean-albedos.tab')
 figfolder = Path('./figs')
 refl_plots_path = Path(figfolder, 'asteroid-reflectance-plots')
-bennu_plots_path = Path(figfolder, 'Bennu-plots')
 spectral_path = Path('./spectral_data')
 solar_path = Path('./spectral_data/solar_spectrum.txt')  # Solar irradiance spectrum
 augmented_path = Path('./spectral_data/reflectances/augmented')  # A folder of augmented spectra
@@ -38,6 +37,10 @@ training_path = Path('./training')
 spectral_path = Path('./spectral_data')
 rad_bunch_test_path = Path('./spectral_data/rad_bunch_test')  # All radiances, saved as a dict
 rad_bunch_training_path = Path('./spectral_data/rad_bunch_training')
+bennu_plots_path = Path(figfolder, 'Bennu-plots')
+validation_plots_path = Path(figfolder, 'validation_plots')
+validation_plots_Bennu_path = Path(validation_plots_path, 'bennu_validation')  # Save location of plots from validating with Bennu data
+validation_plots_synthetic_path = Path(validation_plots_path, 'synthetic_validation')  # same for val. with synthetic data
 
 # Keys for variables
 wl_key = 'wavelength'
@@ -49,7 +52,7 @@ sigma = 0.01  # standard deviation
 
 # Constraints for modeled radiances
 d_S_min, d_S_max = 0.7, 2  # Heliocentric distance, in AU
-T_min, T_max = 200, 450  # Asteroid surface temperature, in Kelvins
+T_min, T_max = 200, 410  # Asteroid surface temperature, in Kelvins
 i_min, i_max = 0, 89  # Measurement phase angle, in degrees
 e_min, e_max = 0, 89  # Emission angle, angle between surface normal and observer direction, in degrees
 # IN TRUTH both emission and incidence angles can go up to 90... but if both hit 90, we get division by zero when
@@ -60,7 +63,7 @@ refl_test_partition = 0.1  # Part of reflectances to be used for test data
 activation = 'relu'
 learning_rate = 5e-6
 batches = 32
-epochs = 1000
+epochs = 3000
 waist = 32  # Autoencoder middle layer node count
 training_run_name = f'{epochs}epochs_{waist}waist_{learning_rate}lr'
 training_run_path = Path(training_path, training_run_name)

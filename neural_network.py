@@ -55,46 +55,6 @@ def prepare_training_data():
     summed_training, separate_training = rad.read_radiances(test=False)
     bunch_rads(summed_training, separate_training, C.rad_bunch_training_path)
 
-def create_slope(length):
-    val = (np.random.rand(1) - 0.5) * 0.3
-    # val = 0.1  # Static slope for testing
-    offset = np.random.rand(1)
-    # offset = 0.5  # Static offset
-    slope = np.linspace(0, val, length).flatten() + offset
-
-    if np.min(slope) < 0:
-        slope = slope + np.min(slope)
-
-    return slope
-
-def create_normal(length):
-    mu = np.random.rand(1) * (length/2)
-    sigma = (0.1 + np.random.rand(1)) * 0.1 * length
-    # Static mu and sigma for preliminary tests:
-    # mu = 20
-    # sigma = 10
-    normal = norm.pdf(range(length), mu, sigma) * 10
-
-    return normal
-
-
-def create_data(length, samples):
-
-    data = np.zeros((samples, length))
-    ground1 = np.zeros((samples, length))
-    ground2 = np.zeros((samples, length))
-
-    for i in range(samples):
-        slope = create_slope(length)
-        normal = create_normal(length) + create_normal(length)
-        summed = normal + slope
-
-        data[i, :] = summed
-        ground1[i, :] = slope
-        ground2[i, :] = normal
-
-    return data, ground1, ground2
-
 
 def create_model(input_length, waist_size, activation):
 
@@ -166,15 +126,6 @@ def loss_fn(ground, prediction):
     return loss
 
 
-
-
-
-
-# data, ground1, ground2 = create_data(length, samples)
-# ground = np.zeros((samples, length, 2))
-# ground[:, :, 0] = ground1
-# ground[:, :, 1] = ground2
-
 def init_autoencoder(length):
 
     model = create_model(length, C.waist, C.activation)
@@ -188,8 +139,9 @@ def init_autoencoder(length):
     return model
 
 
-def train_autoencoder(early_stop=True, checkpoints=True, save_history=True):
+def train_autoencoder(early_stop=True, checkpoints=True, save_history=True, create_new_data=False):
 
+    # Initialize autoencoder architecture based on the number of wavelength channels
     length = len(C.wavelengths)
     model = init_autoencoder(length)
 
@@ -219,6 +171,10 @@ def train_autoencoder(early_stop=True, checkpoints=True, save_history=True):
         model_callbacks.append(early_stop_callback)
     if checkpoints == True:
         model_callbacks.append(model_checkpoint_callback)
+
+    # Create training data from scratch, if specified in the arguments
+    if create_new_data == True:
+        prepare_training_data()
 
     # Load training radiances from one file as dicts
     with open(C.rad_bunch_training_path, 'rb') as file_pi:
@@ -257,3 +213,44 @@ def load_model(weight_path):
 
     return model
 
+
+# # Toy problem data creation
+# def create_slope(length):
+#     val = (np.random.rand(1) - 0.5) * 0.3
+#     # val = 0.1  # Static slope for testing
+#     offset = np.random.rand(1)
+#     # offset = 0.5  # Static offset
+#     slope = np.linspace(0, val, length).flatten() + offset
+#
+#     if np.min(slope) < 0:
+#         slope = slope + np.min(slope)
+#
+#     return slope
+#
+# def create_normal(length):
+#     mu = np.random.rand(1) * (length/2)
+#     sigma = (0.1 + np.random.rand(1)) * 0.1 * length
+#     # Static mu and sigma for preliminary tests:
+#     # mu = 20
+#     # sigma = 10
+#     normal = norm.pdf(range(length), mu, sigma) * 10
+#
+#     return normal
+#
+#
+# def create_data(length, samples):
+#
+#     data = np.zeros((samples, length))
+#     ground1 = np.zeros((samples, length))
+#     ground2 = np.zeros((samples, length))
+#
+#     for i in range(samples):
+#         slope = create_slope(length)
+#         normal = create_normal(length) + create_normal(length)
+#         summed = normal + slope
+#
+#         data[i, :] = summed
+#         ground1[i, :] = slope
+#         ground2[i, :] = normal
+#
+#     return data, ground1, ground2
