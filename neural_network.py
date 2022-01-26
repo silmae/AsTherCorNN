@@ -5,6 +5,9 @@ from scipy.stats import norm
 import os
 from pathlib import Path
 import pickle
+
+# from tensorboard.errors import InvalidArgumentError
+from tensorflow.python.framework.errors_impl import InvalidArgumentError
 from tensorflow.keras.layers import Input, Dense, Flatten, Conv1D, MaxPooling1D, Dropout, Concatenate
 from tensorflow.keras.models import Model, load_model
 
@@ -59,37 +62,38 @@ def prepare_training_data():
 def create_model(input_length, waist_size, activation):
 
     # Create input for fully connected
-    input_data = Input(shape=(input_length, ))
+    input_data = Input(shape=(input_length, 1))
 
+    conv1 = Conv1D(filters=16, kernel_size=3, padding='same', activation=C.activation)(input_data)
+    conv1 = Flatten()(conv1)
     # Calculate node count for first hidden layer by taking the nearest power of 2
     node_count = 2 ** np.floor(np.log2(input_length))  # 512
     # Create first hidden layer for encoder
-    encoder = Dense(node_count, activation=activation)(input_data)
+    encoder = Dense(node_count, activation=activation)(conv1)
 
     counts = [node_count]
     while node_count/2 > waist_size:
         node_count = node_count / 2
-        encoder = Dense(node_count, activation=activation)(encoder)
+        encoder = Dense(node_count, activation=activation, bias_constraint=tf.keras.constraints.NonNeg())(encoder)
         counts.append(node_count)
         # print(node_count)
 
     # Create waist layer
-    waist = Dense(waist_size, activation=activation)(encoder)
+    waist = Dense(waist_size, activation=activation, bias_constraint=tf.keras.constraints.NonNeg())(encoder)
 
     # Create two decoders, one for each output
     i = 0
     for node_count in reversed(counts):
         if i == 0:
-            decoder1 = Dense(node_count, activation=activation)(waist)
-            decoder2 = Dense(node_count, activation=activation)(waist)
+            decoder1 = Dense(node_count, activation=activation, bias_constraint=tf.keras.constraints.NonNeg())(waist)
+            decoder2 = Dense(node_count, activation=activation, bias_constraint=tf.keras.constraints.NonNeg())(waist)
             i = i + 1
         else:
-            decoder1 = Dense(node_count, activation=activation)(decoder1)
-            decoder2 = Dense(node_count, activation=activation)(decoder2)
+            decoder1 = Dense(node_count, activation=activation, bias_constraint=tf.keras.constraints.NonNeg())(decoder1)
+            decoder2 = Dense(node_count, activation=activation, bias_constraint=tf.keras.constraints.NonNeg())(decoder2)
 
-    # For some reason the outputs don't work with sigmoid
-    output1 = Dense(input_length, activation='linear')(decoder1)
-    output2 = Dense(input_length, activation='linear')(decoder2)
+    output1 = Dense(input_length, activation='linear', kernel_constraint=tf.keras.constraints.NonNeg(), bias_constraint=tf.keras.constraints.NonNeg())(decoder1)
+    output2 = Dense(input_length, activation='linear', kernel_constraint=tf.keras.constraints.NonNeg(), bias_constraint=tf.keras.constraints.NonNeg())(decoder2)
 
     # Concatenate the two outputs into one vector to transport it to loss fn
     conc = Concatenate()([output1, output2])
@@ -109,17 +113,33 @@ def loss_fn(ground, prediction):
     y1_pred = prediction[:, 0:y1.shape[1]]
     y2_pred = prediction[:, y1.shape[1]:]
 
+    # from tensorflow.keras.backend import eval
+    # m1 = tf.constant([[3., 3.]])
+    # m2 = tf.constant([[2.], [2.]])
+    # values = eval(tf.matmul(m1, m2))
+    # # array([[12.]], dtype=float32)
+    # values = tf.get_static_value(y1_pred)
+
     L2_dist1 = tf.norm(y1 - y1_pred, axis=1, keepdims=True)
     L2_dist2 = tf.norm(y2 - y2_pred, axis=1, keepdims=True)
     L2_dist = L2_dist1 + L2_dist2
 
-    predict1_grad = y1_pred[:, 1:100] - y1_pred[:, 0:99]  # TODO replace the hardcoded indices IF using this gradient
-    grad_norm1 = tf.norm(predict1_grad, axis=1, keepdims=True)
+    # # Calculate minimum values of predictions
+    # y1_pred_min = tf.math.reduce_min(y1_pred)
+    # y2_pred_min = tf.math.reduce_min(y2_pred)
+    # mincost = 0.
 
-    predict2_grad = y2_pred[:, 1:100] - y2_pred[:, 0:99]
-    grad_norm2 = tf.norm(predict2_grad, axis=1, keepdims=True)
+    # If the minimum of prediction is less than zero, add punishment to the loss
+    # mincost = mincost + tf.cond(tf.math.less_equal(y1_pred_min, 0.), lambda: 1000000.0, lambda: 0.0)
+    # mincost = mincost + tf.cond(tf.math.less_equal(y2_pred_min, 0.), lambda: tf.math.abs(y2_pred_min) * C.loss_negative_penalty_multiplier, lambda: 0.0)
 
-    loss = L2_dist #+ 0.0001 * (grad_norm1 + grad_norm2)  # TODO add cos_dist?
+    # predict1_grad = y1_pred[:, 1:] - y1_pred[:, 0:-1]
+    # grad_norm1 = tf.norm(predict1_grad, axis=1, keepdims=True)
+    #
+    # predict2_grad = y2_pred[:, 1:] - y2_pred[:, 0:-1]
+    # grad_norm2 = tf.norm(predict2_grad, axis=1, keepdims=True)
+
+    loss = L2_dist #+ (C.loss_gradient_multiplier * (grad_norm1 + grad_norm2)) #+ mincost  # TODO add cos_dist?
 
     # tf.compat.v1.control_dependencies([tf.print(loss)])  # This will print the loss into console
 

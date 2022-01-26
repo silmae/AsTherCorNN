@@ -17,7 +17,7 @@ def test_model(X_test, y_test, model, savefolder):
     with open(C.training_history_path, 'rb') as file_pi:
         train_history = pickle.load(file_pi)
     val_loss = train_history['val_loss']
-    val_loss = val_loss[991]  # TODO Replace hardcoded index somehow
+    val_loss = val_loss[99]  # TODO Replace hardcoded index somehow
 
     print(f'Test resulted in a loss of {test_result}')
     print(f'Validation loss for model in the last training epoch was {val_loss}')

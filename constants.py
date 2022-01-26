@@ -4,6 +4,7 @@ This file has all the constants, including the physical constants and paths, and
 import os
 from pathlib import Path
 import numpy as np
+import time
 
 # Physical constants
 c = 2.998e8  # speed of light in vacuum, m / s
@@ -39,8 +40,16 @@ rad_bunch_test_path = Path('./spectral_data/rad_bunch_test')  # All radiances, s
 rad_bunch_training_path = Path('./spectral_data/rad_bunch_training')
 bennu_plots_path = Path(figfolder, 'Bennu-plots')
 validation_plots_path = Path(figfolder, 'validation_plots')
-validation_plots_Bennu_path = Path(validation_plots_path, 'bennu_validation')  # Save location of plots from validating with Bennu data
-validation_plots_synthetic_path = Path(validation_plots_path, 'synthetic_validation')  # same for val. with synthetic data
+timestr = time.strftime("%Y%m%d-%H%M%S")
+validation_run_folder = Path(validation_plots_path, f'validation-run_{timestr}')
+os.mkdir(validation_run_folder)
+validation_plots_Bennu_path = Path(validation_run_folder, 'bennu_validation')  # Save location of plots from validating with Bennu data
+os.mkdir(validation_plots_Bennu_path)
+os.mkdir(Path(validation_plots_Bennu_path, '1000'))
+os.mkdir(Path(validation_plots_Bennu_path, '1230'))
+os.mkdir(Path(validation_plots_Bennu_path, '1500'))
+validation_plots_synthetic_path = Path(validation_run_folder, 'synthetic_validation')  # same for val. with synthetic data
+os.mkdir(validation_plots_synthetic_path)
 
 # Keys for variables
 wl_key = 'wavelength'
@@ -52,7 +61,7 @@ sigma = 0.01  # standard deviation
 
 # Constraints for modeled radiances
 d_S_min, d_S_max = 0.7, 2  # Heliocentric distance, in AU
-T_min, T_max = 200, 410  # Asteroid surface temperature, in Kelvins
+T_min, T_max = 150, 430  # Asteroid surface temperature, in Kelvins
 i_min, i_max = 0, 89  # Measurement phase angle, in degrees
 e_min, e_max = 0, 89  # Emission angle, angle between surface normal and observer direction, in degrees
 # IN TRUTH both emission and incidence angles can go up to 90... but if both hit 90, we get division by zero when
@@ -63,8 +72,11 @@ refl_test_partition = 0.1  # Part of reflectances to be used for test data
 activation = 'relu'
 learning_rate = 5e-6
 batches = 32
-epochs = 3000
+epochs = 100
 waist = 32  # Autoencoder middle layer node count
+loss_gradient_multiplier = 0.05
+loss_negative_penalty_multiplier = 1e4
+
 training_run_name = f'{epochs}epochs_{waist}waist_{learning_rate}lr'
 training_run_path = Path(training_path, training_run_name)
 if os.path.isdir(training_run_path) == False:

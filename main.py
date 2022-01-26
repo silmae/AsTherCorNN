@@ -25,36 +25,36 @@ import validation as val
 
 if __name__ == '__main__':
 
-    # #######################
-    # # For running with GPU on server:
-    # os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-    # # Check available GPU with command nvidia-smi in terminal, pick one that is not in use
-    # os.environ["CUDA_VISIBLE_DEVICES"] = "5"
+    #######################
+    # For running with GPU on server:
+    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+    # Check available GPU with command nvidia-smi in terminal, pick one that is not in use
+    os.environ["CUDA_VISIBLE_DEVICES"] = "5"
+
+    # After you have started your computing task please use "nvidia-smi" command
+    # and check that your program has correctly reserved GPU memory and that it
+    # actually runs in GPU(s).
     #
-    # # After you have started your computing task please use "nvidia-smi" command
-    # # and check that your program has correctly reserved GPU memory and that it
-    # # actually runs in GPU(s).
-    # #
-    # # Memory usage is in the middle column and GPU usage is in the rightmost co-
-    # # lumn. If GPU usage shows 0% then your code runs only in CPU, not in GPU.
-    #
-    # # To use plt.show() from server, make X11 connection and add this to Run configuration > Environment variables:
-    # # DISPLAY=localhost:10.0
-    # ############################
+    # Memory usage is in the middle column and GPU usage is in the rightmost co-
+    # lumn. If GPU usage shows 0% then your code runs only in CPU, not in GPU.
+
+    # To use plt.show() from server, make X11 connection and add this to Run configuration > Environment variables:
+    # DISPLAY=localhost:10.0
+    ############################
 
     # # Build and train a model
     # model = NN.train_autoencoder(early_stop=True, checkpoints=True, save_history=True)
-    model = NN.train_autoencoder(early_stop=False, checkpoints=True, save_history=True, create_new_data=True)
+    # model = NN.train_autoencoder(early_stop=False, checkpoints=True, save_history=True, create_new_data=False)
 
     ##############################
 
     # Build a model and load pre-trained weights
-    # model = NN.load_model(Path(C.weights_path, 'weights_992.hdf5'))
+    model = NN.load_model(Path(C.weights_path, 'weights_100.hdf5'))
     # model.summary()
 
-    # val.validate_synthetic(model)
-    # val.validate_bennu(model)
-
+    val.validate_synthetic(model)
+    val.validate_bennu(model)
+#
 
 
 
