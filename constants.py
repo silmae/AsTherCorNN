@@ -40,16 +40,7 @@ rad_bunch_test_path = Path('./spectral_data/rad_bunch_test')  # All radiances, s
 rad_bunch_training_path = Path('./spectral_data/rad_bunch_training')
 bennu_plots_path = Path(figfolder, 'Bennu-plots')
 validation_plots_path = Path(figfolder, 'validation_plots')
-timestr = time.strftime("%Y%m%d-%H%M%S")
-validation_run_folder = Path(validation_plots_path, f'validation-run_{timestr}')
-os.mkdir(validation_run_folder)
-validation_plots_Bennu_path = Path(validation_run_folder, 'bennu_validation')  # Save location of plots from validating with Bennu data
-os.mkdir(validation_plots_Bennu_path)
-os.mkdir(Path(validation_plots_Bennu_path, '1000'))
-os.mkdir(Path(validation_plots_Bennu_path, '1230'))
-os.mkdir(Path(validation_plots_Bennu_path, '1500'))
-validation_plots_synthetic_path = Path(validation_run_folder, 'synthetic_validation')  # same for val. with synthetic data
-os.mkdir(validation_plots_synthetic_path)
+
 
 # Keys for variables
 wl_key = 'wavelength'
@@ -72,7 +63,7 @@ refl_test_partition = 0.1  # Part of reflectances to be used for test data
 activation = 'relu'
 learning_rate = 5e-6
 batches = 32
-epochs = 100
+epochs = 10000
 waist = 32  # Autoencoder middle layer node count
 loss_gradient_multiplier = 0.05
 loss_negative_penalty_multiplier = 1e4

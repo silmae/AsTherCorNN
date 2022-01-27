@@ -17,7 +17,7 @@ def test_model(X_test, y_test, model, savefolder):
     with open(C.training_history_path, 'rb') as file_pi:
         train_history = pickle.load(file_pi)
     val_loss = train_history['val_loss']
-    val_loss = val_loss[99]  # TODO Replace hardcoded index somehow
+    val_loss = val_loss[9805]  # TODO Replace hardcoded index somehow
 
     print(f'Test resulted in a loss of {test_result}')
     print(f'Validation loss for model in the last training epoch was {val_loss}')
@@ -84,7 +84,7 @@ def test_model(X_test, y_test, model, savefolder):
     # plt.show()
     # print('test')
 
-def validate_synthetic(model):
+def validate_synthetic(model, validation_run_folder):
     # Load test radiances from one file as dicts
     with open(C.rad_bunch_test_path, 'rb') as file_pi:
         rad_bunch_test = pickle.load(file_pi)
@@ -92,7 +92,10 @@ def validate_synthetic(model):
     X_test = rad_bunch_test['summed']
     y_test = rad_bunch_test['separate']
 
-    test_model(X_test, y_test, model, C.validation_plots_synthetic_path)
+    validation_plots_synthetic_path = Path(validation_run_folder, 'synthetic_validation')
+    os.mkdir(validation_plots_synthetic_path)
+
+    test_model(X_test, y_test, model, validation_plots_synthetic_path)
 
 
 def bennu_refine(fitslist, time, plots=False):
@@ -173,7 +176,7 @@ def bennu_refine(fitslist, time, plots=False):
     return uncorrected_Bennu, corrected_Bennu, thermal_tail_Bennu
 
 
-def validate_bennu(model):
+def validate_bennu(model, validation_run_folder):
     # Opening OVIRS spectra measured from Bennu
     Bennu_path = Path(C.spectral_path, 'Bennu_OVIRS')
     file_list = os.listdir(Bennu_path)
@@ -207,18 +210,25 @@ def validate_bennu(model):
     uncorrected_1230, corrected_1230, thermal_tail_1230 = bennu_refine(Bennu_1230, 1230, plots=False)
     uncorrected_1000, corrected_1000, thermal_tail_1000 = bennu_refine(Bennu_1000, 1000, plots=False)
 
-    def test_model_Bennu(X_Bennu, reflected, thermal, time: str):
+    def test_model_Bennu(X_Bennu, reflected, thermal, time: str, validation_plots_Bennu_path):
         # Organize data to match what the ML model expects
         y_Bennu = np.zeros((len(X_Bennu[:,0]), len(C.wavelengths), 2))
         y_Bennu[:, :, 0] = reflected
         y_Bennu[:, :, 1] = thermal
 
-        test_model(X_Bennu, y_Bennu, model, Path(C.validation_plots_Bennu_path, time))
+        savepath = Path(validation_plots_Bennu_path, time)
+        os.mkdir(savepath)
+
+        test_model(X_Bennu, y_Bennu, model, savepath)
         # testhist = model.evaluate(X_Bennu, y_Bennu)
 
+    validation_plots_Bennu_path = Path(validation_run_folder,
+                                       'bennu_validation')  # Save location of plots from validating with Bennu data
+    os.mkdir(validation_plots_Bennu_path)
+
     print('Testing with Bennu data, local time 15:00')
-    test_model_Bennu(uncorrected_1500, corrected_1500, thermal_tail_1500, str(1500))
+    test_model_Bennu(uncorrected_1500, corrected_1500, thermal_tail_1500, str(1500), validation_plots_Bennu_path)
     print('Testing with Bennu data, local time 12:30')
-    test_model_Bennu(uncorrected_1230, corrected_1230, thermal_tail_1230, str(1230))
+    test_model_Bennu(uncorrected_1230, corrected_1230, thermal_tail_1230, str(1230), validation_plots_Bennu_path)
     print('Testing with Bennu data, local time 10:00')
-    test_model_Bennu(uncorrected_1000, corrected_1000, thermal_tail_1000, str(1000))
+    test_model_Bennu(uncorrected_1000, corrected_1000, thermal_tail_1000, str(1000), validation_plots_Bennu_path)

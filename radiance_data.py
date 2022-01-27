@@ -144,7 +144,7 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
         # Plotting reflectance and radiances, saving as .png
         figfolder = C.figfolder
 
-        plt.figure()
+        fig = plt.figure()
         plt.plot(C.wavelengths, reflectance)
         plt.xlabel('Wavelength [µm]')
         plt.ylabel('Reflectance')
@@ -161,6 +161,7 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
         plt.legend(('Reflected', 'Thermal', 'Sum'))
         figpath = figfolder.joinpath(filename + ('_radiances.png'))
         plt.savefig(figpath)
+        plt.close(fig)
         # plt.show()
 
 

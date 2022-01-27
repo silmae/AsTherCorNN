@@ -1,6 +1,7 @@
 import random
 from os import path
 import os
+import time
 from pathlib import Path
 import numpy as np
 from matplotlib import pyplot as plt
@@ -49,12 +50,16 @@ if __name__ == '__main__':
     ##############################
 
     # Build a model and load pre-trained weights
-    model = NN.load_model(Path(C.weights_path, 'weights_100.hdf5'))
+    model = NN.load_model(Path(C.weights_path, 'weights_9806.hdf5'))
     # model.summary()
 
-    val.validate_synthetic(model)
-    val.validate_bennu(model)
-#
+    timestr = time.strftime("%Y%m%d-%H%M%S")
+    validation_run_folder = Path(C.validation_plots_path, f'validation-run_{timestr}')
+    os.mkdir(validation_run_folder)
+
+    val.validate_synthetic(model, validation_run_folder)
+    val.validate_bennu(model, validation_run_folder)
+
 
 
 
