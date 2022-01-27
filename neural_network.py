@@ -108,17 +108,9 @@ def loss_fn(ground, prediction):
     # print(tf.shape(ground))
     # print(tf.shape(prediction))
     y1 = ground[:, :, 0]
-    # print(y1.shape[1])
     y2 = ground[:, :, 1]
     y1_pred = prediction[:, 0:y1.shape[1]]
     y2_pred = prediction[:, y1.shape[1]:]
-
-    # from tensorflow.keras.backend import eval
-    # m1 = tf.constant([[3., 3.]])
-    # m2 = tf.constant([[2.], [2.]])
-    # values = eval(tf.matmul(m1, m2))
-    # # array([[12.]], dtype=float32)
-    # values = tf.get_static_value(y1_pred)
 
     L2_dist1 = tf.norm(y1 - y1_pred, axis=1, keepdims=True)
     L2_dist2 = tf.norm(y2 - y2_pred, axis=1, keepdims=True)

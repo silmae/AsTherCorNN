@@ -22,8 +22,57 @@ def test_model(X_test, y_test, model, savefolder):
     print(f'Test resulted in a loss of {test_result}')
     print(f'Validation loss for model in the last training epoch was {val_loss}')
 
+    # Calculate some differences between ground truth and prediction vectors
+    # Cosine of angle between two vectors
+    def cosine_distance(s1, s2):
+        s1_norm = np.sqrt(np.dot(s1, s1))
+        s2_norm = np.sqrt(np.dot(s2, s2))
+        sum_s1_s2 = np.dot(s1, s2)
+        cosangle = (sum_s1_s2 / (s1_norm * s2_norm))
+        return cosangle
+    # Lists for storing the errors
+    refl_mae = []
+    refl_cos = []
+    therm_mae = []
+    therm_cos = []
+    for i in range(len(X_test[:, 0])):
+        test_sample = np.expand_dims(X_test[i, :], axis=0)
+        prediction = model.predict(test_sample).squeeze()  # model.predict(np.array([summed.T])).squeeze()
+        pred1 = prediction[0:int(len(prediction) / 2)]
+        pred2 = prediction[int(len(prediction) / 2):len(prediction) + 1]
+        ground1 = y_test[i, :, 0]
+        ground2 = y_test[i, :, 1]
+
+        # Mean absolute error
+        mae1 = sum(abs(pred1 - ground1)) / len(pred1)
+        mae2 = sum(abs(pred2 - ground2)) / len(pred2)
+        refl_mae.append(mae1)
+        therm_mae.append(mae2)
+
+        cosang1 = cosine_distance(pred1, ground1)
+        cosang2 = cosine_distance(pred2, ground2)
+        refl_cos.append(cosang1)
+        therm_cos.append(cosang2)
+
+        print(f'Calculated MAE and cosine angle for sample {i} out of {len(X_test[:, 0])}')
+
+    plt.figure()
+    plt.plot(range(len(refl_mae)), refl_mae)
+    plt.plot(range(len(refl_mae)), therm_mae)
+    plt.ylabel('mean absolute error')
+    plt.legend(('reflected', 'thermal'))
+
+    plt.figure()
+    plt.plot(range(len(refl_cos)), refl_cos)
+    plt.plot(range(len(refl_cos)), therm_cos)
+    plt.ylabel('cosine distance')
+    plt.legend(('reflected', 'thermal'))
+
+    plt.show()
+
+
     for i in range(20):
-        # Plot and save radiances from ground truth and radiances produced by the model prediction
+        # Plot and save some radiances from ground truth and radiances produced by the model prediction
         test_sample = np.expand_dims(X_test[i, :], axis=0)
         prediction = model.predict(test_sample).squeeze()  # model.predict(np.array([summed.T])).squeeze()
         pred1 = prediction[0:int(len(prediction) / 2)]
