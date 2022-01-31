@@ -3,6 +3,11 @@ import numpy as np
 import toml
 import constants as C
 
+def save_toml(dictionary:dict, savepath):
+
+    with open(savepath, 'w+') as file:
+        toml.dump(dictionary, file, encoder=toml.encoder.TomlNumpyEncoder())
+    print(f'Saved a dictionary into {savepath}')
 
 def save_aug_reflectance(reflectance: np.ndarray, filename: str, test: bool):
     """

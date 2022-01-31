@@ -62,38 +62,45 @@ def prepare_training_data():
 def create_model(input_length, waist_size, activation):
 
     # Create input for fully connected
+    # input_data = Input(shape=(input_length))
+
+    # Input if using convolutional layer
     input_data = Input(shape=(input_length, 1))
 
-    conv1 = Conv1D(filters=16, kernel_size=3, padding='same', activation=C.activation)(input_data)
+    # Convolution layer for noise reduction
+    conv1 = Conv1D(filters=8, kernel_size=3, padding='same', activation=C.activation)(input_data)
     conv1 = Flatten()(conv1)
-    # Calculate node count for first hidden layer by taking the nearest power of 2
-    node_count = 2 ** np.floor(np.log2(input_length))  # 512
+
+    # Calculate node count for first autoencoder layer by taking the nearest power of 2
+    node_count = 2 ** np.floor(np.log2(input_length))
     # Create first hidden layer for encoder
     encoder = Dense(node_count, activation=activation)(conv1)
 
     counts = [node_count]
     while node_count/2 > waist_size:
         node_count = node_count / 2
-        encoder = Dense(node_count, activation=activation, bias_constraint=tf.keras.constraints.NonNeg())(encoder)
+        encoder = Dense(node_count, activation=activation)(encoder)
         counts.append(node_count)
         # print(node_count)
 
     # Create waist layer
-    waist = Dense(waist_size, activation=activation, bias_constraint=tf.keras.constraints.NonNeg())(encoder)
+    waist = Dense(waist_size, activation=activation)(encoder)
 
     # Create two decoders, one for each output
     i = 0
     for node_count in reversed(counts):
         if i == 0:
-            decoder1 = Dense(node_count, activation=activation, bias_constraint=tf.keras.constraints.NonNeg())(waist)
-            decoder2 = Dense(node_count, activation=activation, bias_constraint=tf.keras.constraints.NonNeg())(waist)
+            decoder1 = Dense(node_count, activation=activation)(waist)
+            decoder2 = Dense(node_count, activation=activation)(waist)
             i = i + 1
         else:
-            decoder1 = Dense(node_count, activation=activation, bias_constraint=tf.keras.constraints.NonNeg())(decoder1)
-            decoder2 = Dense(node_count, activation=activation, bias_constraint=tf.keras.constraints.NonNeg())(decoder2)
+            decoder1 = Dense(node_count, activation=activation)(decoder1)
+            decoder2 = Dense(node_count, activation=activation)(decoder2)
 
-    output1 = Dense(input_length, activation='linear', kernel_constraint=tf.keras.constraints.NonNeg(), bias_constraint=tf.keras.constraints.NonNeg())(decoder1)
-    output2 = Dense(input_length, activation='linear', kernel_constraint=tf.keras.constraints.NonNeg(), bias_constraint=tf.keras.constraints.NonNeg())(decoder2)
+    # Values coming to this should be mostly positive, only negativity coming from last decoder layer bias terms
+    # Output layers' weights and biases constrained to stay non-negative? Possibly not?
+    output1 = Dense(input_length, activation='linear')(decoder1)#, kernel_constraint=tf.keras.constraints.NonNeg(), bias_constraint=tf.keras.constraints.NonNeg())(decoder1)
+    output2 = Dense(input_length, activation='linear')(decoder2)#, kernel_constraint=tf.keras.constraints.NonNeg(), bias_constraint=tf.keras.constraints.NonNeg())(decoder2)
 
     # Concatenate the two outputs into one vector to transport it to loss fn
     conc = Concatenate()([output1, output2])

@@ -8,16 +8,18 @@ import pickle
 import constants as C
 import neural_network as NN
 import radiance_data as rad
+import toml_handler as tomler
 
 
-def test_model(X_test, y_test, model, savefolder):
+def test_model(X_test, y_test, model, test_epoch, savefolder):
 
     test_result = model.evaluate(X_test, y_test, verbose=0)
 
     with open(C.training_history_path, 'rb') as file_pi:
         train_history = pickle.load(file_pi)
     val_loss = train_history['val_loss']
-    val_loss = val_loss[9805]  # TODO Replace hardcoded index somehow
+    val_loss = val_loss[test_epoch - 1]
+    # val_loss = 'unknown'
 
     print(f'Test resulted in a loss of {test_result}')
     print(f'Validation loss for model in the last training epoch was {val_loss}')
@@ -56,27 +58,51 @@ def test_model(X_test, y_test, model, savefolder):
 
         print(f'Calculated MAE and cosine angle for sample {i} out of {len(X_test[:, 0])}')
 
-    plt.figure()
-    plt.plot(range(len(refl_mae)), refl_mae)
-    plt.plot(range(len(refl_mae)), therm_mae)
+    MAE_dict = {}
+    MAE_dict['mean_reflected_MAE'] = np.mean(refl_mae)
+    MAE_dict['mean_thermal_MAE'] = np.mean(therm_mae)
+    MAE_dict['reflected_MAE'] = refl_mae
+    MAE_dict['thermal_MAE'] = therm_mae
+    SAM_dict = {}
+    SAM_dict['mean_reflected_SAM'] = np.mean(refl_cos)
+    SAM_dict['mean_thermal_SAM'] = np.mean(therm_cos)
+    SAM_dict['reflected_SAM'] = refl_cos
+    SAM_dict['thermal_SAM'] = therm_cos
+    error_dict = {}
+    error_dict['MAE'] = MAE_dict
+    error_dict['SAM'] = SAM_dict
+
+    tomler.save_toml(error_dict, Path(savefolder, 'errors.toml'))
+
+    # Plot MAE and SAM of all test samples, for both thermal and reflected
+    fig = plt.figure()
+    # plt.plot(range(len(refl_mae)), refl_mae)
+    plt.hist(refl_mae)
+    plt.hist(therm_mae)
+    # plt.plot(range(len(refl_mae)), therm_mae)
     plt.ylabel('mean absolute error')
     plt.legend(('reflected', 'thermal'))
+    plt.savefig(Path(savefolder, 'MAE.png'))
+    plt.close(fig)
 
-    plt.figure()
-    plt.plot(range(len(refl_cos)), refl_cos)
-    plt.plot(range(len(refl_cos)), therm_cos)
+    fig = plt.figure()
+    # plt.plot(range(len(refl_cos)), refl_cos)
+    # plt.plot(range(len(refl_cos)), therm_cos)
+    plt.hist(refl_cos)
+    plt.hist(therm_cos)
     plt.ylabel('cosine distance')
     plt.legend(('reflected', 'thermal'))
+    plt.savefig(Path(savefolder, 'SAM.png'))
+    plt.close(fig)
 
-    plt.show()
-
-
-    for i in range(20):
+    index = np.random.randint(0, len(X_test[:, 0]), size=25)
+    for i in index:
         # Plot and save some radiances from ground truth and radiances produced by the model prediction
         test_sample = np.expand_dims(X_test[i, :], axis=0)
         prediction = model.predict(test_sample).squeeze()  # model.predict(np.array([summed.T])).squeeze()
         pred1 = prediction[0:int(len(prediction) / 2)]
         pred2 = prediction[int(len(prediction) / 2):len(prediction) + 1]
+
 
         fig = plt.figure()
         # plt.style.use('seaborn')
@@ -133,7 +159,7 @@ def test_model(X_test, y_test, model, savefolder):
     # plt.show()
     # print('test')
 
-def validate_synthetic(model, validation_run_folder):
+def validate_synthetic(model, last_epoch, validation_run_folder):
     # Load test radiances from one file as dicts
     with open(C.rad_bunch_test_path, 'rb') as file_pi:
         rad_bunch_test = pickle.load(file_pi)
@@ -144,7 +170,7 @@ def validate_synthetic(model, validation_run_folder):
     validation_plots_synthetic_path = Path(validation_run_folder, 'synthetic_validation')
     os.mkdir(validation_plots_synthetic_path)
 
-    test_model(X_test, y_test, model, validation_plots_synthetic_path)
+    test_model(X_test, y_test, model, last_epoch, validation_plots_synthetic_path)
 
 
 def bennu_refine(fitslist, time, plots=False):
@@ -225,7 +251,7 @@ def bennu_refine(fitslist, time, plots=False):
     return uncorrected_Bennu, corrected_Bennu, thermal_tail_Bennu
 
 
-def validate_bennu(model, validation_run_folder):
+def validate_bennu(model, last_epoch, validation_run_folder):
     # Opening OVIRS spectra measured from Bennu
     Bennu_path = Path(C.spectral_path, 'Bennu_OVIRS')
     file_list = os.listdir(Bennu_path)
@@ -268,7 +294,7 @@ def validate_bennu(model, validation_run_folder):
         savepath = Path(validation_plots_Bennu_path, time)
         os.mkdir(savepath)
 
-        test_model(X_Bennu, y_Bennu, model, savepath)
+        test_model(X_Bennu, y_Bennu, model, last_epoch, savepath)
         # testhist = model.evaluate(X_Bennu, y_Bennu)
 
     validation_plots_Bennu_path = Path(validation_run_folder,
