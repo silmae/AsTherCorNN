@@ -63,8 +63,8 @@ refl_test_partition = 0.1  # Part of reflectances to be used for test data
 activation = 'relu'
 learning_rate = 5e-6
 batches = 32
-epochs = 20000
-waist = 64  # Autoencoder middle layer node count
+epochs = 1
+waist = 32  # Autoencoder middle layer node count
 loss_gradient_multiplier = 0.05
 loss_negative_penalty_multiplier = 1e4
 

@@ -67,8 +67,8 @@ def create_model(input_length, waist_size, activation):
     # Input if using convolutional layer
     input_data = Input(shape=(input_length, 1))
 
-    # Convolution layer for noise reduction
-    conv1 = Conv1D(filters=8, kernel_size=3, padding='same', activation=C.activation)(input_data)
+    # Convolution layer, mainly for noise reduction
+    conv1 = Conv1D(filters=16, kernel_size=3, padding='same', activation=C.activation)(input_data)
     conv1 = Flatten()(conv1)
 
     # Calculate node count for first autoencoder layer by taking the nearest power of 2
@@ -119,7 +119,13 @@ def loss_fn(ground, prediction):
     y1_pred = prediction[:, 0:y1.shape[1]]
     y2_pred = prediction[:, y1.shape[1]:]
 
-    L2_dist1 = tf.norm(y1 - y1_pred, axis=1, keepdims=True)
+    # # In y2 and y2_pred, most of the relevant information is in the latter half of the spectrum:
+    # # therefore, use only the tail in loss calculation
+    # y2_pred = y2_pred[:, int(y1.shape[1] * 0.5):]
+    # y2 = y2[:, int(y1.shape[1] * 0.5):]
+
+    # L2_dist1 = tf.norm(y1 - y1_pred, axis=1, keepdims=True)
+    L2_dist1 = 0  # Leaving reflected out of loss calculation, to see if performance with therm is better
     L2_dist2 = tf.norm(y2 - y2_pred, axis=1, keepdims=True)
     L2_dist = L2_dist1 + L2_dist2
 
@@ -201,8 +207,15 @@ def train_autoencoder(early_stop=True, checkpoints=True, save_history=True, crea
     data = rad_bunch_training['summed']
     ground = rad_bunch_training['separate']
 
+    # Load validation radiances from one file as dicts
+    with open(C.rad_bunch_test_path, 'rb') as file_pi:
+        rad_bunch_test = pickle.load(file_pi)
+
+    X_val = rad_bunch_test['summed']
+    y_val = rad_bunch_test['separate']
+
     # Train model and save history
-    history = model.fit([data], [ground], batch_size=C.batches, epochs=C.epochs, validation_split=0.2,
+    history = model.fit([data], [ground], batch_size=C.batches, epochs=C.epochs, validation_data=(X_val, y_val),
                         callbacks=model_callbacks)
 
     # Save training history

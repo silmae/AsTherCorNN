@@ -37,7 +37,9 @@ def test_model(X_test, y_test, model, test_epoch, savefolder):
     refl_cos = []
     therm_mae = []
     therm_cos = []
-    for i in range(len(X_test[:, 0])):
+    indices = range(len(X_test[:, 0]))  # Full error calculation, takes some time
+    # indices = range(int(len(X_test[:, 0]) * 0.1))  # 10 percent of samples used for error calculation, takes less time
+    for i in indices:
         test_sample = np.expand_dims(X_test[i, :], axis=0)
         prediction = model.predict(test_sample).squeeze()  # model.predict(np.array([summed.T])).squeeze()
         pred1 = prediction[0:int(len(prediction) / 2)]
@@ -58,17 +60,20 @@ def test_model(X_test, y_test, model, test_epoch, savefolder):
 
         print(f'Calculated MAE and cosine angle for sample {i} out of {len(X_test[:, 0])}')
 
+    mean_dict = {}
+    mean_dict['mean_reflected_MAE'] = np.mean(refl_mae)
+    mean_dict['mean_thermal_MAE'] = np.mean(therm_mae)
+    mean_dict['mean_reflected_SAM'] = np.mean(refl_cos)
+    mean_dict['mean_thermal_SAM'] = np.mean(therm_cos)
+    mean_dict['samples'] = i+1
     MAE_dict = {}
-    MAE_dict['mean_reflected_MAE'] = np.mean(refl_mae)
-    MAE_dict['mean_thermal_MAE'] = np.mean(therm_mae)
     MAE_dict['reflected_MAE'] = refl_mae
     MAE_dict['thermal_MAE'] = therm_mae
     SAM_dict = {}
-    SAM_dict['mean_reflected_SAM'] = np.mean(refl_cos)
-    SAM_dict['mean_thermal_SAM'] = np.mean(therm_cos)
     SAM_dict['reflected_SAM'] = refl_cos
     SAM_dict['thermal_SAM'] = therm_cos
     error_dict = {}
+    error_dict['mean'] = mean_dict
     error_dict['MAE'] = MAE_dict
     error_dict['SAM'] = SAM_dict
 
@@ -76,22 +81,18 @@ def test_model(X_test, y_test, model, test_epoch, savefolder):
 
     # Plot MAE and SAM of all test samples, for both thermal and reflected
     fig = plt.figure()
-    # plt.plot(range(len(refl_mae)), refl_mae)
-    plt.hist(refl_mae)
-    plt.hist(therm_mae)
-    # plt.plot(range(len(refl_mae)), therm_mae)
+    plt.plot(range(len(refl_mae)), refl_mae)
+    plt.plot(range(len(refl_mae)), therm_mae)
     plt.ylabel('mean absolute error')
     plt.legend(('reflected', 'thermal'))
     plt.savefig(Path(savefolder, 'MAE.png'))
     plt.close(fig)
 
     fig = plt.figure()
-    # plt.plot(range(len(refl_cos)), refl_cos)
-    # plt.plot(range(len(refl_cos)), therm_cos)
-    plt.hist(refl_cos)
-    plt.hist(therm_cos)
+    plt.plot(range(len(refl_cos)), therm_cos)
+    plt.plot(range(len(refl_cos)), refl_cos)
     plt.ylabel('cosine distance')
-    plt.legend(('reflected', 'thermal'))
+    plt.legend(('thermal', 'reflected'))
     plt.savefig(Path(savefolder, 'SAM.png'))
     plt.close(fig)
 
