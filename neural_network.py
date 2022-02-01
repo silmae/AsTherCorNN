@@ -8,7 +8,7 @@ import pickle
 
 # from tensorboard.errors import InvalidArgumentError
 from tensorflow.python.framework.errors_impl import InvalidArgumentError
-from tensorflow.keras.layers import Input, Dense, Flatten, Conv1D, MaxPooling1D, Dropout, Concatenate
+from tensorflow.keras.layers import Input, Dense, Flatten, Conv1D, MaxPooling1D, Dropout, Concatenate, Reshape
 from tensorflow.keras.models import Model, load_model
 
 import constants as C
@@ -62,19 +62,19 @@ def prepare_training_data():
 def create_model(input_length, waist_size, activation):
 
     # Create input for fully connected
-    # input_data = Input(shape=(input_length))
+    input_data = Input(shape=(input_length))
 
-    # Input if using convolutional layer
-    input_data = Input(shape=(input_length, 1))
-
-    # Convolution layer, mainly for noise reduction
-    conv1 = Conv1D(filters=16, kernel_size=3, padding='same', activation=C.activation)(input_data)
-    conv1 = Flatten()(conv1)
+    # # Input if using convolutional layer
+    # input_data = Input(shape=(input_length, 1))
+    #
+    # # Convolution layer, mainly for noise reduction
+    # conv1 = Conv1D(filters=16, kernel_size=3, padding='same', activation=C.activation)(input_data)
+    # conv1 = Flatten()(conv1)
 
     # Calculate node count for first autoencoder layer by taking the nearest power of 2
     node_count = 2 ** np.floor(np.log2(input_length))
     # Create first hidden layer for encoder
-    encoder = Dense(node_count, activation=activation)(conv1)
+    encoder = Dense(node_count, activation=activation)(input_data)
 
     counts = [node_count]
     while node_count/2 > waist_size:
@@ -97,10 +97,16 @@ def create_model(input_length, waist_size, activation):
             decoder1 = Dense(node_count, activation=activation)(decoder1)
             decoder2 = Dense(node_count, activation=activation)(decoder2)
 
-    # Values coming to this should be mostly positive, only negativity coming from last decoder layer bias terms
-    # Output layers' weights and biases constrained to stay non-negative? Possibly not?
-    output1 = Dense(input_length, activation='linear')(decoder1)#, kernel_constraint=tf.keras.constraints.NonNeg(), bias_constraint=tf.keras.constraints.NonNeg())(decoder1)
-    output2 = Dense(input_length, activation='linear')(decoder2)#, kernel_constraint=tf.keras.constraints.NonNeg(), bias_constraint=tf.keras.constraints.NonNeg())(decoder2)
+    # # Convolutional layer to match the encoder side
+    # decoder1 = Reshape(target_shape=(int(node_count), 1))(decoder1)
+    # decoder1 = Conv1D(filters=16, kernel_size=3, padding='same', activation=C.activation)(decoder1)
+    # decoder1 = Flatten()(decoder1)
+    # decoder2 = Reshape(target_shape=(int(node_count), 1))(decoder2)
+    # decoder2 = Conv1D(filters=16, kernel_size=3, padding='same', activation=C.activation)(decoder2)
+    # decoder2 = Flatten()(decoder2)
+
+    output1 = Dense(input_length, activation='linear')(decoder1)
+    output2 = Dense(input_length, activation='linear')(decoder2)
 
     # Concatenate the two outputs into one vector to transport it to loss fn
     conc = Concatenate()([output1, output2])
@@ -119,13 +125,22 @@ def loss_fn(ground, prediction):
     y1_pred = prediction[:, 0:y1.shape[1]]
     y2_pred = prediction[:, y1.shape[1]:]
 
-    # # In y2 and y2_pred, most of the relevant information is in the latter half of the spectrum:
-    # # therefore, use only the tail in loss calculation
-    # y2_pred = y2_pred[:, int(y1.shape[1] * 0.5):]
-    # y2 = y2[:, int(y1.shape[1] * 0.5):]
+    # Scaling the ground and prediction values: if not scaled, higher radiances will dominate, and lower will not
+    # be seen as errors. Should not affect network output units when done inside loss function
+    y1_max = tf.math.reduce_max(y1)
+    y2_max = tf.math.reduce_max(y2)
+    # If the maximum gets too close to zero, add a constant value to it
+    y1_max = y1_max + tf.cond(tf.math.less_equal(y1_max, 0.00001), lambda: 0.0001, lambda: 0.0)
+    y2_max = y2_max + tf.cond(tf.math.less_equal(y2_max, 0.00001), lambda: 0.0001, lambda: 0.0)
+    # Scale both ground truth and predictions by dividing with maximum
+    y1 = tf.math.divide(y1, y1_max)
+    y2 = tf.math.divide(y2, y2_max)
+    y1_pred = tf.math.divide(y1_pred, y1_max)
+    y2_pred = tf.math.divide(y2_pred, y2_max)
+    # tf.compat.v1.control_dependencies([tf.print(y1_max)])  # This will print the loss into console
 
-    # L2_dist1 = tf.norm(y1 - y1_pred, axis=1, keepdims=True)
-    L2_dist1 = 0  # Leaving reflected out of loss calculation, to see if performance with therm is better
+    L2_dist1 = tf.norm(y1 - y1_pred, axis=1, keepdims=True)
+    # L2_dist1 = 0  # Leaving reflected out of loss calculation, to see if performance with therm is better
     L2_dist2 = tf.norm(y2 - y2_pred, axis=1, keepdims=True)
     L2_dist = L2_dist1 + L2_dist2
 
