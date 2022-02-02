@@ -37,8 +37,9 @@ def test_model(X_test, y_test, model, test_epoch, savefolder):
     refl_cos = []
     therm_mae = []
     therm_cos = []
-    indices = range(len(X_test[:, 0]))  # Full error calculation, takes some time
-    # indices = range(int(len(X_test[:, 0]) * 0.1))  # 10 percent of samples used for error calculation, takes less time
+    # indices = range(len(X_test[:, 0]))  # Full error calculation, takes some time
+    indices = range(int(len(X_test[:, 0]) * 0.1))  # 10 percent of samples used for error calculation, takes less time
+    indices = range(20)
     for i in indices:
         test_sample = np.expand_dims(X_test[i, :], axis=0)
         prediction = model.predict(test_sample).squeeze()  # model.predict(np.array([summed.T])).squeeze()
