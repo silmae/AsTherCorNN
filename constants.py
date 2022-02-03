@@ -5,11 +5,12 @@ import os
 from pathlib import Path
 import numpy as np
 import time
+import scipy.constants
 
 # Physical constants
-c = 2.998e8  # speed of light in vacuum, m / s
-kB = 1.381e-23  # Boltzmann constant, m² kg / s² / K (= J / K)
-h = 6.626e-34  # Planck constant, m² kg / s (= J s)
+c = scipy.constants.c  # 2.998e8  # speed of light in vacuum, m / s
+kB = scipy.constants.Boltzmann  # 1.381e-23  # Boltzmann constant, m² kg / s² / K (= J / K)
+h = scipy.constants.h  # 6.626e-34  # Planck constant, m² kg / s (= J s)
 emittance = 0.9  # Emittance of an asteroid TODO Use Kirchoff's law (eps = 1-R) to get emittance from reflectance?
 
 # Wavelength vector
@@ -61,7 +62,7 @@ e_min, e_max = 0, 89  # Emission angle, angle between surface normal and observe
 # Neural network parameters
 refl_test_partition = 0.1  # Part of reflectances to be used for test data
 activation = 'relu'
-learning_rate = 4e-6
+learning_rate = 3e-6
 batches = 32
 epochs = 5000
 waist = 32  # Autoencoder middle layer node count

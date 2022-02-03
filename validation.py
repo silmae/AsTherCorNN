@@ -4,25 +4,52 @@ import matplotlib.pyplot as plt
 from astropy.io import fits
 import os
 import pickle
+import symfit
+import sympy
 
 import constants as C
 import neural_network as NN
 import radiance_data as rad
 import toml_handler as tomler
 
+def fit_Planck(radiance):
+
+    init_guess = (C.T_max + C.T_min)/2
+    T = symfit.Parameter('T', value=init_guess, min=C.T_min, max=C.T_max)
+    wl = symfit.Variable('wl')
+
+    # Define constants
+    c = C.c  # speed of light in vacuum, m / s
+    kB = C.kB  # Boltzmann constant, m² kg / s² / K (= J / K)
+    h = C.h  # Planck constant, m² kg / s (= J s)
+    eps = 0.9  # Emissivity
+
+    model = eps * (2 * h * c ** 2) / ((wl ** 5) * (sympy.exp((h * c) / (wl * kB * T)) - 1))  # Apply Planck's law
+
+    fit = symfit.Fit(model, C.wavelengths, radiance)
+    fit_result = fit.execute()
+
+    y = model(wl=C.wavelengths, T=fit_result.value(T))
+    plt.plot(C.wavelengths, y)
+    plt.plot(C.wavelengths, radiance)
+    plt.show()
+
+    temperature = fit_result.value(T)
+
+    return temperature
 
 def test_model(X_test, y_test, model, test_epoch, savefolder):
 
-    test_result = model.evaluate(X_test, y_test, verbose=0)
-
-    with open(C.training_history_path, 'rb') as file_pi:
-        train_history = pickle.load(file_pi)
-    val_loss = train_history['val_loss']
-    val_loss = val_loss[test_epoch - 1]
-    # val_loss = 'unknown'
-
-    print(f'Test resulted in a loss of {test_result}')
-    print(f'Validation loss for model in the last training epoch was {val_loss}')
+    # test_result = model.evaluate(X_test, y_test, verbose=0)
+    # #
+    # with open(C.training_history_path, 'rb') as file_pi:
+    #     train_history = pickle.load(file_pi)
+    # val_loss = train_history['val_loss']
+    # val_loss = val_loss[test_epoch - 1]
+    # # val_loss = 'unknown'
+    #
+    # print(f'Test resulted in a loss of {test_result}')
+    # print(f'Validation loss for model in the last training epoch was {val_loss}')
 
     # Calculate some differences between ground truth and prediction vectors
     # Cosine of angle between two vectors
@@ -37,9 +64,9 @@ def test_model(X_test, y_test, model, test_epoch, savefolder):
     refl_cos = []
     therm_mae = []
     therm_cos = []
-    # indices = range(len(X_test[:, 0]))  # Full error calculation, takes some time
-    indices = range(int(len(X_test[:, 0]) * 0.1))  # 10 percent of samples used for error calculation, takes less time
-    indices = range(20)
+    indices = range(len(X_test[:, 0]))  # Full error calculation, takes some time
+    # indices = range(int(len(X_test[:, 0]) * 0.1))  # 10 percent of samples used for error calculation, takes less time
+    # indices = range(20)
     for i in indices:
         test_sample = np.expand_dims(X_test[i, :], axis=0)
         prediction = model.predict(test_sample).squeeze()  # model.predict(np.array([summed.T])).squeeze()
@@ -47,6 +74,11 @@ def test_model(X_test, y_test, model, test_epoch, savefolder):
         pred2 = prediction[int(len(prediction) / 2):len(prediction) + 1]
         ground1 = y_test[i, :, 0]
         ground2 = y_test[i, :, 1]
+
+        ground_temp = fit_Planck(ground2)
+        print(f'Ground temperature: {ground_temp}')
+        pred_temp = fit_Planck(pred2)
+        print(f'Prediction temperature: {pred_temp}')
 
         # Mean absolute error
         mae1 = sum(abs(pred1 - ground1)) / len(pred1)
@@ -170,7 +202,7 @@ def validate_synthetic(model, last_epoch, validation_run_folder):
     y_test = rad_bunch_test['separate']
 
     validation_plots_synthetic_path = Path(validation_run_folder, 'synthetic_validation')
-    os.mkdir(validation_plots_synthetic_path)
+    # os.mkdir(validation_plots_synthetic_path)
 
     test_model(X_test, y_test, model, last_epoch, validation_plots_synthetic_path)
 

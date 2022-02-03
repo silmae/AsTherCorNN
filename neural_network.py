@@ -147,11 +147,13 @@ def loss_fn(ground, prediction):
     L2_dist2 = tf.norm(y2 - y2_pred, axis=1, keepdims=True)
     L2_dist = L2_dist1 + L2_dist2
 
-    # Cosine distance
+    # Cosine distance: only thermal, since those are always similar to each other
     cosine_loss = tf.keras.losses.CosineSimilarity(axis=1)
-    cos1 = cosine_loss(y1, y1_pred)
-    cos2 = cosine_loss(y2, y2_pred)
-    cos_sum = cos1 + cos2 + 2  # According to Keras documentation, -1 means similar and 1 means dissimilar: add 2 to stay positive!
+    # cos1 = cosine_loss(y1, y1_pred)
+    cos2 = cosine_loss(y2, y2_pred) + 1  # According to Keras documentation, -1 means similar and 1 means dissimilar: add 1 to stay positive!
+
+
+    # cos_sum = cos1 + cos2 + 2  # According to Keras documentation, -1 means similar and 1 means dissimilar: add 2 to stay positive!
 
     # # Calculate minimum values of predictions
     # y1_pred_min = tf.math.reduce_min(y1_pred)
@@ -168,7 +170,7 @@ def loss_fn(ground, prediction):
     # predict2_grad = y2_pred[:, 1:] - y2_pred[:, 0:-1]
     # grad_norm2 = tf.norm(predict2_grad, axis=1, keepdims=True)
 
-    loss = L2_dist + cos_sum #+ (C.loss_gradient_multiplier * (grad_norm1 + grad_norm2)) #+ mincost  # TODO add cos_dist?
+    loss = L2_dist + cos2 #+ (C.loss_gradient_multiplier * (grad_norm1 + grad_norm2)) #+ mincost  # TODO add cos_dist?
 
     # tf.compat.v1.control_dependencies([tf.print(loss)])  # This will print the loss into console
 
