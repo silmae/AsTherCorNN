@@ -12,27 +12,53 @@ import neural_network as NN
 import radiance_data as rad
 import toml_handler as tomler
 
-def fit_Planck(radiance):
 
-    init_guess = (C.T_max + C.T_min)/2
+def fit_Planck(radiance: np.ndarray):
+    """
+
+    Fit Planck's law to thermal radiance vector, to evaluate the temperature of the radiation source. Approximates
+    emittance as constant 0.9.
+
+    :param radiance: np.ndarray
+        Thermally emitted spectral radiance
+    :return: float
+        Temperature of the radiance source, in Kelvin
+    """
+    # Parametrize Planck's law in simpler terms to make fitting easier
+    # Define constants
+    # c = speed of light in vacuum, m / s
+    # kB = Boltzmann constant, m² kg / s² / K (= J / K)
+    # h = Planck constant, m² kg / s (= J s)
+    # Planck originally: L_th = eps * (2 * h * c ** 2) / ((wl ** 5) * (exp((h * c) / (wl * k_B * T)) - 1))
+    # Lump constants together: a = 2hc² = 1.191e-16 kg m⁴/s³, and b = hc / k_B = 0.01439 m K
+    # Re-parametrized version: L_th = eps * a / ((wl ** 5) * (exp(b / (wl * T)) - 1))
+
+    # Values for a and b calculated with Wolfram Alpha
+    a = 1.191e-16  # kg m⁴/s³
+    a = a * 1e24  # Convert to kg µm⁴/s³
+    b = 0.01439  # m K
+    b = b * 1e6  # Convert to µm K
+    eps = C.emittance  # Emittance
+
+    # Temperature as fitting parameter, wavelength as variable
+    init_guess = (C.T_max + C.T_min) / 2
     T = symfit.Parameter('T', value=init_guess, min=C.T_min, max=C.T_max)
     wl = symfit.Variable('wl')
 
-    # Define constants
-    c = C.c  # speed of light in vacuum, m / s
-    kB = C.kB  # Boltzmann constant, m² kg / s² / K (= J / K)
-    h = C.h  # Planck constant, m² kg / s (= J s)
-    eps = 0.9  # Emissivity
+    model = eps * a / ((wl ** 5) * (sympy.exp(b / (wl * T)) - 1))  # Apply re-parametrized Planck's law
 
-    model = eps * (2 * h * c ** 2) / ((wl ** 5) * (sympy.exp((h * c) / (wl * kB * T)) - 1))  # Apply Planck's law
-
-    fit = symfit.Fit(model, C.wavelengths, radiance)
+    fit = symfit.Fit(model, C.wavelengths, radiance, minimizer=[symfit.core.minimizers.NelderMead])
     fit_result = fit.execute()
 
+    # Plot of fit result together with original radiance data
+    fig = plt.figure()
     y = model(wl=C.wavelengths, T=fit_result.value(T))
     plt.plot(C.wavelengths, y)
     plt.plot(C.wavelengths, radiance)
+    plt.xlabel('Wavelength [µm]')
+    plt.ylabel('Radiance [W / m² / sr / µm]')
     plt.show()
+    plt.close(fig)
 
     temperature = fit_result.value(T)
 
@@ -40,16 +66,16 @@ def fit_Planck(radiance):
 
 def test_model(X_test, y_test, model, test_epoch, savefolder):
 
-    # test_result = model.evaluate(X_test, y_test, verbose=0)
-    # #
-    # with open(C.training_history_path, 'rb') as file_pi:
-    #     train_history = pickle.load(file_pi)
-    # val_loss = train_history['val_loss']
-    # val_loss = val_loss[test_epoch - 1]
-    # # val_loss = 'unknown'
+    test_result = model.evaluate(X_test, y_test, verbose=0)
     #
-    # print(f'Test resulted in a loss of {test_result}')
-    # print(f'Validation loss for model in the last training epoch was {val_loss}')
+    with open(C.training_history_path, 'rb') as file_pi:
+        train_history = pickle.load(file_pi)
+    val_loss = train_history['val_loss']
+    val_loss = val_loss[test_epoch - 1]
+    # val_loss = 'unknown'
+
+    print(f'Test resulted in a loss of {test_result}')
+    print(f'Validation loss for model in the last training epoch was {val_loss}')
 
     # Calculate some differences between ground truth and prediction vectors
     # Cosine of angle between two vectors
@@ -64,6 +90,9 @@ def test_model(X_test, y_test, model, test_epoch, savefolder):
     refl_cos = []
     therm_mae = []
     therm_cos = []
+    temperature_error = []
+    temperature_ground = []
+    temperature_pred = []
     indices = range(len(X_test[:, 0]))  # Full error calculation, takes some time
     # indices = range(int(len(X_test[:, 0]) * 0.1))  # 10 percent of samples used for error calculation, takes less time
     # indices = range(20)
@@ -75,10 +104,15 @@ def test_model(X_test, y_test, model, test_epoch, savefolder):
         ground1 = y_test[i, :, 0]
         ground2 = y_test[i, :, 1]
 
+        # Calculate temperatures of ground and prediction by fitting to Planck function
         ground_temp = fit_Planck(ground2)
         print(f'Ground temperature: {ground_temp}')
+        temperature_ground.append(ground_temp)
         pred_temp = fit_Planck(pred2)
         print(f'Prediction temperature: {pred_temp}')
+        temperature_pred.append(pred_temp)
+
+        temperature_error.append(ground_temp - pred_temp)
 
         # Mean absolute error
         mae1 = sum(abs(pred1 - ground1)) / len(pred1)
@@ -98,7 +132,11 @@ def test_model(X_test, y_test, model, test_epoch, savefolder):
     mean_dict['mean_thermal_MAE'] = np.mean(therm_mae)
     mean_dict['mean_reflected_SAM'] = np.mean(refl_cos)
     mean_dict['mean_thermal_SAM'] = np.mean(therm_cos)
+    mean_dict['mean_temp_error'] = np.mean(temperature_error)
     mean_dict['samples'] = i+1
+    temperature_dict = {}
+    temperature_dict['ground_temperature'] = temperature_ground
+    temperature_dict['predicted_temperature'] = temperature_pred
     MAE_dict = {}
     MAE_dict['reflected_MAE'] = refl_mae
     MAE_dict['thermal_MAE'] = therm_mae
@@ -107,6 +145,7 @@ def test_model(X_test, y_test, model, test_epoch, savefolder):
     SAM_dict['thermal_SAM'] = therm_cos
     error_dict = {}
     error_dict['mean'] = mean_dict
+    error_dict['temperature'] = temperature_dict
     error_dict['MAE'] = MAE_dict
     error_dict['SAM'] = SAM_dict
 
@@ -146,7 +185,7 @@ def test_model(X_test, y_test, model, test_epoch, savefolder):
         plt.plot(x, pred1.squeeze(), linestyle='--')#, '--c')
         plt.plot(x, pred2.squeeze(), linestyle='--')#, '--m')
         plt.xlabel('Wavelength [µm]')
-        plt.ylabel('Radiance')
+        plt.ylabel('Radiance [W / m² / sr / µm]')
         plt.legend(('ground 1', 'ground 2', 'prediction 1', 'prediction 2'))
 
         fig_filename = C.training_run_name + f'_test_{i + 1}_radiance.png'
@@ -202,7 +241,7 @@ def validate_synthetic(model, last_epoch, validation_run_folder):
     y_test = rad_bunch_test['separate']
 
     validation_plots_synthetic_path = Path(validation_run_folder, 'synthetic_validation')
-    # os.mkdir(validation_plots_synthetic_path)
+    os.mkdir(validation_plots_synthetic_path)
 
     test_model(X_test, y_test, model, last_epoch, validation_plots_synthetic_path)
 

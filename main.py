@@ -45,26 +45,26 @@ if __name__ == '__main__':
 
     # # Build and train a model
     # model = NN.train_autoencoder(early_stop=True, checkpoints=True, save_history=True)
-    model = NN.train_autoencoder(early_stop=False, checkpoints=True, save_history=True, create_new_data=False)
+    # model = NN.train_autoencoder(early_stop=False, checkpoints=True, save_history=True, create_new_data=False)
 
     ##############################
 
-    # # Build a model and load pre-trained weights
-    # last_epoch = 2954
-    # model = NN.load_model(Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5'))
+    # Build a model and load pre-trained weights
+    last_epoch = 2954
+    model = NN.load_model(Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5'))
+
+    from contextlib import redirect_stdout
     #
-    # # from contextlib import redirect_stdout
-    # #
-    # timestr = time.strftime("%Y%m%d-%H%M%S")
-    # validation_run_folder = Path(C.validation_plots_path, f'validation-run_{timestr}')
-    # # os.mkdir(validation_run_folder)
-    # #
-    # # # Print summary of model architecture into file
-    # # with open(Path(validation_run_folder, 'modelsummary.txt'), 'w') as f:
-    # #     with redirect_stdout(f):
-    # #         model.summary()
-    # #
-    # val.validate_synthetic(model, last_epoch, validation_run_folder)
+    timestr = time.strftime("%Y%m%d-%H%M%S")
+    validation_run_folder = Path(C.validation_plots_path, f'validation-run_{timestr}')
+    os.mkdir(validation_run_folder)
+
+    # Print summary of model architecture into file
+    with open(Path(validation_run_folder, 'modelsummary.txt'), 'w') as f:
+        with redirect_stdout(f):
+            model.summary()
+    #
+    val.validate_synthetic(model, last_epoch, validation_run_folder)
 
     ##############################
 
