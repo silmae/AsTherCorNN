@@ -14,6 +14,7 @@ import pandas as pd
 from tensorflow import keras
 import pickle
 from sklearn.model_selection import train_test_split
+import keras_tuner as kt
 
 from solar import solar_irradiance
 import constants as C
@@ -49,22 +50,27 @@ if __name__ == '__main__':
 
     ##############################
 
-    # Build a model and load pre-trained weights
-    last_epoch = 2954
-    model = NN.load_model(Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5'))
+    # Hyperparameter optimization with KerasTuner
+    NN.create_hypermodel(200, kt.HyperParameters())
 
-    from contextlib import redirect_stdout
-    #
-    timestr = time.strftime("%Y%m%d-%H%M%S")
-    validation_run_folder = Path(C.validation_plots_path, f'validation-run_{timestr}')
-    os.mkdir(validation_run_folder)
+    ##############################
 
-    # Print summary of model architecture into file
-    with open(Path(validation_run_folder, 'modelsummary.txt'), 'w') as f:
-        with redirect_stdout(f):
-            model.summary()
+    # # Build a model and load pre-trained weights
+    # last_epoch = 2954
+    # model = NN.load_model(Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5'))
     #
-    val.validate_synthetic(model, last_epoch, validation_run_folder)
+    # from contextlib import redirect_stdout
+    # #
+    # timestr = time.strftime("%Y%m%d-%H%M%S")
+    # validation_run_folder = Path(C.validation_plots_path, f'validation-run_{timestr}')
+    # os.mkdir(validation_run_folder)
+    #
+    # # Print summary of model architecture into file
+    # with open(Path(validation_run_folder, 'modelsummary.txt'), 'w') as f:
+    #     with redirect_stdout(f):
+    #         model.summary()
+    # #
+    # val.validate_synthetic(model, last_epoch, validation_run_folder)
 
     ##############################
 

@@ -59,6 +59,75 @@ def prepare_training_data():
     bunch_rads(summed_training, separate_training, C.rad_bunch_training_path)
 
 
+def create_hypermodel(input_length, hp):
+
+    # Input layer always depends on the input data
+    input_data = Input(shape=(input_length, 1))
+
+    # Convolution layer for the input, tune both filter number and kernel size
+    filters = hp.Int("filters", min_value=4, max_value=32, step=4)
+    kernel_size = hp.Int("kernel_size", min_value=2, max_value=16, step=1)
+    conv1 = Conv1D(filters=filters, kernel_size=kernel_size, padding='same', activation=C.activation)(input_data)
+    conv1 = Flatten()(conv1)
+
+    # Tune encoder/decoder start layer node count
+    encdec_start = hp.Int('encdec_start', min_value=64, max_value=1024, step=64)
+    # Tune number of nodes in waist layer
+    waist_size = hp.Int('waist_size', min_value=8, max_value=64, step=4)
+    # Tune the relation between node counts of subsequent encoder/decoder layers: (layer N nodes) / (layer N-1 nodes)
+    encdec_node_relation = hp.Float("encdec_node_relation", min_value=0.2, max_value=0.8, sampling="linear")
+
+    # Create encoder based on start, relation, and waist
+    node_count = encdec_start
+    encoder = Dense(node_count, activation=C.activation)(conv1)
+    counts = [node_count]  # Save node counts of all layers into a list
+    while node_count * encdec_node_relation > waist_size:
+        node_count = int(node_count * encdec_node_relation)
+        encoder = Dense(node_count, activation=C.activation)(encoder)
+        counts.append(node_count)
+
+    waist = Dense(units=waist_size, activation=C.activation)(encoder)
+
+    # Create two decoders, one for each output: use the list of encoder node counts, but reversed
+    i = 0
+    for node_count in reversed(counts):
+        if i == 0:
+            decoder1 = Dense(node_count, activation=C.activation)(waist)
+            decoder2 = Dense(node_count, activation=C.activation)(waist)
+            i = i + 1
+        else:
+            decoder1 = Dense(node_count, activation=C.activation)(decoder1)
+            decoder2 = Dense(node_count, activation=C.activation)(decoder2)
+
+    # Convolutional layer to match the encoder side
+    decoder1 = Reshape(target_shape=(int(node_count), 1))(decoder1)
+    decoder1 = Conv1D(filters=filters, kernel_size=kernel_size, padding='same', activation=C.activation)(decoder1)
+    decoder1 = Flatten()(decoder1)
+    decoder2 = Reshape(target_shape=(int(node_count), 1))(decoder2)
+    decoder2 = Conv1D(filters=filters, kernel_size=kernel_size, padding='same', activation=C.activation)(decoder2)
+    decoder2 = Flatten()(decoder2)
+
+    output1 = Dense(input_length, activation='linear')(decoder1)
+    output2 = Dense(input_length, activation='linear')(decoder2)
+
+    # Concatenate the two outputs into one vector to transport it to loss fn
+    conc = Concatenate()([output1, output2])
+
+    # Create a model object
+    model = Model(inputs=[input_data], outputs=[conc])
+    model.summary()
+
+    # Define optimizer, tune learning rate of the model
+    lr = hp.Float('lr', min_value=1e-6, max_value=1e-3, sampling='log')
+    opt = tf.keras.optimizers.Adam(learning_rate=lr)
+
+    # Compile model
+    model.compile(optimizer=opt, loss=loss_fn)
+
+    return model
+
+
+
 def create_model(input_length, waist_size, activation):
 
     # Create input for fully connected
@@ -118,9 +187,7 @@ def create_model(input_length, waist_size, activation):
 
 
 def loss_fn(ground, prediction):
-    # print(tf.shape(ground))
-    # print(tf.shape(prediction))
-    #TODO Adding 1 to each element to escape problems?
+
     y1 = ground[:, :, 0]
     y2 = ground[:, :, 1]
     y1_pred = prediction[:, 0:y1.shape[1]]
@@ -133,24 +200,24 @@ def loss_fn(ground, prediction):
     # To prevent division by (near) zero, add small constant value to maxima
     y1_max = y1_max + 0.00001
     y2_max = y2_max + 0.00001
+
+    # # Or would it be better to only add something to the really small values?
     # y1_max = y1_max + tf.cond(tf.math.less_equal(y1_max, 0.00001), lambda: 0.00001, lambda: 0.0)
     # y2_max = y2_max + tf.cond(tf.math.less_equal(y2_max, 0.00001), lambda: 0.00001, lambda: 0.0)
+
     # Scale both ground truth and predictions by dividing with maximum
     y1 = tf.math.divide(y1, y1_max)
     y2 = tf.math.divide(y2, y2_max)
     y1_pred = tf.math.divide(y1_pred, y1_max)
     y2_pred = tf.math.divide(y2_pred, y2_max)
-    # tf.compat.v1.control_dependencies([tf.print(y1_max)])  # This will print the loss into console
 
     L2_dist1 = tf.norm(y1 - y1_pred, axis=1, keepdims=True)
-    # L2_dist1 = 0  # Leaving reflected out of loss calculation, to see if performance with therm is better
     L2_dist2 = tf.norm(y2 - y2_pred, axis=1, keepdims=True)
     L2_dist = L2_dist1 + L2_dist2
 
-    # Cosine distance: only thermal, since those are always similar to each other
+    # Cosine distance: only thermal, since those are always similar to each other in shape
     cosine_loss = tf.keras.losses.CosineSimilarity(axis=1)
-    # cos1 = cosine_loss(y1, y1_pred)
-    cos2 = cosine_loss(y2, y2_pred) + 1  # According to Keras documentation, -1 means similar and 1 means dissimilar: add 1 to stay positive!
+    cos_dist = cosine_loss(y2, y2_pred) + 1  # According to Keras documentation, -1 means similar and 1 means dissimilar: add 1 to stay positive!
 
 
     # cos_sum = cos1 + cos2 + 2  # According to Keras documentation, -1 means similar and 1 means dissimilar: add 2 to stay positive!
@@ -160,19 +227,22 @@ def loss_fn(ground, prediction):
     # y2_pred_min = tf.math.reduce_min(y2_pred)
     # mincost = 0.
 
-    # If the minimum of prediction is less than zero, add punishment to the loss
+    # If the minimum of prediction is less than zero, add punishment to the loss IT APPEARS THIS DOES NOT WORK
     # mincost = mincost + tf.cond(tf.math.less_equal(y1_pred_min, 0.), lambda: 1000000.0, lambda: 0.0)
     # mincost = mincost + tf.cond(tf.math.less_equal(y2_pred_min, 0.), lambda: tf.math.abs(y2_pred_min) * C.loss_negative_penalty_multiplier, lambda: 0.0)
 
+    # # Calculating gradients of the prediction and taking their norm: should smooth output vectors
+    # # Adding this to the loss gives NaN losses after some epochs, and I have no idea why
     # predict1_grad = y1_pred[:, 1:] - y1_pred[:, 0:-1]
     # grad_norm1 = tf.norm(predict1_grad, axis=1, keepdims=True)
     #
     # predict2_grad = y2_pred[:, 1:] - y2_pred[:, 0:-1]
     # grad_norm2 = tf.norm(predict2_grad, axis=1, keepdims=True)
 
-    loss = L2_dist + cos2 #+ (C.loss_gradient_multiplier * (grad_norm1 + grad_norm2)) #+ mincost  # TODO add cos_dist?
+    loss = L2_dist + cos_dist #+ (C.loss_gradient_multiplier * (grad_norm1 + grad_norm2)) #+ mincost
 
-    # tf.compat.v1.control_dependencies([tf.print(loss)])  # This will print the loss into console
+    # # Printing loss into console (since debugger will not show tensor values)
+    # tf.compat.v1.control_dependencies([tf.print(loss)])
 
     return loss
 
