@@ -23,6 +23,7 @@ import radiance_data as rad
 # To show plots from server, make X11 connection and add this to Run configuration > Environment variables:
 # DISPLAY=localhost:10.0
 
+
 def prepare_training_data():
     # #############################
     # # Load meteorite reflectances from files and create more from them through augmentation
@@ -59,23 +60,37 @@ def prepare_training_data():
     bunch_rads(summed_training, separate_training, C.rad_bunch_training_path)
 
 
-def create_hypermodel(input_length, hp):
+def create_hypermodel(hp):
+    """
+    Create and compile a neural network model for hyperparameter optimization. Structure is similar to unadjustable
+    network: dense input, conv1d, dense autoencoder, conv1d, dense output, concatenate.
+    Adjustable hyperparameters are:
+    convolution filter count and kernel width,
+    encoder start layer node count, relation of subsequent autoencoder layer node counts, waist layer node count,
+    and learning rate.
 
-    # Input layer always depends on the input data
+    :param hp:
+    Instance of KerasTuner's kt.HyperParameters()
+
+    :return: model
+    Compiled Keras Model -instance
+    """
+    # Input layer always depends on the input data, which depends on the wl-vector specified in constants
+    input_length = len(C.wavelengths)
     input_data = Input(shape=(input_length, 1))
 
     # Convolution layer for the input, tune both filter number and kernel size
-    filters = hp.Int("filters", min_value=4, max_value=32, step=4)
-    kernel_size = hp.Int("kernel_size", min_value=2, max_value=16, step=1)
+    filters = hp.Int("filters", min_value=1, max_value=64, step=8)
+    kernel_size = hp.Int("kernel_size", min_value=2, max_value=32, step=2)
     conv1 = Conv1D(filters=filters, kernel_size=kernel_size, padding='same', activation=C.activation)(input_data)
     conv1 = Flatten()(conv1)
 
     # Tune encoder/decoder start layer node count
     encdec_start = hp.Int('encdec_start', min_value=64, max_value=1024, step=64)
     # Tune number of nodes in waist layer
-    waist_size = hp.Int('waist_size', min_value=8, max_value=64, step=4)
+    waist_size = hp.Int('waist_size', min_value=8, max_value=128, step=8)
     # Tune the relation between node counts of subsequent encoder/decoder layers: (layer N nodes) / (layer N-1 nodes)
-    encdec_node_relation = hp.Float("encdec_node_relation", min_value=0.2, max_value=0.8, sampling="linear")
+    encdec_node_relation = hp.Float("encdec_node_relation", min_value=0.1, max_value=0.9, sampling="linear")
 
     # Create encoder based on start, relation, and waist
     node_count = encdec_start
@@ -125,7 +140,6 @@ def create_hypermodel(input_length, hp):
     model.compile(optimizer=opt, loss=loss_fn)
 
     return model
-
 
 
 def create_model(input_length, waist_size, activation):
@@ -260,6 +274,30 @@ def init_autoencoder(length):
     return model
 
 
+def load_training_validation_data():
+    """
+    Load training and validation data and ground truths from files and return them: training data from one pickle file,
+    validation data from another.
+
+    :return: x_train, y_train, x_val, y_val
+    Training data, training ground truth, validation data, validation ground truth
+    """
+    # Load training radiances from one file as dicts
+    with open(C.rad_bunch_training_path, 'rb') as file_pi:
+        rad_bunch_training = pickle.load(file_pi)
+    x_train = rad_bunch_training['summed']
+    y_train = rad_bunch_training['separate']
+
+    # Load validation radiances from one file as dicts
+    with open(C.rad_bunch_test_path, 'rb') as file_pi:
+        rad_bunch_test = pickle.load(file_pi)
+
+    x_val = rad_bunch_test['summed']
+    y_val = rad_bunch_test['separate']
+
+    return x_train, y_train, x_val, y_val
+
+
 def train_autoencoder(early_stop=True, checkpoints=True, save_history=True, create_new_data=False):
 
     # Initialize autoencoder architecture based on the number of wavelength channels
@@ -297,18 +335,7 @@ def train_autoencoder(early_stop=True, checkpoints=True, save_history=True, crea
     if create_new_data == True:
         prepare_training_data()
 
-    # Load training radiances from one file as dicts
-    with open(C.rad_bunch_training_path, 'rb') as file_pi:
-        rad_bunch_training = pickle.load(file_pi)
-    data = rad_bunch_training['summed']
-    ground = rad_bunch_training['separate']
-
-    # Load validation radiances from one file as dicts
-    with open(C.rad_bunch_test_path, 'rb') as file_pi:
-        rad_bunch_test = pickle.load(file_pi)
-
-    X_val = rad_bunch_test['summed']
-    y_val = rad_bunch_test['separate']
+    data, ground, X_val, y_val = load_training_validation_data()
 
     # Train model and save history
     history = model.fit([data], [ground], batch_size=C.batches, epochs=C.epochs, validation_data=(X_val, y_val),

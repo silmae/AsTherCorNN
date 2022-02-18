@@ -8,6 +8,7 @@ from matplotlib import pyplot as plt
 plt.rcParams.update({'font.size': 16})
 plt.rcParams.update({'figure.autolayout': True})
 plt.rcParams.update({'savefig.dpi': 600})
+from contextlib import redirect_stdout  # For saving keras prints into text files
 # from astropy.io import fits
 from scipy import io
 import pandas as pd
@@ -22,7 +23,7 @@ import reflectance_data as refl
 import radiance_data as rad
 import toml_handler as tomler
 import neural_network as NN
-import validation as val
+# import validation as val  # TODO This uses symfit, which I have not installed on thingfish conda env
 
 
 if __name__ == '__main__':
@@ -51,7 +52,26 @@ if __name__ == '__main__':
     ##############################
 
     # Hyperparameter optimization with KerasTuner
-    NN.create_hypermodel(200, kt.HyperParameters())
+    # hypermodel = NN.create_hypermodel(kt.HyperParameters())
+    savefolder_name = f'optimization-run_{time.strftime("%Y%m%d-%H%M%S")}'
+    tuner = kt.BayesianOptimization(
+        hypermodel=NN.create_hypermodel,
+        objective="val_loss",
+        max_trials=35,
+        executions_per_trial=2,
+        overwrite=True,
+        directory=C.hyperparameter_path,
+        project_name=savefolder_name,
+    )
+    tuner.search_space_summary()
+    x_train, y_train, x_val, y_val = NN.load_training_validation_data()
+    tuner.search(x_train, y_train, epochs=200, validation_data=(x_val, y_val))
+
+    tuner.results_summary()
+    tuning_results_path = Path(C.hyperparameter_path, savefolder_name)
+    with open(Path(tuning_results_path, 'trial_summary.txt'), 'w') as f:
+        with redirect_stdout(f):
+            tuner.results_summary()
 
     ##############################
 

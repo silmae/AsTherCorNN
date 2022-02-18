@@ -81,4 +81,7 @@ training_history_path = Path(training_run_path, f'{training_run_name}_trainHisto
 min_delta = 1
 patience = 50
 
+# Paths for saving results of hyperparameter tuning
+hyperparameter_path = 'hyperparameter_tuning'  # KerasTuner wants the path as a string
+
 
