@@ -21,7 +21,7 @@ from solar import solar_irradiance
 import constants as C
 import reflectance_data as refl
 import radiance_data as rad
-import toml_handler as tomler
+import file_handling as FH
 import neural_network as NN
 # import validation as val  # TODO This uses symfit, which I have not installed on thingfish conda env
 
@@ -57,15 +57,15 @@ if __name__ == '__main__':
     tuner = kt.BayesianOptimization(
         hypermodel=NN.create_hypermodel,
         objective="val_loss",
-        max_trials=35,
-        executions_per_trial=2,
+        max_trials=20,
+        executions_per_trial=1,
         overwrite=True,
         directory=C.hyperparameter_path,
         project_name=savefolder_name,
     )
     tuner.search_space_summary()
     x_train, y_train, x_val, y_val = NN.load_training_validation_data()
-    tuner.search(x_train, y_train, epochs=200, validation_data=(x_val, y_val))
+    tuner.search(x_train, y_train, epochs=300, validation_data=(x_val, y_val))
 
     tuner.results_summary()
     tuning_results_path = Path(C.hyperparameter_path, savefolder_name)

@@ -1,6 +1,7 @@
-'''
-This file has all the constants, including the physical constants and paths, and such.
-'''
+"""
+This file houses all the constants, including the physical constants and paths, and such.
+"""
+
 import os
 from pathlib import Path
 import numpy as np

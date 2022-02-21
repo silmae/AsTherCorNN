@@ -1,9 +1,15 @@
+"""
+Methods used for loading files and writing into files
+"""
+
 from pathlib import Path
 import numpy as np
 import toml
+
 import constants as C
 
-def save_toml(dictionary:dict, savepath):
+
+def save_toml(dictionary: dict, savepath):
 
     with open(savepath, 'w+') as file:
         toml.dump(dictionary, file, encoder=toml.encoder.TomlNumpyEncoder())

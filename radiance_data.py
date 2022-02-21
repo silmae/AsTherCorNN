@@ -1,3 +1,9 @@
+"""
+Methods for working with (spectral) radiances: calculating thermal radiance and reflected radiance, and simulating
+observed radiance as their sum. Calculating normalized reflectance from radiance. Wrapper for calculating a dataset of
+several radiances from reflectances.
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 import random
@@ -5,8 +11,9 @@ import os
 from pathlib import Path
 
 import constants as C
-import toml_handler as tomler
+import file_handling as FH
 import solar as sol
+
 
 def bb_radiance(T: float, eps: float, wavelength: np.ndarray):
     """
@@ -73,6 +80,18 @@ def reflected_radiance(reflectance: np.ndarray, irradiance: np.ndarray, incidenc
 
 
 def radiance2norm_reflectance(radiance):
+    """
+    Calculates a spectrum of normalized reflectance from a spectrum of reflected radiance. Divides the radiance
+    by the solar spectral irradiance at heliocentric distance of 1 AU, and normalizes the resulting reflectance
+    spectrum so that reflectance is 1 at the wavelength of 0.55 micrometers (a common convention with asteroid
+    reflectance spectra).
+
+    :param radiance: ndarray
+        Spectral radiance
+    :return: norm_reflectance: ndarray
+        Normalized reflectance
+    """
+
     # Insolation at 1.0, the heliocentric distance does not matter with normalized data
     insolation = sol.solar_irradiance(1.0, C.wavelengths)
     reflectance = radiance / insolation[:, 1]
@@ -81,7 +100,9 @@ def radiance2norm_reflectance(radiance):
     array = np.asarray(C.wavelengths)
     idx = (np.abs(array - 0.55)).argmin()
 
+    # Normalization to R(0.55 µm) = 1
     norm_reflectance = reflectance / reflectance.squeeze()[idx]
+
     return norm_reflectance
 
 
@@ -107,7 +128,31 @@ def noising(rad_data):
 
 
 def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: float, reflectance: np.ndarray, waves: np.ndarray, filename: str, test: bool, plots=False):
+    """
+    Simulate observed radiance with given parameters. Calculates reflected and thermally emitted radiances in separate
+    functions, and sums them to get observed radiance. Adds noise to the summed radiance. Saves separate and summed
+    radiances to a .toml file together with observation related metadata provided in function arguments. Also saves
+    plots of reflectance and radiances, if specified in arguments.
 
+    :param d_S: float
+        Heliocentric distance in astronomical units
+    :param incidence_ang: float
+        Incidence angle in degrees
+    :param emission_ang: float
+        Emission angle in degrees
+    :param T: float
+        Surface temperature in Kelvin
+    :param reflectance: ndarray
+        Spectral reflectance
+    :param waves: ndarray
+        Wavelength vector in micrometers
+    :param filename: string
+        Name which will be included in files related to the radiances (plots and .toml), without extension
+    :param test: boolean
+        Whether the simulated measurement will be used for testing or training, only affects save location on disc
+    :param plots: boolean
+        Whether plots will be made for this simulated measurement
+    """
     # Calculate insolation at heliocentric distance of d_S
     insolation = sol.solar_irradiance(d_S, waves)
 
@@ -137,7 +182,7 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
     rad_dict['sum_radiance'] = sumrad[:, 1]
 
     # Save the dict as .toml
-    tomler.save_radiances(rad_dict, filename, test)
+    FH.save_radiances(rad_dict, filename, test)
 
     if plots == True:
 
@@ -166,7 +211,16 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
 
 
 def calculate_radiances(reflectance_list: list, test: bool):
+    """
+    Simulate 10 observed radiances for each reflectance spectrum given in parameters. Radiances are saved on disc as
+    .toml files together with metadata related to random values used in their creation. Plots are saved for every 1000th
+    simulated set of radiances and the corresponding reflectance.
 
+    :param reflectance_list:
+        Spectral reflectances from which the radiances will be created.
+    :param test: boolean
+        Whether the data will be used for testing or training, affects only the save location.
+    """
     waves = C.wavelengths
     j = 1
 
@@ -181,7 +235,7 @@ def calculate_radiances(reflectance_list: list, test: bool):
 
             if j % 1000 == 0:
                 # Calculate radiances with the given parameters and
-                # save plots for every hundredth radiance and reflectance
+                # save plots for every 1000th radiance and reflectance
                 observed_radiance(d_S, incidence_ang, emission_ang, T, reflectance, waves, 'rads_' + str(j), test, plots=True)
             else:
                 observed_radiance(d_S, incidence_ang, emission_ang, T, reflectance, waves, 'rads_' + str(j), test)
@@ -208,7 +262,7 @@ def read_radiances(test: bool):
 
     i = 0
     for filename in file_list:
-        rad_dict = tomler.read_radiance(filename, test)
+        rad_dict = FH.read_radiance(filename, test)
         # Extract the radiances, discard the metadata
         summed[i, :] = rad_dict['sum_radiance']
         reflected[i, :] = rad_dict['reflected_radiance']

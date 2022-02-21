@@ -1,3 +1,7 @@
+"""
+Methods for building and using neural networks for separating reflected and thermally emitted radiances.
+"""
+
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
@@ -5,9 +9,6 @@ from scipy.stats import norm
 import os
 from pathlib import Path
 import pickle
-
-# from tensorboard.errors import InvalidArgumentError
-from tensorflow.python.framework.errors_impl import InvalidArgumentError
 from tensorflow.keras.layers import Input, Dense, Flatten, Conv1D, MaxPooling1D, Dropout, Concatenate, Reshape
 from tensorflow.keras.models import Model, load_model
 
@@ -15,17 +16,19 @@ import constants as C
 import reflectance_data as refl
 import radiance_data as rad
 
-# # For running with GPU on server:
-# os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-# # Check available GPU with command nvidia-smi in terminal
-# os.environ["CUDA_VISIBLE_DEVICES"] = "4"
-
-# To show plots from server, make X11 connection and add this to Run configuration > Environment variables:
-# DISPLAY=localhost:10.0
-
 
 def prepare_training_data():
-    # #############################
+    """
+    Creating training and validation data. Takes reflectance spectra of asteroids, and divides them into a larger set
+    for training and a smaller set for validation. From each reflectance creates 10 simulated radiances with random
+    values for heliocentric distance, incidence and emission angles, and surface temperature. For training the
+    separate reflected and thermal radiances are the ground truth, and the sum of these is the input. Function
+    creates dictionaries for all simulated observations, writing into them the three spectra, and metadata
+    related to parameters used in their creation. Each dictionary is saved into its own .toml file.
+
+
+    """
+    # #############################  # TODO Take meteorite reflectances also into account?
     # # Load meteorite reflectances from files and create more from them through augmentation
     # train_reflectances, test_reflectances = refl.read_meteorites(waves)
     # refl.augmented_reflectances(train_reflectances, waves, test=False)
@@ -36,15 +39,12 @@ def prepare_training_data():
     # Load asteroid reflectances, they are already augmented
     train_reflectances, test_reflectances = refl.read_asteroids()
 
-    ############################
     # Calculate 10 radiances from each reflectance, and save them on disc as toml
     rad.calculate_radiances(test_reflectances, test=True)
     rad.calculate_radiances(train_reflectances, test=False)
 
-    # ##############################
     # Create a "bunch" from training and testing radiances and save both in their own files. This is orders of
-    # magnitude faster than reading each radiance from its own toml
-
+    # magnitude faster than reading each radiance from its own toml  # TODO Make toml creation optional
     def bunch_rads(summed, separate, filepath: Path):
         rad_bunch = {}
         rad_bunch['summed'] = summed
@@ -80,17 +80,17 @@ def create_hypermodel(hp):
     input_data = Input(shape=(input_length, 1))
 
     # Convolution layer for the input, tune both filter number and kernel size
-    filters = hp.Int("filters", min_value=1, max_value=64, step=8)
-    kernel_size = hp.Int("kernel_size", min_value=2, max_value=32, step=2)
+    filters = hp.Int("filters", min_value=20, max_value=60, step=4)
+    kernel_size = hp.Int("kernel_size", min_value=20, max_value=40, step=2)
     conv1 = Conv1D(filters=filters, kernel_size=kernel_size, padding='same', activation=C.activation)(input_data)
     conv1 = Flatten()(conv1)
 
     # Tune encoder/decoder start layer node count
-    encdec_start = hp.Int('encdec_start', min_value=64, max_value=1024, step=64)
+    encdec_start = hp.Int('encdec_start', min_value=800, max_value=1200, step=40)
     # Tune number of nodes in waist layer
-    waist_size = hp.Int('waist_size', min_value=8, max_value=128, step=8)
+    waist_size = hp.Int('waist_size', min_value=80, max_value=160, step=8)
     # Tune the relation between node counts of subsequent encoder/decoder layers: (layer N nodes) / (layer N-1 nodes)
-    encdec_node_relation = hp.Float("encdec_node_relation", min_value=0.1, max_value=0.9, sampling="linear")
+    encdec_node_relation = hp.Float("encdec_node_relation", min_value=0.1, max_value=0.5, sampling="linear")
 
     # Create encoder based on start, relation, and waist
     node_count = encdec_start
@@ -133,7 +133,7 @@ def create_hypermodel(hp):
     model.summary()
 
     # Define optimizer, tune learning rate of the model
-    lr = hp.Float('lr', min_value=1e-6, max_value=1e-3, sampling='log')
+    lr = hp.Float('lr', min_value=1e-7, max_value=1e-5, sampling='log')
     opt = tf.keras.optimizers.Adam(learning_rate=lr)
 
     # Compile model
@@ -201,6 +201,13 @@ def create_model(input_length, waist_size, activation):
 
 
 def loss_fn(ground, prediction):
+    """
+    Calculate loss from predicted spectra and corresponding ground truth.
+
+    :param ground: tf.Tensor
+    :param prediction: tf.Tensor
+    :return:
+    """
 
     y1 = ground[:, :, 0]
     y2 = ground[:, :, 1]
@@ -214,10 +221,6 @@ def loss_fn(ground, prediction):
     # To prevent division by (near) zero, add small constant value to maxima
     y1_max = y1_max + 0.00001
     y2_max = y2_max + 0.00001
-
-    # # Or would it be better to only add something to the really small values?
-    # y1_max = y1_max + tf.cond(tf.math.less_equal(y1_max, 0.00001), lambda: 0.00001, lambda: 0.0)
-    # y2_max = y2_max + tf.cond(tf.math.less_equal(y2_max, 0.00001), lambda: 0.00001, lambda: 0.0)
 
     # Scale both ground truth and predictions by dividing with maximum
     y1 = tf.math.divide(y1, y1_max)
@@ -233,27 +236,8 @@ def loss_fn(ground, prediction):
     cosine_loss = tf.keras.losses.CosineSimilarity(axis=1)
     cos_dist = cosine_loss(y2, y2_pred) + 1  # According to Keras documentation, -1 means similar and 1 means dissimilar: add 1 to stay positive!
 
-
-    # cos_sum = cos1 + cos2 + 2  # According to Keras documentation, -1 means similar and 1 means dissimilar: add 2 to stay positive!
-
-    # # Calculate minimum values of predictions
-    # y1_pred_min = tf.math.reduce_min(y1_pred)
-    # y2_pred_min = tf.math.reduce_min(y2_pred)
-    # mincost = 0.
-
-    # If the minimum of prediction is less than zero, add punishment to the loss IT APPEARS THIS DOES NOT WORK
-    # mincost = mincost + tf.cond(tf.math.less_equal(y1_pred_min, 0.), lambda: 1000000.0, lambda: 0.0)
-    # mincost = mincost + tf.cond(tf.math.less_equal(y2_pred_min, 0.), lambda: tf.math.abs(y2_pred_min) * C.loss_negative_penalty_multiplier, lambda: 0.0)
-
-    # # Calculating gradients of the prediction and taking their norm: should smooth output vectors
-    # # Adding this to the loss gives NaN losses after some epochs, and I have no idea why
-    # predict1_grad = y1_pred[:, 1:] - y1_pred[:, 0:-1]
-    # grad_norm1 = tf.norm(predict1_grad, axis=1, keepdims=True)
-    #
-    # predict2_grad = y2_pred[:, 1:] - y2_pred[:, 0:-1]
-    # grad_norm2 = tf.norm(predict2_grad, axis=1, keepdims=True)
-
-    loss = L2_dist + cos_dist #+ (C.loss_gradient_multiplier * (grad_norm1 + grad_norm2)) #+ mincost
+    # Calculate loss as sum of L2 distances and cos distances of thermal
+    loss = L2_dist + cos_dist
 
     # # Printing loss into console (since debugger will not show tensor values)
     # tf.compat.v1.control_dependencies([tf.print(loss)])
@@ -282,6 +266,7 @@ def load_training_validation_data():
     :return: x_train, y_train, x_val, y_val
     Training data, training ground truth, validation data, validation ground truth
     """
+
     # Load training radiances from one file as dicts
     with open(C.rad_bunch_training_path, 'rb') as file_pi:
         rad_bunch_training = pickle.load(file_pi)
@@ -367,45 +352,3 @@ def load_model(weight_path):
     model.load_weights(weight_path)
 
     return model
-
-
-# # Toy problem data creation
-# def create_slope(length):
-#     val = (np.random.rand(1) - 0.5) * 0.3
-#     # val = 0.1  # Static slope for testing
-#     offset = np.random.rand(1)
-#     # offset = 0.5  # Static offset
-#     slope = np.linspace(0, val, length).flatten() + offset
-#
-#     if np.min(slope) < 0:
-#         slope = slope + np.min(slope)
-#
-#     return slope
-#
-# def create_normal(length):
-#     mu = np.random.rand(1) * (length/2)
-#     sigma = (0.1 + np.random.rand(1)) * 0.1 * length
-#     # Static mu and sigma for preliminary tests:
-#     # mu = 20
-#     # sigma = 10
-#     normal = norm.pdf(range(length), mu, sigma) * 10
-#
-#     return normal
-#
-#
-# def create_data(length, samples):
-#
-#     data = np.zeros((samples, length))
-#     ground1 = np.zeros((samples, length))
-#     ground2 = np.zeros((samples, length))
-#
-#     for i in range(samples):
-#         slope = create_slope(length)
-#         normal = create_normal(length) + create_normal(length)
-#         summed = normal + slope
-#
-#         data[i, :] = summed
-#         ground1[i, :] = slope
-#         ground2[i, :] = normal
-#
-#     return data, ground1, ground2

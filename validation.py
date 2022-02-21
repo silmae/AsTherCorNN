@@ -10,12 +10,11 @@ import sympy
 import constants as C
 import neural_network as NN
 import radiance_data as rad
-import toml_handler as tomler
+import file_handling as FH
 
 
 def fit_Planck(radiance: np.ndarray):
     """
-
     Fit Planck's law to thermal radiance vector, to evaluate the temperature of the radiation source. Approximates
     emittance as constant 0.9.
 
@@ -24,6 +23,7 @@ def fit_Planck(radiance: np.ndarray):
     :return: float
         Temperature of the radiance source, in Kelvin
     """
+
     # Parametrize Planck's law in simpler terms to make fitting easier
     # Define constants
     # c = speed of light in vacuum, m / s
@@ -34,6 +34,7 @@ def fit_Planck(radiance: np.ndarray):
     # Re-parametrized version: L_th = eps * a / ((wl ** 5) * (exp(b / (wl * T)) - 1))
 
     # Values for a and b calculated with Wolfram Alpha
+    # Move from m to µm to make computing easier: values are not so extremely small
     a = 1.191e-16  # kg m⁴/s³
     a = a * 1e24  # Convert to kg µm⁴/s³
     b = 0.01439  # m K
@@ -66,16 +67,9 @@ def fit_Planck(radiance: np.ndarray):
 
 def test_model(X_test, y_test, model, test_epoch, savefolder):
 
-    test_result = model.evaluate(X_test, y_test, verbose=0)
-    #
-    with open(C.training_history_path, 'rb') as file_pi:
-        train_history = pickle.load(file_pi)
-    val_loss = train_history['val_loss']
-    val_loss = val_loss[test_epoch - 1]
-    # val_loss = 'unknown'
 
-    print(f'Test resulted in a loss of {test_result}')
-    print(f'Validation loss for model in the last training epoch was {val_loss}')
+    test_result = model.evaluate(X_test, y_test, verbose=0)
+    print(f'Test with Keras resulted in a loss of {test_result}')
 
     # Calculate some differences between ground truth and prediction vectors
     # Cosine of angle between two vectors
@@ -95,7 +89,7 @@ def test_model(X_test, y_test, model, test_epoch, savefolder):
     temperature_pred = []
     indices = range(len(X_test[:, 0]))  # Full error calculation, takes some time
     # indices = range(int(len(X_test[:, 0]) * 0.1))  # 10 percent of samples used for error calculation, takes less time
-    # indices = range(20)
+
     for i in indices:
         test_sample = np.expand_dims(X_test[i, :], axis=0)
         prediction = model.predict(test_sample).squeeze()  # model.predict(np.array([summed.T])).squeeze()
@@ -105,6 +99,7 @@ def test_model(X_test, y_test, model, test_epoch, savefolder):
         ground2 = y_test[i, :, 1]
 
         # Calculate temperatures of ground and prediction by fitting to Planck function
+        # TODO Create a proper version for Bennu data, NASA provided temperatures in the FITS extension
         ground_temp = fit_Planck(ground2)
         print(f'Ground temperature: {ground_temp}')
         temperature_ground.append(ground_temp)
@@ -149,7 +144,7 @@ def test_model(X_test, y_test, model, test_epoch, savefolder):
     error_dict['MAE'] = MAE_dict
     error_dict['SAM'] = SAM_dict
 
-    tomler.save_toml(error_dict, Path(savefolder, 'errors.toml'))
+    FH.save_toml(error_dict, Path(savefolder, 'errors.toml'))
 
     # Plot MAE and SAM of all test samples, for both thermal and reflected
     fig = plt.figure()
@@ -172,18 +167,16 @@ def test_model(X_test, y_test, model, test_epoch, savefolder):
     for i in index:
         # Plot and save some radiances from ground truth and radiances produced by the model prediction
         test_sample = np.expand_dims(X_test[i, :], axis=0)
-        prediction = model.predict(test_sample).squeeze()  # model.predict(np.array([summed.T])).squeeze()
+        prediction = model.predict(test_sample).squeeze()
         pred1 = prediction[0:int(len(prediction) / 2)]
         pred2 = prediction[int(len(prediction) / 2):len(prediction) + 1]
 
-
         fig = plt.figure()
-        # plt.style.use('seaborn')
         x = C.wavelengths
-        plt.plot(x, y_test[i, :, 0])#, color='r')
-        plt.plot(x, y_test[i, :, 1])#, color='b')
-        plt.plot(x, pred1.squeeze(), linestyle='--')#, '--c')
-        plt.plot(x, pred2.squeeze(), linestyle='--')#, '--m')
+        plt.plot(x, y_test[i, :, 0])
+        plt.plot(x, y_test[i, :, 1])
+        plt.plot(x, pred1.squeeze(), linestyle='--')
+        plt.plot(x, pred2.squeeze(), linestyle='--')
         plt.xlabel('Wavelength [µm]')
         plt.ylabel('Radiance [W / m² / sr / µm]')
         plt.legend(('ground 1', 'ground 2', 'prediction 1', 'prediction 2'))
@@ -246,7 +239,23 @@ def validate_synthetic(model, last_epoch, validation_run_folder):
     test_model(X_test, y_test, model, last_epoch, validation_plots_synthetic_path)
 
 
-def bennu_refine(fitslist, time, plots=False):
+def bennu_refine(fitslist: list, time: int, plots=False):
+    """
+    Refine Bennu data to suit testing. Discard measurements where the instrument did not point to Bennu, but to
+    the infinite void of space. Interpolate spectra to match the wavelengths of the training data. Convert radiance
+    values to match the units of training data, from [W/cm²/sr/µm] to [W/m²/sr/µm].
+
+    Return uncorrected spectral radiance, thermal tail subtracted spectral radiance, and the thermal tail spectral
+    radiance.
+
+    :param fitslist: list
+        List of spectral measurements in FITS format
+    :param time: int
+        Local time on Bennu where the measurement was taken, can be 1000, 1230, or 1500. Affects save locations
+    :param plots: boolean
+        Whether or not plots will be made and saved
+    :return: uncorrected_Bennu, corrected_Bennu, thermal_tail_Bennu:
+    """
 
     uncorrected_fits = fitslist[0]
     corrected_fits = fitslist[1]
@@ -297,7 +306,7 @@ def bennu_refine(fitslist, time, plots=False):
     thermal_tail_Bennu = bennu_rad_interpolation(thermal_tail_Bennu, wavelengths)
 
     def rad_unit_conversion(data):
-        # Convert from NASAs radiance unit [W/cm²/sr/µm] to my [W/m²/sr/µm]
+        # Convert from NASAs radiance unit [W/cm²/sr/µm] to [W/m²/sr/µm]
         converted = data * 10000
         return converted
 
@@ -321,6 +330,7 @@ def bennu_refine(fitslist, time, plots=False):
             print(f'Saved figure as bennurads_{time}_{i}.png')
             plt.show()
             plt.close(fig)
+
     return uncorrected_Bennu, corrected_Bennu, thermal_tail_Bennu
 
 

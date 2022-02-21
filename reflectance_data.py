@@ -1,11 +1,17 @@
+"""
+Methods for working with reflectance data: loading and augmenting meteorite reflectances, loading asteroid reflectances
+and scaling them with appropriate albedo estimates.
+"""
+
 import os
 import random
 from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+
 import constants as C
-import toml_handler as tomler
+import file_handling as FH
 
 
 def read_meteorites(waves):
@@ -197,7 +203,7 @@ def augmented_reflectances(reflectance_spectra: list, waves: np.ndarray, test: b
     # Save the augmented spectra into toml -files
     for j in range(len(reflectance_spectra)):
         spectrum = reflectance_spectra[j]
-        tomler.save_aug_reflectance(spectrum, f'reflectance{j}', test)
+        FH.save_aug_reflectance(spectrum, f'reflectance{j}', test)
 
 
 def scale_asteroid_reflectances(normalized_frame: pd.DataFrame, albedo_frame: pd.DataFrame):
@@ -288,6 +294,8 @@ def read_asteroids():
     test_part = int(sample_count * C.refl_test_partition)
     test_reflectances = spectral_reflectances[:test_part]
     train_reflectances = spectral_reflectances[test_part:]
+
+    # TODO The order of operations might be wrong here! If shuffled before partitioning, will get same reflectance with different albedo in both test and train! Perkele
 
     return train_reflectances, test_reflectances
 
