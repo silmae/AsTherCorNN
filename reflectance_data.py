@@ -250,13 +250,14 @@ def scale_asteroid_reflectances(normalized_frame: pd.DataFrame, albedo_frame: pd
 
         # Plot every hundreth set of three reflectances, save plots to disc
         if plot_index % 100 == 0:
-            plt.figure()
+            fig = plt.figure()
             plt.plot(C.wavelengths, spectral_reflectances[-1])
             plt.plot(C.wavelengths, spectral_reflectances[-2])
             plt.plot(C.wavelengths, spectral_reflectances[-3])
             plt.xlabel('Wavelength [µm]')
             plt.ylabel('Reflectance')
             plt.savefig(Path(C.refl_plots_path, f'{plot_index}.png'), dpi=400)
+            plt.close(fig)
 
         plot_index = plot_index + 1
 
@@ -273,8 +274,8 @@ def read_asteroids():
     Scaled reflectance spectra, partitioned according to split given in constants.py
 
     """
-    aug_path = C.Penttila_aug_path
-    orig_path = C.Penttila_orig_path
+    aug_path = C.Penttila_aug_path  # Spectra augmented by Penttilö
+    orig_path = C.Penttila_orig_path  # Un-augmented, original spectra from MITHNEOS and Bus-Demeo
 
     aug_frame = pd.read_csv(aug_path, sep='\t', header=None, engine='python')  # Read wl and reflectance from file
     orig_frame = pd.read_csv(orig_path, sep='\t', header=None, engine='python')
@@ -283,19 +284,19 @@ def read_asteroids():
     # Extract wl vector from the original: the same as in augmented, but that one does not have it
     wavelengths = orig_frame.values[0, 2:]
 
-    # Scale normalized spectra using class mean albedos
-    spectral_reflectances = scale_asteroid_reflectances(aug_frame, albedo_frame)
-
-    # Shuffle the reflectances, to not get the samples of each class one after another
-    random.shuffle(spectral_reflectances)
+    # Shuffling the order of rows, so all spectra of the same type won't occur one after another
+    aug_frame = aug_frame.sample(frac=1)
 
     # Partition the data into train and test reflectances, according to split parameter given in constants
-    sample_count = len(spectral_reflectances)
+    sample_count = len(aug_frame.index)
     test_part = int(sample_count * C.refl_test_partition)
-    test_reflectances = spectral_reflectances[:test_part]
-    train_reflectances = spectral_reflectances[test_part:]
 
-    # TODO The order of operations might be wrong here! If shuffled before partitioning, will get same reflectance with different albedo in both test and train! Perkele
+    test_frame = aug_frame.iloc[:test_part, :]
+    train_frame = aug_frame.iloc[test_part:, :]
+
+    # Scale normalized spectra using class mean albedos
+    test_reflectances = scale_asteroid_reflectances(test_frame, albedo_frame)
+    train_reflectances = scale_asteroid_reflectances(train_frame, albedo_frame)
 
     return train_reflectances, test_reflectances
 

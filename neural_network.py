@@ -15,6 +15,7 @@ from tensorflow.keras.models import Model, load_model
 import constants as C
 import reflectance_data as refl
 import radiance_data as rad
+import file_handling as FH
 
 
 def prepare_training_data():
@@ -39,24 +40,22 @@ def prepare_training_data():
     # Load asteroid reflectances, they are already augmented
     train_reflectances, test_reflectances = refl.read_asteroids()
 
-    # Calculate 10 radiances from each reflectance, and save them on disc as toml
-    rad.calculate_radiances(test_reflectances, test=True)
-    rad.calculate_radiances(train_reflectances, test=False)
+    # Calculate 10 radiances from each reflectance, save them on disc as toml, and return the data vectors
+    summed_test, separate_test = rad.calculate_radiances(test_reflectances, test=True)
+    summed_training, separate_training = rad.calculate_radiances(train_reflectances, test=False)
 
     # Create a "bunch" from training and testing radiances and save both in their own files. This is orders of
-    # magnitude faster than reading each radiance from its own toml  # TODO Make toml creation optional
+    # magnitude faster than reading each radiance from its own toml
     def bunch_rads(summed, separate, filepath: Path):
         rad_bunch = {}
         rad_bunch['summed'] = summed
         rad_bunch['separate'] = separate
 
-        with open(filepath, 'wb') as file_pi:
-            pickle.dump(rad_bunch, file_pi)
+        FH.save_pickle(rad_bunch, filepath)
 
-    summed_test, separate_test = rad.read_radiances(test=True)
+    # summed_test, separate_test = rad.read_radiances(test=True)
     bunch_rads(summed_test, separate_test, C.rad_bunch_test_path)
-
-    summed_training, separate_training = rad.read_radiances(test=False)
+    # summed_training, separate_training = rad.read_radiances(test=False)
     bunch_rads(summed_training, separate_training, C.rad_bunch_training_path)
 
 
@@ -75,22 +74,58 @@ def create_hypermodel(hp):
     :return: model
     Compiled Keras Model -instance
     """
-    # Input layer always depends on the input data, which depends on the wl-vector specified in constants
-    input_length = len(C.wavelengths)
-    input_data = Input(shape=(input_length, 1))
 
     # Convolution layer for the input, tune both filter number and kernel size
     filters = hp.Int("filters", min_value=20, max_value=60, step=4)
     kernel_size = hp.Int("kernel_size", min_value=20, max_value=40, step=2)
-    conv1 = Conv1D(filters=filters, kernel_size=kernel_size, padding='same', activation=C.activation)(input_data)
-    conv1 = Flatten()(conv1)
 
     # Tune encoder/decoder start layer node count
     encdec_start = hp.Int('encdec_start', min_value=800, max_value=1200, step=40)
     # Tune number of nodes in waist layer
     waist_size = hp.Int('waist_size', min_value=80, max_value=160, step=8)
-    # Tune the relation between node counts of subsequent encoder/decoder layers: (layer N nodes) / (layer N-1 nodes)
+    # Tune the relation between node counts of subsequent encoder layers: (layer N nodes) / (layer N-1 nodes)
     encdec_node_relation = hp.Float("encdec_node_relation", min_value=0.1, max_value=0.5, sampling="linear")
+
+    # Define optimizer, tune learning rate of the model
+    lr = hp.Float('lr', min_value=1e-7, max_value=1e-5, sampling='log')
+
+    # Create model in separate function with adjustable hyperparameters as inputs
+    model = create_model(filters, kernel_size, encdec_start, encdec_node_relation, waist_size, lr)
+
+    return model
+
+
+def create_model(conv_filters: int, conv_kernel: int, encdec_start: int, encdec_node_relation: float, waist_size: int, lr: float):
+    """
+    Create and compile an autoencoder using Keras.
+
+    Network structure:
+    dense input --> conv1d --> dense autoencoder --> conv1d --> dense output --> concatenate
+
+    :param conv_filters: int
+        Number of filters in each convolutional layer
+    :param conv_kernel: int
+        Kernel width in the convolution
+    :param encdec_start: int
+        Node count at the start of the encoder / at the end of the decoder
+    :param encdec_node_relation:
+        Relation between node counts of subsequent encoder layers: (layer N nodes) / (layer N-1 nodes)
+    :param waist_size: int
+        Node count of autoencoder waist layer
+    :param lr: float
+        Learning rate in training the network
+
+    :return: Keras Model -instance
+        Compiled model ready for training
+    """
+
+    # Input layer always depends on the input data, which depends on the wl-vector specified in constants
+    input_length = len(C.wavelengths)
+    input_data = Input(shape=(input_length, 1))
+
+    # Convolution layer
+    conv1 = Conv1D(filters=conv_filters, kernel_size=conv_kernel, padding='same', activation=C.activation)(input_data)
+    conv1 = Flatten()(conv1)
 
     # Create encoder based on start, relation, and waist
     node_count = encdec_start
@@ -103,7 +138,7 @@ def create_hypermodel(hp):
 
     waist = Dense(units=waist_size, activation=C.activation)(encoder)
 
-    # Create two decoders, one for each output: use the list of encoder node counts, but reversed
+    # Create two decoders, one for each output
     i = 0
     for node_count in reversed(counts):
         if i == 0:
@@ -116,86 +151,27 @@ def create_hypermodel(hp):
 
     # Convolutional layer to match the encoder side
     decoder1 = Reshape(target_shape=(int(node_count), 1))(decoder1)
-    decoder1 = Conv1D(filters=filters, kernel_size=kernel_size, padding='same', activation=C.activation)(decoder1)
+    decoder1 = Conv1D(filters=conv_filters, kernel_size=conv_kernel, padding='same', activation=C.activation)(decoder1)
     decoder1 = Flatten()(decoder1)
     decoder2 = Reshape(target_shape=(int(node_count), 1))(decoder2)
-    decoder2 = Conv1D(filters=filters, kernel_size=kernel_size, padding='same', activation=C.activation)(decoder2)
+    decoder2 = Conv1D(filters=conv_filters, kernel_size=conv_kernel, padding='same', activation=C.activation)(decoder2)
     decoder2 = Flatten()(decoder2)
 
     output1 = Dense(input_length, activation='linear')(decoder1)
     output2 = Dense(input_length, activation='linear')(decoder2)
 
-    # Concatenate the two outputs into one vector to transport it to loss fn
+    # Concatenate the two outputs into one vector to transport it to loss function: Keras does not allow two outputs
     conc = Concatenate()([output1, output2])
 
     # Create a model object
     model = Model(inputs=[input_data], outputs=[conc])
     model.summary()
 
-    # Define optimizer, tune learning rate of the model
-    lr = hp.Float('lr', min_value=1e-7, max_value=1e-5, sampling='log')
+    # Define optimizer, set learning rate of the model
     opt = tf.keras.optimizers.Adam(learning_rate=lr)
 
     # Compile model
     model.compile(optimizer=opt, loss=loss_fn)
-
-    return model
-
-
-def create_model(input_length, waist_size, activation):
-
-    # Create input for fully connected
-    # input_data = Input(shape=(input_length))
-
-    # Input if using convolutional layer
-    input_data = Input(shape=(input_length, 1))
-
-    # Convolution layer, mainly for noise reduction
-    conv1 = Conv1D(filters=16, kernel_size=3, padding='same', activation=C.activation)(input_data)
-    conv1 = Flatten()(conv1)
-
-    # Calculate node count for first autoencoder layer by taking the nearest power of 2
-    node_count = 2 ** np.floor(np.log2(input_length))
-    # Create first hidden layer for encoder
-    encoder = Dense(node_count, activation=activation)(conv1)
-
-    counts = [node_count]
-    while node_count/2 > waist_size:
-        node_count = node_count / 2
-        encoder = Dense(node_count, activation=activation)(encoder)
-        counts.append(node_count)
-        # print(node_count)
-
-    # Create waist layer
-    waist = Dense(waist_size, activation=activation)(encoder)
-
-    # Create two decoders, one for each output
-    i = 0
-    for node_count in reversed(counts):
-        if i == 0:
-            decoder1 = Dense(node_count, activation=activation)(waist)
-            decoder2 = Dense(node_count, activation=activation)(waist)
-            i = i + 1
-        else:
-            decoder1 = Dense(node_count, activation=activation)(decoder1)
-            decoder2 = Dense(node_count, activation=activation)(decoder2)
-
-    # Convolutional layer to match the encoder side
-    decoder1 = Reshape(target_shape=(int(node_count), 1))(decoder1)
-    decoder1 = Conv1D(filters=16, kernel_size=3, padding='same', activation=C.activation)(decoder1)
-    decoder1 = Flatten()(decoder1)
-    decoder2 = Reshape(target_shape=(int(node_count), 1))(decoder2)
-    decoder2 = Conv1D(filters=16, kernel_size=3, padding='same', activation=C.activation)(decoder2)
-    decoder2 = Flatten()(decoder2)
-
-    output1 = Dense(input_length, activation='linear')(decoder1)
-    output2 = Dense(input_length, activation='linear')(decoder2)
-
-    # Concatenate the two outputs into one vector to transport it to loss fn
-    conc = Concatenate()([output1, output2])
-
-    # Create a model object(?) and return it
-    model = Model(inputs=[input_data], outputs=[conc])
 
     return model
 
@@ -205,10 +181,15 @@ def loss_fn(ground, prediction):
     Calculate loss from predicted spectra and corresponding ground truth.
 
     :param ground: tf.Tensor
+        Ground truth, two vectors for every item in batch
     :param prediction: tf.Tensor
+        Prediction, one vector for every item in batch: consists of two vectors stacked one after another
+
     :return:
+        Calculated loss
     """
 
+    # Divide each of the inputs into two vectors for comparing ground and prediction
     y1 = ground[:, :, 0]
     y2 = ground[:, :, 1]
     y1_pred = prediction[:, 0:y1.shape[1]]
@@ -245,19 +226,6 @@ def loss_fn(ground, prediction):
     return loss
 
 
-def init_autoencoder(length):
-
-    model = create_model(length, C.waist, C.activation)
-    model.summary()
-
-    opt = tf.keras.optimizers.Adam(learning_rate=C.learning_rate)
-
-    # Compile model
-    model.compile(optimizer=opt, loss=loss_fn)
-
-    return model
-
-
 def load_training_validation_data():
     """
     Load training and validation data and ground truths from files and return them: training data from one pickle file,
@@ -283,11 +251,7 @@ def load_training_validation_data():
     return x_train, y_train, x_val, y_val
 
 
-def train_autoencoder(early_stop=True, checkpoints=True, save_history=True, create_new_data=False):
-
-    # Initialize autoencoder architecture based on the number of wavelength channels
-    length = len(C.wavelengths)
-    model = init_autoencoder(length)
+def train_autoencoder(model, early_stop=True, checkpoints=True, save_history=True, create_new_data=False):
 
     # Early stop callback
     early_stop_callback = tf.keras.callbacks.EarlyStopping(

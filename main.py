@@ -47,31 +47,73 @@ if __name__ == '__main__':
 
     # # Build and train a model
     # model = NN.train_autoencoder(early_stop=True, checkpoints=True, save_history=True)
-    # model = NN.train_autoencoder(early_stop=False, checkpoints=True, save_history=True, create_new_data=False)
+    """
+    Three best models from hp-optimizer:
+    
+        Trial summary
+        Hyperparameters:
+        filters: 60
+        kernel_size: 40
+        encdec_start: 800
+        waist_size: 160
+        encdec_node_relation: 0.1
+        lr: 1e-05
+        Score: 0.19715037941932678
+        
+        Trial summary
+        Hyperparameters:
+        filters: 20
+        kernel_size: 40
+        encdec_start: 1200
+        waist_size: 160
+        encdec_node_relation: 0.5
+        lr: 1e-05
+        Score: 0.19769485294818878
+        
+        Trial summary
+        Hyperparameters:
+        filters: 60
+        kernel_size: 40
+        encdec_start: 1200
+        waist_size: 160
+        encdec_node_relation: 0.1
+        lr: 1e-05
+        Score: 0.19800615310668945
+    """
+
+    untrained = NN.create_model(
+        conv_filters=60,
+        conv_kernel=40,
+        encdec_start=800,
+        encdec_node_relation=0.5,
+        waist_size=160,
+        lr=1e-5
+    )
+    model = NN.train_autoencoder(untrained, early_stop=False, checkpoints=True, save_history=True, create_new_data=False)
 
     ##############################
 
-    # Hyperparameter optimization with KerasTuner
-    # hypermodel = NN.create_hypermodel(kt.HyperParameters())
-    savefolder_name = f'optimization-run_{time.strftime("%Y%m%d-%H%M%S")}'
-    tuner = kt.BayesianOptimization(
-        hypermodel=NN.create_hypermodel,
-        objective="val_loss",
-        max_trials=20,
-        executions_per_trial=1,
-        overwrite=True,
-        directory=C.hyperparameter_path,
-        project_name=savefolder_name,
-    )
-    tuner.search_space_summary()
-    x_train, y_train, x_val, y_val = NN.load_training_validation_data()
-    tuner.search(x_train, y_train, epochs=300, validation_data=(x_val, y_val))
-
-    tuner.results_summary()
-    tuning_results_path = Path(C.hyperparameter_path, savefolder_name)
-    with open(Path(tuning_results_path, 'trial_summary.txt'), 'w') as f:
-        with redirect_stdout(f):
-            tuner.results_summary()
+    # # Hyperparameter optimization with KerasTuner
+    # # hypermodel = NN.create_hypermodel(kt.HyperParameters())
+    # savefolder_name = f'optimization-run_{time.strftime("%Y%m%d-%H%M%S")}'
+    # tuner = kt.BayesianOptimization(
+    #     hypermodel=NN.create_hypermodel,
+    #     objective="val_loss",
+    #     max_trials=20,
+    #     executions_per_trial=1,
+    #     overwrite=True,
+    #     directory=C.hyperparameter_path,
+    #     project_name=savefolder_name,
+    # )
+    # tuner.search_space_summary()
+    # x_train, y_train, x_val, y_val = NN.load_training_validation_data()
+    # tuner.search(x_train, y_train, epochs=300, validation_data=(x_val, y_val))
+    #
+    # tuner.results_summary()
+    # tuning_results_path = Path(C.hyperparameter_path, savefolder_name)
+    # with open(Path(tuning_results_path, 'trial_summary.txt'), 'w') as f:
+    #     with redirect_stdout(f):
+    #         tuner.results_summary()
 
     ##############################
 

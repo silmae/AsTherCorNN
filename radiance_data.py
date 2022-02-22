@@ -23,8 +23,8 @@ def bb_radiance(T: float, eps: float, wavelength: np.ndarray):
     :param T: float.
         Surface temperature, in Kelvins
     :param eps: float.
-        Emissivity = sample emission spectrum divided by ideal bb spectrum of same temperature. Maybe in future accepts
-        a vector, but only constants for now
+        Emissivity = sample emission spectrum divided by ideal blackbody spectrum of same temperature. Maybe in future
+        accepts a vector, but only constants for now
     :param wavelength:
         vector of floats. Wavelengths where the emission is to be calculated, in micrometers
 
@@ -73,7 +73,7 @@ def reflected_radiance(reflectance: np.ndarray, irradiance: np.ndarray, incidenc
     # Reflected radiance from flat surface with 0 phase angle
     reflrad[:, 1] = irradiance[:, 1] * reflectance
 
-    # Angle dependence with L-S
+    # Angle dependence with Lommel-Seeliger
     reflrad[:, 1] = (reflrad[:, 1] / (4 * np.pi)) * (1 / (np.cos(np.deg2rad(incidence_angle)) + np.cos(np.deg2rad(emission_angle))))
 
     return reflrad
@@ -209,6 +209,7 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
         plt.close(fig)
         # plt.show()
 
+    return rad_dict
 
 def calculate_radiances(reflectance_list: list, test: bool):
     """
@@ -220,9 +221,20 @@ def calculate_radiances(reflectance_list: list, test: bool):
         Spectral reflectances from which the radiances will be created.
     :param test: boolean
         Whether the data will be used for testing or training, affects only the save location.
+
+    :return: summed, separate: ndarrays
+        Arrays containing summed spectra and separate reflected and thermal spectra
     """
     waves = C.wavelengths
-    j = 1
+
+    # Empty arrays for storing data vectors
+    length = len(waves)
+    samples = len(reflectance_list)
+    summed = np.zeros((samples*10, length))
+    reflected = np.zeros((samples*10, length))
+    therm = np.zeros((samples*10, length))
+
+    j = 0
 
     # From each reflectance, create 10 radiances calculated with different parameters
     for reflectance in reflectance_list:
@@ -236,11 +248,23 @@ def calculate_radiances(reflectance_list: list, test: bool):
             if j % 1000 == 0:
                 # Calculate radiances with the given parameters and
                 # save plots for every 1000th radiance and reflectance
-                observed_radiance(d_S, incidence_ang, emission_ang, T, reflectance, waves, 'rads_' + str(j), test, plots=True)
+                obs_rad_dict = observed_radiance(d_S, incidence_ang, emission_ang, T, reflectance, waves, 'rads_' + str(j), test, plots=True)
             else:
-                observed_radiance(d_S, incidence_ang, emission_ang, T, reflectance, waves, 'rads_' + str(j), test)
+                obs_rad_dict = observed_radiance(d_S, incidence_ang, emission_ang, T, reflectance, waves, 'rads_' + str(j), test)
+
+            # Discard the metadata and store data vectors into arrays
+            summed[j, :] = obs_rad_dict['sum_radiance']
+            reflected[j, :] = obs_rad_dict['reflected_radiance']
+            therm[j, :] = obs_rad_dict['emitted_radiance']
 
             j = j+1
+
+        # Place reflected and thermal spectra into one array for returning
+        separate = np.zeros((samples*10, length, 2))
+        separate[:, :, 0] = reflected
+        separate[:, :, 1] = therm
+
+    return summed, separate
 
 
 def read_radiances(test: bool):

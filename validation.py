@@ -223,7 +223,7 @@ def test_model(X_test, y_test, model, test_epoch, savefolder):
         plt.close(fig)
 
     # plt.show()
-    # print('test')
+
 
 def validate_synthetic(model, last_epoch, validation_run_folder):
     # Load test radiances from one file as dicts
