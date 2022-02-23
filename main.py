@@ -23,7 +23,7 @@ import reflectance_data as refl
 import radiance_data as rad
 import file_handling as FH
 import neural_network as NN
-# import validation as val  # TODO This uses symfit, which I have not installed on thingfish conda env
+# import validation as val  # TODO This uses symfit, which I have not installed on my thingfish conda env
 
 
 if __name__ == '__main__':
@@ -89,6 +89,12 @@ if __name__ == '__main__':
         waist_size=160,
         lr=1e-5
     )
+
+    # Load weights to continue training where you left off:
+    last_epoch = 295
+    weight_path = Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5')
+    untrained.load_weights(weight_path)
+
     model = NN.train_autoencoder(untrained, early_stop=False, checkpoints=True, save_history=True, create_new_data=False)
 
     ##############################
@@ -118,8 +124,19 @@ if __name__ == '__main__':
     ##############################
 
     # # Build a model and load pre-trained weights
-    # last_epoch = 2954
-    # model = NN.load_model(Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5'))
+    # model = NN.create_model(
+    #     conv_filters=60,
+    #     conv_kernel=40,
+    #     encdec_start=800,
+    #     encdec_node_relation=0.5,
+    #     waist_size=160,
+    #     lr=1e-5
+    # )
+    #
+    # last_epoch = 104
+    # weight_path = Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5')
+    # model.load_weights(weight_path)
+    #
     #
     # from contextlib import redirect_stdout
     # #

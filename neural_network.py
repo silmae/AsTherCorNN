@@ -236,15 +236,12 @@ def load_training_validation_data():
     """
 
     # Load training radiances from one file as dicts
-    with open(C.rad_bunch_training_path, 'rb') as file_pi:
-        rad_bunch_training = pickle.load(file_pi)
+    rad_bunch_training = FH.load_pickle(C.rad_bunch_training_path)
     x_train = rad_bunch_training['summed']
     y_train = rad_bunch_training['separate']
 
     # Load validation radiances from one file as dicts
-    with open(C.rad_bunch_test_path, 'rb') as file_pi:
-        rad_bunch_test = pickle.load(file_pi)
-
+    rad_bunch_test = FH.load_pickle(C.rad_bunch_test_path)
     x_val = rad_bunch_test['summed']
     y_val = rad_bunch_test['separate']
 
@@ -292,8 +289,7 @@ def train_autoencoder(model, early_stop=True, checkpoints=True, save_history=Tru
 
     # Save training history
     if save_history == True:
-        with open(C.training_history_path, 'wb') as file_pi:
-            pickle.dump(history.history, file_pi)
+        FH.save_pickle(history.history, C.training_history_path)
 
     # Summarize and plot history of loss
     plt.figure()

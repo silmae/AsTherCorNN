@@ -50,7 +50,7 @@ R_key = 'reflectance'
 
 # Gaussian distribution for noising
 mu = 0  # mean
-sigma = 0.01  # standard deviation
+sigma = 0  # 0.01  # standard deviation
 
 # Constraints for modeled radiances
 d_S_min, d_S_max = 0.7, 2  # Heliocentric distance, in AU
@@ -63,10 +63,10 @@ e_min, e_max = 0, 89  # Emission angle, angle between surface normal and observe
 # Neural network parameters
 refl_test_partition = 0.1  # Part of reflectances to be used for test data
 activation = 'relu'
-learning_rate = 4e-6
+learning_rate = 1e-5
 batches = 32
-epochs = 1000
-waist = 32  # Autoencoder middle layer node count
+epochs = 300
+waist = 160  # Autoencoder middle layer node count
 loss_gradient_multiplier = 0.05
 loss_negative_penalty_multiplier = 1e4
 

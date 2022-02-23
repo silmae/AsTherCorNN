@@ -15,8 +15,14 @@ def save_pickle(data_dict, path):
         pickle.dump(data_dict, file_pi)
     print(f'Saved a pickle into {path}')
 
-def save_toml(dictionary: dict, savepath):
 
+def load_pickle(path):
+    with open(path, 'rb') as file_pi:
+        data = pickle.load(file_pi)
+    return data
+
+
+def save_toml(dictionary: dict, savepath):
     with open(savepath, 'w+') as file:
         toml.dump(dictionary, file, encoder=toml.encoder.TomlNumpyEncoder())
     print(f'Saved a dictionary into {savepath}')

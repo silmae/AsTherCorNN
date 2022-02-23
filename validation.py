@@ -58,7 +58,7 @@ def fit_Planck(radiance: np.ndarray):
     plt.plot(C.wavelengths, radiance)
     plt.xlabel('Wavelength [µm]')
     plt.ylabel('Radiance [W / m² / sr / µm]')
-    plt.show()
+    # plt.show()
     plt.close(fig)
 
     temperature = fit_result.value(T)
@@ -66,7 +66,6 @@ def fit_Planck(radiance: np.ndarray):
     return temperature
 
 def test_model(X_test, y_test, model, test_epoch, savefolder):
-
 
     test_result = model.evaluate(X_test, y_test, verbose=0)
     print(f'Test with Keras resulted in a loss of {test_result}')
@@ -163,6 +162,7 @@ def test_model(X_test, y_test, model, test_epoch, savefolder):
     plt.savefig(Path(savefolder, 'SAM.png'))
     plt.close(fig)
 
+    # Plot some results for closer inspection from 25 random test spectra
     index = np.random.randint(0, len(X_test[:, 0]), size=25)
     for i in index:
         # Plot and save some radiances from ground truth and radiances produced by the model prediction
@@ -226,10 +226,8 @@ def test_model(X_test, y_test, model, test_epoch, savefolder):
 
 
 def validate_synthetic(model, last_epoch, validation_run_folder):
-    # Load test radiances from one file as dicts
-    with open(C.rad_bunch_test_path, 'rb') as file_pi:
-        rad_bunch_test = pickle.load(file_pi)
-
+    # Load test radiances from one file as dicts, separate ground truth and test samples
+    rad_bunch_test = FH.load_pickle(C.rad_bunch_test_path)
     X_test = rad_bunch_test['summed']
     y_test = rad_bunch_test['separate']
 
@@ -242,7 +240,7 @@ def validate_synthetic(model, last_epoch, validation_run_folder):
 def bennu_refine(fitslist: list, time: int, plots=False):
     """
     Refine Bennu data to suit testing. Discard measurements where the instrument did not point to Bennu, but to
-    the infinite void of space. Interpolate spectra to match the wavelengths of the training data. Convert radiance
+    the surrounding void of space. Interpolate spectra to match the wavelengths of the training data. Convert radiance
     values to match the units of training data, from [W/cm²/sr/µm] to [W/m²/sr/µm].
 
     Return uncorrected spectral radiance, thermal tail subtracted spectral radiance, and the thermal tail spectral
