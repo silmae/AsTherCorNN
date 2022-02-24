@@ -28,6 +28,12 @@ def save_toml(dictionary: dict, savepath):
     print(f'Saved a dictionary into {savepath}')
 
 
+def load_toml(filepath):
+    with open(filepath, 'r') as file:
+        data = toml.load(file)
+    return data
+
+
 def save_aug_reflectance(reflectance: np.ndarray, filename: str, test: bool):
     """
     Save augmented reflectance to a predetermined folder with the filename given as parameter

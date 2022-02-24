@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
@@ -67,7 +69,10 @@ def fit_Planck(radiance: np.ndarray):
 
 def test_model(X_test, y_test, model, test_epoch, savefolder):
 
+    time_start = time.perf_counter_ns()
     test_result = model.evaluate(X_test, y_test, verbose=0)
+    time_stop = time.perf_counter_ns()
+    print(f'Elapsed prediction time in seconds for {len(X_test[:, 0])} samples was {(time_stop - time_start) / 1e9}')
     print(f'Test with Keras resulted in a loss of {test_result}')
 
     # Calculate some differences between ground truth and prediction vectors
@@ -86,8 +91,8 @@ def test_model(X_test, y_test, model, test_epoch, savefolder):
     temperature_error = []
     temperature_ground = []
     temperature_pred = []
-    indices = range(len(X_test[:, 0]))  # Full error calculation, takes some time
-    # indices = range(int(len(X_test[:, 0]) * 0.1))  # 10 percent of samples used for error calculation, takes less time
+    # indices = range(len(X_test[:, 0]))  # Full error calculation, takes some time
+    indices = range(int(len(X_test[:, 0]) * 0.1))  # 10 percent of samples used for error calculation, takes less time
 
     for i in indices:
         test_sample = np.expand_dims(X_test[i, :], axis=0)
@@ -119,7 +124,7 @@ def test_model(X_test, y_test, model, test_epoch, savefolder):
         refl_cos.append(cosang1)
         therm_cos.append(cosang2)
 
-        print(f'Calculated MAE and cosine angle for sample {i} out of {len(X_test[:, 0])}')
+        print(f'Calculated MAE and cosine angle for sample {i} out of {len(indices)}')
 
     mean_dict = {}
     mean_dict['mean_reflected_MAE'] = np.mean(refl_mae)
@@ -161,6 +166,17 @@ def test_model(X_test, y_test, model, test_epoch, savefolder):
     plt.legend(('thermal', 'reflected'))
     plt.savefig(Path(savefolder, 'SAM.png'))
     plt.close(fig)
+
+    # Plot scatters of ground temperature vs temperature error, thermal MAE and SAM vs height of thermal tail
+    fig = plt.figure()
+    plt.scatter(temperature_ground, temperature_error, alpha=0.1)
+    plt.scatter(temperature_ground, temperature_pred, alpha=0.1)
+    plt.legend(('Error', 'Predicted'))
+    plt.xlabel('Ground truth temperature')
+    plt.savefig(Path(C.figfolder, 'tempscatter.png'))
+    plt.close(fig)
+
+
 
     # Plot some results for closer inspection from 25 random test spectra
     index = np.random.randint(0, len(X_test[:, 0]), size=25)
@@ -388,3 +404,60 @@ def validate_bennu(model, last_epoch, validation_run_folder):
     test_model_Bennu(uncorrected_1230, corrected_1230, thermal_tail_1230, str(1230), validation_plots_Bennu_path)
     print('Testing with Bennu data, local time 10:00')
     test_model_Bennu(uncorrected_1000, corrected_1000, thermal_tail_1000, str(1000), validation_plots_Bennu_path)
+
+
+def error_plots(folderpath):
+    errordict = FH.load_toml(Path(folderpath, 'errors.toml'))
+    # Plot scatters of ground temperature vs temperature error, thermal MAE and SAM vs height of thermal tail
+    temperature_dict = errordict['temperature']
+    temperature_ground = np.asarray(temperature_dict['ground_temperature'])
+    temperature_pred = np.asarray(temperature_dict['predicted_temperature'])
+    temperature_error = temperature_pred - temperature_ground
+
+    MAE_dict = errordict['MAE']
+    therm_MAE = MAE_dict['thermal_MAE']
+    refl_MAE = MAE_dict['reflected_MAE']
+
+    SAM_dict = errordict['SAM']
+    therm_SAM = SAM_dict['thermal_SAM']
+    refl_SAM = SAM_dict['reflected_SAM']
+
+    fig = plt.figure()
+    plt.figure()
+    plt.scatter(temperature_ground, temperature_error, alpha=0.1)
+    plt.xlabel('Ground truth temperature')
+    plt.ylabel('Temperature difference')
+    plt.savefig(Path(folderpath, 'tempdif_groundtemp.png'))
+    plt.close(fig)
+
+    fig = plt.figure()
+    plt.figure()
+    plt.scatter(temperature_ground, refl_SAM, alpha=0.1)
+    plt.xlabel('Ground truth temperature')
+    plt.ylabel('Reflected SAM')
+    plt.savefig(Path(folderpath, 'reflSAM_groundtemp.png'))
+    plt.close(fig)
+
+    fig = plt.figure()
+    plt.figure()
+    plt.scatter(temperature_ground, therm_SAM, alpha=0.1)
+    plt.xlabel('Ground truth temperature')
+    plt.ylabel('Thermal SAM')
+    plt.savefig(Path(folderpath, 'thermSAM_groundtemp.png'))
+    plt.close(fig)
+
+    fig = plt.figure()
+    plt.figure()
+    plt.scatter(temperature_ground, therm_MAE, alpha=0.1)
+    plt.xlabel('Ground truth temperature')
+    plt.ylabel('Thermal MAE')
+    plt.savefig(Path(folderpath, 'thermMAE_groundtemp.png'))
+    plt.close(fig)
+
+    fig = plt.figure()
+    plt.figure()
+    plt.scatter(temperature_ground, refl_MAE, alpha=0.1)
+    plt.xlabel('Ground truth temperature')
+    plt.ylabel('Reflected MAE')
+    plt.savefig(Path(folderpath, 'reflMAE_groundtemp.png'))
+    plt.close(fig)
