@@ -122,42 +122,44 @@ if __name__ == '__main__':
     #         tuner.results_summary()
 
     ##############################
+
+    # Build a model and load pre-trained weights
+    model = NN.create_model(
+        conv_filters=60,
+        conv_kernel=40,
+        encdec_start=800,
+        encdec_node_relation=0.5,
+        waist_size=160,
+        lr=1e-5
+    )
+
+    last_epoch = 297
+    weight_path = Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5')
+    model.load_weights(weight_path)
     #
-    # # Build a model and load pre-trained weights
-    # model = NN.create_model(
-    #     conv_filters=60,
-    #     conv_kernel=40,
-    #     encdec_start=800,
-    #     encdec_node_relation=0.5,
-    #     waist_size=160,
-    #     lr=1e-5
-    # )
     #
-    # last_epoch = 297
-    # weight_path = Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5')
-    # model.load_weights(weight_path)
+    from contextlib import redirect_stdout
     #
-    #
-    # from contextlib import redirect_stdout
-    # #
-    # timestr = time.strftime("%Y%m%d-%H%M%S")
-    # validation_run_folder = Path(C.validation_plots_path, f'validation-run_{timestr}')
-    # os.mkdir(validation_run_folder)
-    #
-    # # Print summary of model architecture into file
-    # with open(Path(validation_run_folder, 'modelsummary.txt'), 'w') as f:
-    #     with redirect_stdout(f):
-    #         model.summary()
+    timestr = time.strftime("%Y%m%d-%H%M%S")
+    validation_run_folder = Path(C.validation_plots_path, f'validation-run_{timestr}')
+    if os.path.isdir(validation_run_folder) == False:
+        os.mkdir(validation_run_folder)
+
+    # Print summary of model architecture into file
+    with open(Path(validation_run_folder, 'modelsummary.txt'), 'w') as f:
+        with redirect_stdout(f):
+            model.summary()
     # #
     # val.validate_synthetic(model, last_epoch, validation_run_folder)
 
-    folderpath = Path('/home/leevi/PycharmProjects/asteroid-thermal-modeling/figs/validation_plots/validation-run_20220224-110013/synthetic_validation')
-    val.error_plots(folderpath)
+    # Plotting some errors as function of ground truth temperature
+    # folderpath = Path('/home/leevi/PycharmProjects/asteroid-thermal-modeling/figs/validation_plots/validation-run_20220224-110013/synthetic_validation')
+    # val.error_plots(folderpath)
 
     ##############################
 
-    # # Validation with real asteroid data: do not look at this until the network works properly with synthetic data
-    # val.validate_bennu(model, last_epoch, validation_run_folder)
+    # Validation with real asteroid data: do not look at this until the network works properly with synthetic data
+    val.validate_bennu(model, last_epoch, validation_run_folder)
 
 
 

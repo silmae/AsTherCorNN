@@ -67,7 +67,7 @@ def fit_Planck(radiance: np.ndarray):
 
     return temperature
 
-def test_model(X_test, y_test, model, test_epoch, savefolder):
+def test_model(X_test, y_test, model, temperatures, savefolder):
 
     time_start = time.perf_counter_ns()
     test_result = model.evaluate(X_test, y_test, verbose=0)
@@ -91,8 +91,8 @@ def test_model(X_test, y_test, model, test_epoch, savefolder):
     temperature_error = []
     temperature_ground = []
     temperature_pred = []
-    # indices = range(len(X_test[:, 0]))  # Full error calculation, takes some time
-    indices = range(int(len(X_test[:, 0]) * 0.1))  # 10 percent of samples used for error calculation, takes less time
+    indices = range(len(X_test[:, 0]))  # Full error calculation, takes some time
+    # indices = range(int(len(X_test[:, 0]) * 0.1))  # 10 percent of samples used for error calculation, takes less time
 
     for i in indices:
         test_sample = np.expand_dims(X_test[i, :], axis=0)
@@ -102,9 +102,8 @@ def test_model(X_test, y_test, model, test_epoch, savefolder):
         ground1 = y_test[i, :, 0]
         ground2 = y_test[i, :, 1]
 
-        # Calculate temperatures of ground and prediction by fitting to Planck function
-        # TODO Create a proper version for Bennu data, NASA provided temperatures in the FITS extension
-        ground_temp = fit_Planck(ground2)
+        # Calculate temperature of prediction by fitting to Planck function, compare to ground truth gotten as argument
+        ground_temp = temperatures[i]
         print(f'Ground temperature: {ground_temp}')
         temperature_ground.append(ground_temp)
         pred_temp = fit_Planck(pred2)
@@ -169,14 +168,44 @@ def test_model(X_test, y_test, model, test_epoch, savefolder):
 
     # Plot scatters of ground temperature vs temperature error, thermal MAE and SAM vs height of thermal tail
     fig = plt.figure()
+    plt.figure()
     plt.scatter(temperature_ground, temperature_error, alpha=0.1)
-    plt.scatter(temperature_ground, temperature_pred, alpha=0.1)
-    plt.legend(('Error', 'Predicted'))
     plt.xlabel('Ground truth temperature')
-    plt.savefig(Path(C.figfolder, 'tempscatter.png'))
+    plt.ylabel('Temperature difference')
+    plt.savefig(Path(savefolder, 'tempdif_groundtemp.png'))
     plt.close(fig)
 
+    fig = plt.figure()
+    plt.figure()
+    plt.scatter(temperature_ground, refl_cos, alpha=0.1)
+    plt.xlabel('Ground truth temperature')
+    plt.ylabel('Reflected SAM')
+    plt.savefig(Path(savefolder, 'reflSAM_groundtemp.png'))
+    plt.close(fig)
 
+    fig = plt.figure()
+    plt.figure()
+    plt.scatter(temperature_ground, therm_cos, alpha=0.1)
+    plt.xlabel('Ground truth temperature')
+    plt.ylabel('Thermal SAM')
+    plt.savefig(Path(savefolder, 'thermSAM_groundtemp.png'))
+    plt.close(fig)
+
+    fig = plt.figure()
+    plt.figure()
+    plt.scatter(temperature_ground, therm_mae, alpha=0.1)
+    plt.xlabel('Ground truth temperature')
+    plt.ylabel('Thermal MAE')
+    plt.savefig(Path(savefolder, 'thermMAE_groundtemp.png'))
+    plt.close(fig)
+
+    fig = plt.figure()
+    plt.figure()
+    plt.scatter(temperature_ground, refl_mae, alpha=0.1)
+    plt.xlabel('Ground truth temperature')
+    plt.ylabel('Reflected MAE')
+    plt.savefig(Path(savefolder, 'reflMAE_groundtemp.png'))
+    plt.close(fig)
 
     # Plot some results for closer inspection from 25 random test spectra
     index = np.random.randint(0, len(X_test[:, 0]), size=25)
@@ -248,9 +277,21 @@ def validate_synthetic(model, last_epoch, validation_run_folder):
     y_test = rad_bunch_test['separate']
 
     validation_plots_synthetic_path = Path(validation_run_folder, 'synthetic_validation')
-    os.mkdir(validation_plots_synthetic_path)
+    if os.path.isdir(validation_plots_synthetic_path) == False:
+        os.mkdir(validation_plots_synthetic_path)
 
-    test_model(X_test, y_test, model, last_epoch, validation_plots_synthetic_path)
+    # Calculate ground truth temperatures by fitting all thermal tails to the Planck function
+    temperatures = []
+    for i in range(len(y_test[:, 0, 1])):
+        ground2 = y_test[i, :, 1]
+
+        # Calculate temperatures of ground and prediction by fitting to Planck function
+        temp = fit_Planck(ground2)
+        temperatures.append(temp)
+
+    temperatures = np.asarray(temperatures)
+
+    test_model(X_test, y_test, model, temperatures, validation_plots_synthetic_path)
 
 
 def bennu_refine(fitslist: list, time: int, plots=False):
@@ -282,7 +323,7 @@ def bennu_refine(fitslist: list, time: int, plots=False):
     uncorrected_rad = uncorrected_fits[0].data[:, 0, :]
     corrected_rad = corrected_fits[0].data[:, 0, :]
     thermal_tail_rad = corrected_fits[2].data[:, 0, :]
-
+    temperature = corrected_fits[3].data[:, 0]
     uncor_sum_rad = np.sum(uncorrected_rad, 1)
     cor_sum_rad = np.sum(corrected_rad, 1)
 
@@ -345,7 +386,7 @@ def bennu_refine(fitslist: list, time: int, plots=False):
             plt.show()
             plt.close(fig)
 
-    return uncorrected_Bennu, corrected_Bennu, thermal_tail_Bennu
+    return uncorrected_Bennu, corrected_Bennu, thermal_tail_Bennu, temperature
 
 
 def validate_bennu(model, last_epoch, validation_run_folder):
@@ -378,11 +419,11 @@ def validate_bennu(model, last_epoch, validation_run_folder):
             Bennu_1000[index] = hdulist
 
     # Interpolate to match the wl vector used for training data, convert the readings to another radiance unit
-    uncorrected_1500, corrected_1500, thermal_tail_1500 = bennu_refine(Bennu_1500, 1500, plots=False)
-    uncorrected_1230, corrected_1230, thermal_tail_1230 = bennu_refine(Bennu_1230, 1230, plots=False)
-    uncorrected_1000, corrected_1000, thermal_tail_1000 = bennu_refine(Bennu_1000, 1000, plots=False)
+    uncorrected_1500, corrected_1500, thermal_tail_1500, temperatures_1500 = bennu_refine(Bennu_1500, 1500, plots=False)
+    uncorrected_1230, corrected_1230, thermal_tail_1230, temperatures_1230 = bennu_refine(Bennu_1230, 1230, plots=False)
+    uncorrected_1000, corrected_1000, thermal_tail_1000, temperatures_1000 = bennu_refine(Bennu_1000, 1000, plots=False)
 
-    def test_model_Bennu(X_Bennu, reflected, thermal, time: str, validation_plots_Bennu_path):
+    def test_model_Bennu(X_Bennu, reflected, thermal, temps, time: str, validation_plots_Bennu_path):
         # Organize data to match what the ML model expects
         y_Bennu = np.zeros((len(X_Bennu[:,0]), len(C.wavelengths), 2))
         y_Bennu[:, :, 0] = reflected
@@ -391,19 +432,20 @@ def validate_bennu(model, last_epoch, validation_run_folder):
         savepath = Path(validation_plots_Bennu_path, time)
         os.mkdir(savepath)
 
-        test_model(X_Bennu, y_Bennu, model, last_epoch, savepath)
+        test_model(X_Bennu, y_Bennu, model, temps, savepath)
         # testhist = model.evaluate(X_Bennu, y_Bennu)
 
     validation_plots_Bennu_path = Path(validation_run_folder,
                                        'bennu_validation')  # Save location of plots from validating with Bennu data
-    os.mkdir(validation_plots_Bennu_path)
+    if os.path.isdir(validation_plots_Bennu_path) == False:
+        os.mkdir(validation_plots_Bennu_path)
 
     print('Testing with Bennu data, local time 15:00')
-    test_model_Bennu(uncorrected_1500, corrected_1500, thermal_tail_1500, str(1500), validation_plots_Bennu_path)
+    test_model_Bennu(uncorrected_1500, corrected_1500, thermal_tail_1500, temperatures_1500, str(1500), validation_plots_Bennu_path)
     print('Testing with Bennu data, local time 12:30')
-    test_model_Bennu(uncorrected_1230, corrected_1230, thermal_tail_1230, str(1230), validation_plots_Bennu_path)
+    test_model_Bennu(uncorrected_1230, corrected_1230, thermal_tail_1230, temperatures_1230, str(1230), validation_plots_Bennu_path)
     print('Testing with Bennu data, local time 10:00')
-    test_model_Bennu(uncorrected_1000, corrected_1000, thermal_tail_1000, str(1000), validation_plots_Bennu_path)
+    test_model_Bennu(uncorrected_1000, corrected_1000, thermal_tail_1000, temperatures_1000, str(1000), validation_plots_Bennu_path)
 
 
 def error_plots(folderpath):
