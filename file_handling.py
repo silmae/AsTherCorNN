@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import toml
 import pickle
+import csv
 
 import constants as C
 
@@ -19,6 +20,15 @@ def save_pickle(data_dict, path):
 def load_pickle(path):
     with open(path, 'rb') as file_pi:
         data = pickle.load(file_pi)
+    return data
+
+
+def load_csv(filepath):
+    with open(filepath, newline='') as csvfile:
+        reader = csv.reader(csvfile)
+        data = []
+        for row in reader:
+            data.append(int(row[0]))  # Take first (and only) element in row, convert to int and append to list
     return data
 
 

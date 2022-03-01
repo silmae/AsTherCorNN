@@ -44,9 +44,95 @@ if __name__ == '__main__':
     # To use plt.show() from server, make X11 connection and add this to Run configuration > Environment variables:
     # DISPLAY=localhost:10.0
     ############################
+    # num = 22
+    # rads = FH.load_toml(Path(C.radiance_test_path, f'rads_{num}.toml'))
+    # refrad = rads['reflected_radiance']
+    # sumrad = rads['sum_radiance']
+    # meta = rads['metadata']
+    #
+    # refR = rad.radiance2norm_reflectance(refrad)
+    # sumR = rad.radiance2norm_reflectance(sumrad)
+    #
+    # plt.figure()
+    # plt.plot(C.wavelengths, refrad)
+    # plt.plot(C.wavelengths, sumrad)
+    # plt.xlabel('Wavelength [µm]')
+    # plt.ylabel('Radiance [W / m² / sr / µm]')
+    # plt.legend(('Reference', 'With thermal'))
+    #
+    # plt.figure()
+    # plt.plot(C.wavelengths, refR)
+    # plt.plot(C.wavelengths, sumR)
+    # plt.xlabel('Wavelength [µm]')
+    # plt.ylabel('Normalized reflectance')
+    # plt.legend(('Reference', 'With thermal'))
+    #
+    # plt.show()
+    #
+    # print('test')
 
     # # Build and train a model
     # model = NN.train_autoencoder(early_stop=True, checkpoints=True, save_history=True)
+
+    # # Loading errors from Bennu testing, plotting results
+    # errordict = FH.load_toml(Path('/home/leevi/PycharmProjects/asteroid-thermal-modeling/figs/validation_plots/validation-run_20220301-135222/bennu_validation/errors_Bennu.toml'))
+    # errors_1000 = errordict['errors_1000']
+    # errors_1230 = errordict['errors_1230']
+    # errors_1500 = errordict['errors_1500']
+    #
+    # def Bennuplot(errors_1000, errors_1230, errors_1500, data_name, label, savefolder):
+    #
+    #     def fetch_data(errordict, data_name):
+    #         temperature_dict = errordict['temperature']
+    #         ground_temps = np.asarray(temperature_dict['ground_temperature'])
+    #
+    #         if 'MAE' in data_name:
+    #             data_dict = errordict['MAE']
+    #             if 'reflected' in data_name:
+    #                 data = np.asarray(data_dict['reflected_MAE'])
+    #             else:
+    #                 data = np.asarray(data_dict['thermal_MAE'])
+    #         elif 'SAM' in data_name:
+    #             data_dict = errordict['SAM']
+    #             if 'reflected' in data_name:
+    #                 data = np.asarray(data_dict['reflected_SAM'])
+    #             else:
+    #                 data = np.asarray(data_dict['thermal_SAM'])
+    #         elif 'temperature' in data_name:
+    #             data_dict = errordict['temperature']
+    #             if 'predicted' in data_name:
+    #                 data = np.asarray(data_dict['predicted_temperature'])
+    #             elif 'error' in data_name:
+    #                 data = ground_temps - np.asarray(data_dict['predicted_temperature'])
+    #
+    #         return ground_temps, data
+    #     ground_temps_1000, data_1000 = fetch_data(errors_1000, data_name)
+    #     ground_temps_1230, data_1230 = fetch_data(errors_1230, data_name)
+    #     ground_temps_1500, data_1500 = fetch_data(errors_1500, data_name)
+    #
+    #     plt.figure()
+    #     plt.scatter(ground_temps_1000, data_1000, alpha=0.1)
+    #     plt.scatter(ground_temps_1230, data_1230, alpha=0.1)
+    #     plt.scatter(ground_temps_1500, data_1500, alpha=0.1)
+    #     plt.xlabel('Ground truth temperature [K]')
+    #     plt.ylabel(label)
+    #     leg = plt.legend(('10:00', '12:30', '15:00'), title='Local time on Bennu')
+    #     for lh in leg.legendHandles:
+    #         lh.set_alpha(1)
+    #     if data_name == 'predicted_temperature':
+    #         plt.plot(range(300, 350), range(300, 350), 'r')  # Plot a reference line with slope 1: ideal result
+    #     plt.savefig(Path(savefolder, f'{data_name}.png'))
+    #     # plt.show()
+    #
+    # savefolder = C.validation_plots_path
+    # Bennuplot(errors_1000, errors_1230, errors_1500, 'predicted_temperature', 'Predicted temperature [K]', savefolder)
+    # Bennuplot(errors_1000, errors_1230, errors_1500, 'temperature_error', 'Temperature difference [K]', savefolder)
+    # Bennuplot(errors_1000, errors_1230, errors_1500, 'reflected_MAE', 'Reflected MAE', savefolder)
+    # Bennuplot(errors_1000, errors_1230, errors_1500, 'thermal_MAE', 'Thermal MAE', savefolder)
+    # Bennuplot(errors_1000, errors_1230, errors_1500, 'reflected_SAM', 'Reflected SAM', savefolder)
+    # Bennuplot(errors_1000, errors_1230, errors_1500, 'thermal_SAM', 'Thermal SAM', savefolder)
+    # print('test')
+
     """
     Three best models from hp-optimizer:
     
@@ -133,14 +219,16 @@ if __name__ == '__main__':
         lr=1e-5
     )
 
-    last_epoch = 297
-    weight_path = Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5')
+    # last_epoch = 990
+    # weight_path = Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5')
+    weight_path = Path('/home/leevi/PycharmProjects/asteroid-thermal-modeling/training/300epochs_160waist_1e-05lr/weights/weights_297.hdf5')
     model.load_weights(weight_path)
-    #
-    #
+
     from contextlib import redirect_stdout
-    #
+
     timestr = time.strftime("%Y%m%d-%H%M%S")
+    # timestr = 'test'  # folder name for test runs, otherwise a new folder is always created
+
     validation_run_folder = Path(C.validation_plots_path, f'validation-run_{timestr}')
     if os.path.isdir(validation_run_folder) == False:
         os.mkdir(validation_run_folder)
@@ -149,8 +237,8 @@ if __name__ == '__main__':
     with open(Path(validation_run_folder, 'modelsummary.txt'), 'w') as f:
         with redirect_stdout(f):
             model.summary()
-    # #
-    # val.validate_synthetic(model, last_epoch, validation_run_folder)
+
+    val.validate_synthetic(model, validation_run_folder)
 
     # Plotting some errors as function of ground truth temperature
     # folderpath = Path('/home/leevi/PycharmProjects/asteroid-thermal-modeling/figs/validation_plots/validation-run_20220224-110013/synthetic_validation')
@@ -158,8 +246,8 @@ if __name__ == '__main__':
 
     ##############################
 
-    # Validation with real asteroid data: do not look at this until the network works properly with synthetic data
-    val.validate_bennu(model, last_epoch, validation_run_folder)
+    # Testing with real asteroid data: do not look at this until the network works properly with synthetic data
+    val.validate_bennu(model, validation_run_folder)
 
 
 

@@ -97,10 +97,12 @@ def test_model(X_test, y_test, model, temperatures, savefolder):
     for i in indices:
         test_sample = np.expand_dims(X_test[i, :], axis=0)
         prediction = model.predict(test_sample).squeeze()  # model.predict(np.array([summed.T])).squeeze()
-        pred1 = prediction[0:int(len(prediction) / 2)]
+        # pred1 = prediction[0:int(len(prediction) / 2)]
         pred2 = prediction[int(len(prediction) / 2):len(prediction) + 1]
-        ground1 = y_test[i, :, 0]
+        pred1 = test_sample.squeeze() - pred2  # Alternative reflected prediction: input vector minus predicted thermal radiance
+        # ground1 = y_test[i, :, 0]
         ground2 = y_test[i, :, 1]
+        ground1 = test_sample.squeeze() - ground2  # Alternative ground truth to which the alternative reflected is compared
 
         # Calculate temperature of prediction by fitting to Planck function, compare to ground truth gotten as argument
         ground_temp = temperatures[i]
@@ -149,22 +151,22 @@ def test_model(X_test, y_test, model, temperatures, savefolder):
 
     FH.save_toml(error_dict, Path(savefolder, 'errors.toml'))
 
-    # Plot MAE and SAM of all test samples, for both thermal and reflected
-    fig = plt.figure()
-    plt.plot(range(len(refl_mae)), refl_mae)
-    plt.plot(range(len(refl_mae)), therm_mae)
-    plt.ylabel('mean absolute error')
-    plt.legend(('reflected', 'thermal'))
-    plt.savefig(Path(savefolder, 'MAE.png'))
-    plt.close(fig)
-
-    fig = plt.figure()
-    plt.plot(range(len(refl_cos)), therm_cos)
-    plt.plot(range(len(refl_cos)), refl_cos)
-    plt.ylabel('cosine distance')
-    plt.legend(('thermal', 'reflected'))
-    plt.savefig(Path(savefolder, 'SAM.png'))
-    plt.close(fig)
+    # # Plot MAE and SAM of all test samples, for both thermal and reflected
+    # fig = plt.figure()
+    # plt.plot(range(len(refl_mae)), refl_mae)
+    # plt.plot(range(len(refl_mae)), therm_mae)
+    # plt.ylabel('mean absolute error')
+    # plt.legend(('reflected', 'thermal'))
+    # plt.savefig(Path(savefolder, 'MAE.png'))
+    # plt.close(fig)
+    #
+    # fig = plt.figure()
+    # plt.plot(range(len(refl_cos)), therm_cos)
+    # plt.plot(range(len(refl_cos)), refl_cos)
+    # plt.ylabel('cosine distance')
+    # plt.legend(('thermal', 'reflected'))
+    # plt.savefig(Path(savefolder, 'SAM.png'))
+    # plt.close(fig)
 
     # Plot scatters of ground temperature vs temperature error, thermal MAE and SAM vs height of thermal tail
     fig = plt.figure()
@@ -173,6 +175,14 @@ def test_model(X_test, y_test, model, temperatures, savefolder):
     plt.xlabel('Ground truth temperature')
     plt.ylabel('Temperature difference')
     plt.savefig(Path(savefolder, 'tempdif_groundtemp.png'))
+    plt.close(fig)
+
+    fig = plt.figure()
+    plt.scatter(temperature_ground, temperature_pred, alpha=0.1)
+    plt.xlabel('Ground truth temperature [K]')
+    plt.ylabel('Predicted temperature [K]')
+    plt.plot(range(C.T_min, C.T_max), range(C.T_min, C.T_max), 'r')  # Plot a reference line with slope 1: ideal result
+    plt.savefig(Path(savefolder, 'predtemp-groundtemp.png'))
     plt.close(fig)
 
     fig = plt.figure()
@@ -213,13 +223,18 @@ def test_model(X_test, y_test, model, temperatures, savefolder):
         # Plot and save some radiances from ground truth and radiances produced by the model prediction
         test_sample = np.expand_dims(X_test[i, :], axis=0)
         prediction = model.predict(test_sample).squeeze()
-        pred1 = prediction[0:int(len(prediction) / 2)]
+        # pred1 = prediction[0:int(len(prediction) / 2)]
         pred2 = prediction[int(len(prediction) / 2):len(prediction) + 1]
+        pred1 = test_sample.squeeze() - pred2  # Alternative reflected prediction: input vector minus predicted thermal radiance
+
+        # ground1 = y_test[i, :, 0]
+        ground2 = y_test[i, :, 1]
+        ground1 = test_sample.squeeze() - ground2  # Alternative ground truth to which the alternative reflected is compared
 
         fig = plt.figure()
         x = C.wavelengths
-        plt.plot(x, y_test[i, :, 0])
-        plt.plot(x, y_test[i, :, 1])
+        plt.plot(x, ground1)
+        plt.plot(x, ground2)
         plt.plot(x, pred1.squeeze(), linestyle='--')
         plt.plot(x, pred2.squeeze(), linestyle='--')
         plt.xlabel('Wavelength [µm]')
@@ -267,10 +282,11 @@ def test_model(X_test, y_test, model, temperatures, savefolder):
         plt.savefig(fig_path)
         plt.close(fig)
 
-    # plt.show()
+    # Return the dictionary containing calculated errors, in addition to saving it on disc
+    return error_dict
 
 
-def validate_synthetic(model, last_epoch, validation_run_folder):
+def validate_synthetic(model, validation_run_folder):
     # Load test radiances from one file as dicts, separate ground truth and test samples
     rad_bunch_test = FH.load_pickle(C.rad_bunch_test_path)
     X_test = rad_bunch_test['summed']
@@ -288,17 +304,21 @@ def validate_synthetic(model, last_epoch, validation_run_folder):
         # Calculate temperatures of ground and prediction by fitting to Planck function
         temp = fit_Planck(ground2)
         temperatures.append(temp)
+        print(f'Calculated temperature {i+1} out of {len(y_test[:, 0, 1])}')
 
     temperatures = np.asarray(temperatures)
 
-    test_model(X_test, y_test, model, temperatures, validation_plots_synthetic_path)
+    error_dict = test_model(X_test, y_test, model, temperatures, validation_plots_synthetic_path)
 
 
-def bennu_refine(fitslist: list, time: int, plots=False):
+def bennu_refine(fitslist: list, time: int, discard_indices, plots=False):
     """
     Refine Bennu data to suit testing. Discard measurements where the instrument did not point to Bennu, but to
     the surrounding void of space. Interpolate spectra to match the wavelengths of the training data. Convert radiance
     values to match the units of training data, from [W/cm²/sr/µm] to [W/m²/sr/µm].
+
+    Discard data-points where the integration of different wavelength range sensors was apparently erroneous: these
+    data were picked out by hand based on how the radiance plots looked.
 
     Return uncorrected spectral radiance, thermal tail subtracted spectral radiance, and the thermal tail spectral
     radiance.
@@ -307,6 +327,8 @@ def bennu_refine(fitslist: list, time: int, plots=False):
         List of spectral measurements in FITS format
     :param time: int
         Local time on Bennu where the measurement was taken, can be 1000, 1230, or 1500. Affects save locations
+    :param discard_indices
+        Indices of datapoints that will be discarded as erroneous
     :param plots: boolean
         Whether or not plots will be made and saved
     :return: uncorrected_Bennu, corrected_Bennu, thermal_tail_Bennu:
@@ -323,7 +345,6 @@ def bennu_refine(fitslist: list, time: int, plots=False):
     uncorrected_rad = uncorrected_fits[0].data[:, 0, :]
     corrected_rad = corrected_fits[0].data[:, 0, :]
     thermal_tail_rad = corrected_fits[2].data[:, 0, :]
-    temperature = corrected_fits[3].data[:, 0]
     uncor_sum_rad = np.sum(uncorrected_rad, 1)
     cor_sum_rad = np.sum(corrected_rad, 1)
 
@@ -344,7 +365,12 @@ def bennu_refine(fitslist: list, time: int, plots=False):
             Bennu_indices.append(index)
         index = index + 1
 
-    # Pick out the spectra where sum radiance was over threshold value
+    # Go through discard indices, remove the listed data from the Bennu_indices
+    # Must loop through the list backwards to not modify indices of upcoming elements
+    for i in sorted(discard_indices, reverse=True):
+        del Bennu_indices[i]
+
+    # Pick out the spectra where sum radiance was over threshold value and data was not marked for discarding
     uncorrected_Bennu = uncorrected_rad[Bennu_indices, :]
     corrected_Bennu = corrected_rad[Bennu_indices, :]
     thermal_tail_Bennu = thermal_tail_rad[Bennu_indices, :]
@@ -369,6 +395,18 @@ def bennu_refine(fitslist: list, time: int, plots=False):
     corrected_Bennu = rad_unit_conversion(corrected_Bennu)
     thermal_tail_Bennu = rad_unit_conversion(thermal_tail_Bennu)
 
+    # # Fetch NASA's temperature prediction from FITS file
+    # temperature = corrected_fits[3].data[:, 0]
+    # temperature = temperature[Bennu_indices]
+
+    # Alternative temperature prediction by fitting thermal tail to Planck function with constant 0.9 emissivity:
+    # results will not be as truthful, but more in line with how the network thinks
+    temperature = []
+    for thermal_radiance in thermal_tail_Bennu:
+        temp = fit_Planck(thermal_radiance)
+        temperature.append(temp)
+    temperature = np.asarray(temperature)
+
     if plots==True:
         plotpath = Path(C.bennu_plots_path, str(time))
         for i in range(len(Bennu_indices)):
@@ -389,7 +427,7 @@ def bennu_refine(fitslist: list, time: int, plots=False):
     return uncorrected_Bennu, corrected_Bennu, thermal_tail_Bennu, temperature
 
 
-def validate_bennu(model, last_epoch, validation_run_folder):
+def validate_bennu(model, validation_run_folder):
     # Opening OVIRS spectra measured from Bennu
     Bennu_path = Path(C.spectral_path, 'Bennu_OVIRS')
     file_list = os.listdir(Bennu_path)
@@ -418,10 +456,15 @@ def validate_bennu(model, last_epoch, validation_run_folder):
             hdulist = fits.open(filepath)
             Bennu_1000[index] = hdulist
 
+    # Load indices that mark data which will be discarded
+    discard_1000 = FH.load_csv(Path(Bennu_path, '1000_discard_indices'))
+    discard_1230 = FH.load_csv(Path(Bennu_path, '1230_discard_indices'))
+    discard_1500 = FH.load_csv(Path(Bennu_path, '1500_discard_indices'))
+
     # Interpolate to match the wl vector used for training data, convert the readings to another radiance unit
-    uncorrected_1500, corrected_1500, thermal_tail_1500, temperatures_1500 = bennu_refine(Bennu_1500, 1500, plots=False)
-    uncorrected_1230, corrected_1230, thermal_tail_1230, temperatures_1230 = bennu_refine(Bennu_1230, 1230, plots=False)
-    uncorrected_1000, corrected_1000, thermal_tail_1000, temperatures_1000 = bennu_refine(Bennu_1000, 1000, plots=False)
+    uncorrected_1500, corrected_1500, thermal_tail_1500, temperatures_1500 = bennu_refine(Bennu_1500, 1500, discard_1500, plots=False)
+    uncorrected_1230, corrected_1230, thermal_tail_1230, temperatures_1230 = bennu_refine(Bennu_1230, 1230, discard_1230, plots=False)
+    uncorrected_1000, corrected_1000, thermal_tail_1000, temperatures_1000 = bennu_refine(Bennu_1000, 1000, discard_1000, plots=False)
 
     def test_model_Bennu(X_Bennu, reflected, thermal, temps, time: str, validation_plots_Bennu_path):
         # Organize data to match what the ML model expects
@@ -432,8 +475,9 @@ def validate_bennu(model, last_epoch, validation_run_folder):
         savepath = Path(validation_plots_Bennu_path, time)
         os.mkdir(savepath)
 
-        test_model(X_Bennu, y_Bennu, model, temps, savepath)
-        # testhist = model.evaluate(X_Bennu, y_Bennu)
+        error_dict = test_model(X_Bennu, y_Bennu, model, temps, savepath)
+
+        return error_dict
 
     validation_plots_Bennu_path = Path(validation_run_folder,
                                        'bennu_validation')  # Save location of plots from validating with Bennu data
@@ -441,11 +485,71 @@ def validate_bennu(model, last_epoch, validation_run_folder):
         os.mkdir(validation_plots_Bennu_path)
 
     print('Testing with Bennu data, local time 15:00')
-    test_model_Bennu(uncorrected_1500, corrected_1500, thermal_tail_1500, temperatures_1500, str(1500), validation_plots_Bennu_path)
+    errors_1500 = test_model_Bennu(uncorrected_1500, corrected_1500, thermal_tail_1500, temperatures_1500, str(1500), validation_plots_Bennu_path)
     print('Testing with Bennu data, local time 12:30')
-    test_model_Bennu(uncorrected_1230, corrected_1230, thermal_tail_1230, temperatures_1230, str(1230), validation_plots_Bennu_path)
+    errors_1230 = test_model_Bennu(uncorrected_1230, corrected_1230, thermal_tail_1230, temperatures_1230, str(1230), validation_plots_Bennu_path)
     print('Testing with Bennu data, local time 10:00')
-    test_model_Bennu(uncorrected_1000, corrected_1000, thermal_tail_1000, temperatures_1000, str(1000), validation_plots_Bennu_path)
+    errors_1000 = test_model_Bennu(uncorrected_1000, corrected_1000, thermal_tail_1000, temperatures_1000, str(1000), validation_plots_Bennu_path)
+
+    # Collecting calculated results into one dictionary and saving it as toml
+    errors_Bennu = {}
+    errors_Bennu['errors_1000'] = errors_1000
+    errors_Bennu['errors_1230'] = errors_1230
+    errors_Bennu['errors_1500'] = errors_1500
+    FH.save_toml(errors_Bennu, Path(validation_plots_Bennu_path, 'errors_Bennu.toml'))
+
+    # Plotting and saving results for all three datasets
+    def Bennuplot(errors_1000, errors_1230, errors_1500, data_name, label, savefolder):
+
+        def fetch_data(errordict, data_name):
+            temperature_dict = errordict['temperature']
+            ground_temps = np.asarray(temperature_dict['ground_temperature'])
+
+            if 'MAE' in data_name:
+                data_dict = errordict['MAE']
+                if 'reflected' in data_name:
+                    data = np.asarray(data_dict['reflected_MAE'])
+                else:
+                    data = np.asarray(data_dict['thermal_MAE'])
+            elif 'SAM' in data_name:
+                data_dict = errordict['SAM']
+                if 'reflected' in data_name:
+                    data = np.asarray(data_dict['reflected_SAM'])
+                else:
+                    data = np.asarray(data_dict['thermal_SAM'])
+            elif 'temperature' in data_name:
+                data_dict = errordict['temperature']
+                if 'predicted' in data_name:
+                    data = np.asarray(data_dict['predicted_temperature'])
+                elif 'error' in data_name:
+                    data = ground_temps - np.asarray(data_dict['predicted_temperature'])
+
+            return ground_temps, data
+        ground_temps_1000, data_1000 = fetch_data(errors_1000, data_name)
+        ground_temps_1230, data_1230 = fetch_data(errors_1230, data_name)
+        ground_temps_1500, data_1500 = fetch_data(errors_1500, data_name)
+
+        plt.figure()
+        plt.scatter(ground_temps_1000, data_1000, alpha=0.1)
+        plt.scatter(ground_temps_1230, data_1230, alpha=0.1)
+        plt.scatter(ground_temps_1500, data_1500, alpha=0.1)
+        plt.xlabel('Ground truth temperature [K]')
+        plt.ylabel(label)
+        leg = plt.legend(('10:00', '12:30', '15:00'), title='Local time on Bennu')
+        for lh in leg.legendHandles:
+            lh.set_alpha(1)
+        if data_name == 'predicted_temperature':
+            plt.plot(range(300, 350), range(300, 350), 'r')  # Plot a reference line with slope 1: ideal result
+        plt.savefig(Path(savefolder, f'{data_name}.png'))
+        # plt.show()
+
+    savefolder = validation_plots_Bennu_path
+    Bennuplot(errors_1000, errors_1230, errors_1500, 'predicted_temperature', 'Predicted temperature [K]', savefolder)
+    Bennuplot(errors_1000, errors_1230, errors_1500, 'temperature_error', 'Temperature difference [K]', savefolder)
+    Bennuplot(errors_1000, errors_1230, errors_1500, 'reflected_MAE', 'Reflected MAE', savefolder)
+    Bennuplot(errors_1000, errors_1230, errors_1500, 'thermal_MAE', 'Thermal MAE', savefolder)
+    Bennuplot(errors_1000, errors_1230, errors_1500, 'reflected_SAM', 'Reflected SAM', savefolder)
+    Bennuplot(errors_1000, errors_1230, errors_1500, 'thermal_SAM', 'Thermal SAM', savefolder)
 
 
 def error_plots(folderpath):
