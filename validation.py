@@ -97,12 +97,13 @@ def test_model(X_test, y_test, model, temperatures, savefolder):
     for i in indices:
         test_sample = np.expand_dims(X_test[i, :], axis=0)
         prediction = model.predict(test_sample).squeeze()  # model.predict(np.array([summed.T])).squeeze()
-        # pred1 = prediction[0:int(len(prediction) / 2)]
+        pred1 = prediction[0:int(len(prediction) / 2)]
         pred2 = prediction[int(len(prediction) / 2):len(prediction) + 1]
-        pred1 = test_sample.squeeze() - pred2  # Alternative reflected prediction: input vector minus predicted thermal radiance
-        # ground1 = y_test[i, :, 0]
+        # pred1 = test_sample.squeeze() - pred2  # Alternative reflected prediction: input vector minus predicted thermal radiance
+
+        ground1 = y_test[i, :, 0]
         ground2 = y_test[i, :, 1]
-        ground1 = test_sample.squeeze() - ground2  # Alternative ground truth to which the alternative reflected is compared
+        # ground1 = test_sample.squeeze() - ground2  # Alternative ground truth to which the alternative reflected is compared
 
         # Calculate temperature of prediction by fitting to Planck function, compare to ground truth gotten as argument
         ground_temp = temperatures[i]
@@ -223,13 +224,13 @@ def test_model(X_test, y_test, model, temperatures, savefolder):
         # Plot and save some radiances from ground truth and radiances produced by the model prediction
         test_sample = np.expand_dims(X_test[i, :], axis=0)
         prediction = model.predict(test_sample).squeeze()
-        # pred1 = prediction[0:int(len(prediction) / 2)]
+        pred1 = prediction[0:int(len(prediction) / 2)]
         pred2 = prediction[int(len(prediction) / 2):len(prediction) + 1]
-        pred1 = test_sample.squeeze() - pred2  # Alternative reflected prediction: input vector minus predicted thermal radiance
+        # pred1 = test_sample.squeeze() - pred2  # Alternative reflected prediction: input vector minus predicted thermal radiance
 
-        # ground1 = y_test[i, :, 0]
+        ground1 = y_test[i, :, 0]
         ground2 = y_test[i, :, 1]
-        ground1 = test_sample.squeeze() - ground2  # Alternative ground truth to which the alternative reflected is compared
+        # ground1 = test_sample.squeeze() - ground2  # Alternative ground truth to which the alternative reflected is compared
 
         fig = plt.figure()
         x = C.wavelengths
@@ -395,17 +396,19 @@ def bennu_refine(fitslist: list, time: int, discard_indices, plots=False):
     corrected_Bennu = rad_unit_conversion(corrected_Bennu)
     thermal_tail_Bennu = rad_unit_conversion(thermal_tail_Bennu)
 
-    # # Fetch NASA's temperature prediction from FITS file
-    # temperature = corrected_fits[3].data[:, 0]
-    # temperature = temperature[Bennu_indices]
+    # Fetch NASA's temperature prediction from FITS file
+    temperature = corrected_fits[3].data[:, 0]
+    temperature = temperature[Bennu_indices]
+    # emissivity = corrected_fits[4].data
+    # emissivity = emissivity[Bennu_indices]
 
-    # Alternative temperature prediction by fitting thermal tail to Planck function with constant 0.9 emissivity:
-    # results will not be as truthful, but more in line with how the network thinks
-    temperature = []
-    for thermal_radiance in thermal_tail_Bennu:
-        temp = fit_Planck(thermal_radiance)
-        temperature.append(temp)
-    temperature = np.asarray(temperature)
+    # # Alternative temperature prediction by fitting thermal tail to Planck function with constant 0.9 emissivity:
+    # # results will not be as truthful, but more in line with how the network thinks
+    # temperature = []
+    # for thermal_radiance in thermal_tail_Bennu:
+    #     temp = fit_Planck(thermal_radiance)
+    #     temperature.append(temp)
+    # temperature = np.asarray(temperature)
 
     if plots==True:
         plotpath = Path(C.bennu_plots_path, str(time))

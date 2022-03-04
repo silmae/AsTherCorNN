@@ -44,6 +44,45 @@ if __name__ == '__main__':
     # To use plt.show() from server, make X11 connection and add this to Run configuration > Environment variables:
     # DISPLAY=localhost:10.0
     ############################
+    # Plotting the dependence of sub-solar temperature on heliocentric distance, according to Eq. (2) of Harris (1998)
+    def calculate_subsolar_temperature(heliocentric_distance: float, albedo=0, emissivity=1, beaming_param=1):
+        """
+        Calculate subsolar temperature of an asteroid's surface, using Eq. (2) of article "A Thermal Model For Near
+        Earth Asteroids", A. W. Harris (1998), the article that introduced NEATM.
+
+        :param heliocentric_distance: float
+            Distance from the Sun, in astronomical units
+        :param albedo: float
+            How much the asteroid reflects, between 0 and 1. For ideal blackbody this is 0.
+        :param emissivity: float
+            Emission from asteroid divided by emission from ideal blackbody.
+        :param beaming_param: float
+            Beaming parameter, the surface geometry / roughness effects compared to a perfect sphere.
+
+        :return T_ss:
+            Subsolar temperature, in Kelvin
+        """
+        T_ss = (((1 - albedo) * 1361 * (1 / heliocentric_distance**2)) / (beaming_param * emissivity * C.stefan_boltzmann))**0.25
+        return T_ss
+
+    d_S = np.linspace(0.5, 4)
+    ss_temps_max = []
+    ss_temps_min = []
+    for distance in d_S:
+        temperature_max = calculate_subsolar_temperature(distance)
+        ss_temps_max.append(temperature_max)
+        # temperature_min = calculate_subsolar_temperature(distance, albedo=0.9, emissivity=0.9, beaming_param=1)
+        # ss_temps_min.append(temperature_min)
+    plt.figure()
+    plt.plot(d_S, ss_temps_max)
+    # plt.plot(d_S, ss_temps_min)
+    plt.xlabel('Heliocentric distance [AU]')
+    plt.ylabel('Subsolar temperature [K]')
+    plt.savefig(Path(C.figfolder, 'ss-temp_hc-dist.png'))
+    plt.show()
+    print('test')
+    ############################
+    # # Plotting an example radiance
     # num = 22
     # rads = FH.load_toml(Path(C.radiance_test_path, f'rads_{num}.toml'))
     # refrad = rads['reflected_radiance']

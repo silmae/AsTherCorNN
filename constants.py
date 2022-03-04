@@ -12,6 +12,7 @@ import scipy.constants
 c = scipy.constants.c  # 2.998e8  # speed of light in vacuum, m / s
 kB = scipy.constants.Boltzmann  # 1.381e-23  # Boltzmann constant, m² kg / s² / K (= J / K)
 h = scipy.constants.h  # 6.626e-34  # Planck constant, m² kg / s (= J s)
+stefan_boltzmann = scipy.constants.Stefan_Boltzmann  # 5.67e-8 W / m² / K⁴, Stefan-Boltzmann constant
 emittance = 0.9  # Emittance of an asteroid TODO Use Kirchoff's law (eps = 1-R) to get emittance from reflectance?
 
 # Wavelength vector
