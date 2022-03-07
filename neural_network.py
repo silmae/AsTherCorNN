@@ -179,33 +179,25 @@ def create_model(conv_filters: int, conv_kernel: int, encdec_start: int, encdec_
 
     waist = Dense(units=waist_size, activation=C.activation)(encoder)
 
-    # Create two decoders, one for each output
+    # Create a decoder identical to the encoder
     i = 0
     for node_count in reversed(counts):
         if i == 0:
-            decoder1 = Dense(node_count, activation=C.activation)(waist)
-            decoder2 = Dense(node_count, activation=C.activation)(waist)
+            decoder = Dense(node_count, activation=C.activation)(waist)
             i = i + 1
         else:
-            decoder1 = Dense(node_count, activation=C.activation)(decoder1)
-            decoder2 = Dense(node_count, activation=C.activation)(decoder2)
+            decoder1 = Dense(node_count, activation=C.activation)(decoder)
 
     # Convolutional layer to match the encoder side
-    decoder1 = Reshape(target_shape=(int(node_count), 1))(decoder1)
-    decoder1 = Conv1D(filters=conv_filters, kernel_size=conv_kernel, padding='same', activation=C.activation)(decoder1)
-    decoder1 = Flatten()(decoder1)
-    decoder2 = Reshape(target_shape=(int(node_count), 1))(decoder2)
-    decoder2 = Conv1D(filters=conv_filters, kernel_size=conv_kernel, padding='same', activation=C.activation)(decoder2)
-    decoder2 = Flatten()(decoder2)
+    decoder = Reshape(target_shape=(int(node_count), 1))(decoder)
+    decoder = Conv1D(filters=conv_filters, kernel_size=conv_kernel, padding='same', activation=C.activation)(decoder)
+    decoder = Flatten()(decoder)
 
-    output1 = Dense(input_length, activation='linear')(decoder1)
-    output2 = Dense(input_length, activation='linear')(decoder2)
-
-    # Concatenate the two outputs into one vector to transport it to loss function: Keras does not allow two outputs
-    conc = Concatenate()([output1, output2])
+    # Output with shape similar to input
+    output = Dense(input_length, activation='linear')(decoder)
 
     # Create a model object
-    model = Model(inputs=[input_data], outputs=[conc])
+    model = Model(inputs=[input_data], outputs=[output])
     model.summary()
 
     # Define optimizer, set learning rate of the model
@@ -219,46 +211,37 @@ def create_model(conv_filters: int, conv_kernel: int, encdec_start: int, encdec_
 
 def loss_fn(ground, prediction):
     """
-    Calculate loss from predicted spectra and corresponding ground truth.
+    Calculate loss from predicted thermal radiance spectrum and corresponding ground truth.
 
     :param ground: tf.Tensor
-        Ground truth, two vectors for every item in batch
+        Ground truth, two vectors for every item in batch (reflected and thermal)
     :param prediction: tf.Tensor
-        Prediction, one vector for every item in batch: consists of two vectors stacked one after another
+        Prediction, one vector for every item in batch: thermal radiance
 
     :return:
         Calculated loss
     """
 
-    # Divide each of the inputs into two vectors for comparing ground and prediction
-    y1 = ground[:, :, 0]
-    y2 = ground[:, :, 1]
-    y1_pred = prediction[:, 0:y1.shape[1]]
-    y2_pred = prediction[:, y1.shape[1]:]
+    # Take only the thermal vector from ground truth
+    ground = ground[:, :, 1]
 
     # Scaling the ground and prediction values: if not scaled, higher radiances will dominate, and lower will not
     # be seen as errors. Should not affect network output units when done inside loss function
-    y1_max = tf.math.reduce_max(y1)
-    y2_max = tf.math.reduce_max(y2)
+    ground_max = tf.math.reduce_max(ground)
     # To prevent division by (near) zero, add small constant value to maxima
-    y1_max = y1_max + 0.00001
-    y2_max = y2_max + 0.00001
+    ground_max = ground_max + 0.00001
 
     # Scale both ground truth and predictions by dividing with maximum
-    y1 = tf.math.divide(y1, y1_max)
-    y2 = tf.math.divide(y2, y2_max)
-    y1_pred = tf.math.divide(y1_pred, y1_max)
-    y2_pred = tf.math.divide(y2_pred, y2_max)
+    y1 = tf.math.divide(ground, ground_max)
+    y1_pred = tf.math.divide(prediction, ground_max)
 
-    L2_dist1 = tf.norm(y1 - y1_pred, axis=1, keepdims=True)
-    L2_dist2 = tf.norm(y2 - y2_pred, axis=1, keepdims=True)
-    L2_dist = L2_dist1 + L2_dist2
+    L2_dist = tf.norm(ground - prediction, axis=1, keepdims=True)
 
     # Cosine distance: only thermal, since those are always similar to each other in shape
     cosine_loss = tf.keras.losses.CosineSimilarity(axis=1)
-    cos_dist = cosine_loss(y2, y2_pred) + 1  # According to Keras documentation, -1 means similar and 1 means dissimilar: add 1 to stay positive!
+    cos_dist = cosine_loss(ground, prediction) + 1  # According to Keras documentation, -1 means similar and 1 means dissimilar: add 1 to stay positive!
 
-    # Calculate loss as sum of L2 distances and cos distances of thermal
+    # Calculate loss as sum of L2 distance and cos distance
     loss = L2_dist + cos_dist
 
     # # Printing loss into console (since debugger will not show tensor values)

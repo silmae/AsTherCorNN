@@ -98,37 +98,37 @@ def test_model(X_test, y_test, model, temperatures, savefolder):
     for i in indices:
         test_sample = np.expand_dims(X_test[i, :], axis=0)
         prediction = model.predict(test_sample).squeeze()  # model.predict(np.array([summed.T])).squeeze()
-        pred1 = prediction[0:int(len(prediction) / 2)]
-        pred2 = prediction[int(len(prediction) / 2):len(prediction) + 1]
-        # pred1 = test_sample.squeeze() - pred2  # Alternative reflected prediction: input vector minus predicted thermal radiance
+        pred_refl = test_sample.squeeze() - prediction
+        pred_therm = prediction
 
-        ground1 = y_test[i, :, 0]
-        ground2 = y_test[i, :, 1]
-        # ground1 = test_sample.squeeze() - ground2  # Alternative ground truth to which the alternative reflected is compared
+        # ground_refl = y_test[i, :, 0]
+        ground_therm = y_test[i, :, 1]
+        ground_refl = test_sample.squeeze() - ground_therm  # Alternative ground truth to which the alternative reflected is compared
 
         # Calculate temperature of prediction by fitting to Planck function, compare to ground truth gotten as argument
         ground_temp = temperatures[i]
         print(f'Ground temperature: {ground_temp}')
         temperature_ground.append(ground_temp)
-        pred_temp = fit_Planck(pred2)
+        pred_temp = fit_Planck(pred_therm)
         print(f'Prediction temperature: {pred_temp}')
         temperature_pred.append(pred_temp)
 
         temperature_error.append(ground_temp - pred_temp)
 
         # Mean absolute error
-        mae1 = sum(abs(pred1 - ground1)) / len(pred1)
-        mae2 = sum(abs(pred2 - ground2)) / len(pred2)
+        mae1 = sum(abs(pred_refl - ground_refl)) / len(pred_refl)
+        mae2 = sum(abs(pred_therm - ground_therm)) / len(pred_therm)
         refl_mae.append(mae1)
         therm_mae.append(mae2)
 
-        cosang1 = cosine_distance(pred1, ground1)
-        cosang2 = cosine_distance(pred2, ground2)
+        cosang1 = cosine_distance(pred_refl, ground_refl)
+        cosang2 = cosine_distance(pred_therm, ground_therm)
         refl_cos.append(cosang1)
         therm_cos.append(cosang2)
 
         print(f'Calculated MAE and cosine angle for sample {i} out of {len(indices)}')
 
+    # Gather all calculated errors in a single dictionary and save that as toml
     mean_dict = {}
     mean_dict['mean_reflected_MAE'] = np.mean(refl_mae)
     mean_dict['mean_thermal_MAE'] = np.mean(therm_mae)
@@ -152,23 +152,6 @@ def test_model(X_test, y_test, model, temperatures, savefolder):
     error_dict['SAM'] = SAM_dict
 
     FH.save_toml(error_dict, Path(savefolder, 'errors.toml'))
-
-    # # Plot MAE and SAM of all test samples, for both thermal and reflected
-    # fig = plt.figure()
-    # plt.plot(range(len(refl_mae)), refl_mae)
-    # plt.plot(range(len(refl_mae)), therm_mae)
-    # plt.ylabel('mean absolute error')
-    # plt.legend(('reflected', 'thermal'))
-    # plt.savefig(Path(savefolder, 'MAE.png'))
-    # plt.close(fig)
-    #
-    # fig = plt.figure()
-    # plt.plot(range(len(refl_cos)), therm_cos)
-    # plt.plot(range(len(refl_cos)), refl_cos)
-    # plt.ylabel('cosine distance')
-    # plt.legend(('thermal', 'reflected'))
-    # plt.savefig(Path(savefolder, 'SAM.png'))
-    # plt.close(fig)
 
     # Plot scatters of ground temperature vs temperature error, thermal MAE and SAM vs height of thermal tail
     fig = plt.figure()
@@ -232,6 +215,7 @@ def test_model(X_test, y_test, model, temperatures, savefolder):
         ground1 = y_test[i, :, 0]
         ground2 = y_test[i, :, 1]
         # ground1 = test_sample.squeeze() - ground2  # Alternative ground truth to which the alternative reflected is compared
+
 
         fig = plt.figure()
         x = C.wavelengths
