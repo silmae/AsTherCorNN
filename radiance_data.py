@@ -1,3 +1,9 @@
+"""
+Methods for working with (spectral) radiances: calculating thermal radiance and reflected radiance, and simulating
+observed radiance as their sum. Calculating normalized reflectance from radiance. Wrapper for calculating a dataset of
+several radiances from reflectances.
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 import random
@@ -5,21 +11,20 @@ import os
 from pathlib import Path
 
 import constants as C
-import toml_handler as tomler
-import solar as sol
+import file_handling as FH
+import utils
 
-def bb_radiance(T: float, eps: float, theta: float, wavelength: np.ndarray):
+
+def bb_radiance(T: float, eps: float, wavelength: np.ndarray):
     """
     Calculate and return approximate thermal emission (blackbody, bb) radiance spectrum using Planck's law. Angle
-    dependence of emitted radiance is calculated with Lambert's cosine law.
+    dependence of emitted radiance is approximated as Lambertian. TODO If this does not work with OREX, change Lambert?
 
     :param T: float.
         Surface temperature, in Kelvins
     :param eps: float.
-        Emissivity = sample emission spectrum divided by ideal bb spectrum. Maybe in future accepts
-        a vector, but only constants for now
-    :param theta: float
-        Angle between surface normal and observer direction (emission angle), in degrees
+        Emissivity = sample emission spectrum divided by ideal blackbody spectrum of same temperature. Maybe in future
+        accepts a vector, but only constants for now
     :param wavelength:
         vector of floats. Wavelengths where the emission is to be calculated, in micrometers
 
@@ -38,24 +43,23 @@ def bb_radiance(T: float, eps: float, theta: float, wavelength: np.ndarray):
     for i in range(len(wavelength)):
         wl = wavelength[i] / 1e6  # Convert wavelength from micrometers to meters
         L_th[i, 1] = eps * (2 * h * c**2) / ((wl**5) * (np.exp((h * c)/(wl * kB * T)) - 1))  # Apply Planck's law
-        L_th[i, 1] = L_th[i, 1] * np.cos(np.deg2rad(theta))  # Apply Lambert's cosine law
         L_th[i, 1] = L_th[i,1] / 1e6  # Convert radiance from (W / m² / sr / m) to (W / m² / sr / µm)
 
     return L_th
 
 
-def reflected_radiance(reflectance: np.ndarray, irradiance: np.ndarray, phi: float, theta: float):
+def reflected_radiance(reflectance: np.ndarray, irradiance: np.ndarray, incidence_angle: float, emission_angle: float):
     """
     Calculate spectral radiance reflected from a surface, based on the surface reflectance, irradiance incident on it,
-    and the phase angle of the measurement. The surface normal is assumed to point towards the observer.
+    and the phase angle of the measurement. Angle dependence is calculated using the Lommel-Seeliger model.
 
     :param reflectance: vector of floats
         Spectral reflectance.
     :param irradiance: vector of floats
         Spectral irradiance incident on the surface.
-    :param phi: float
-        Phase angle of the measurement, in degrees
-    :param theta: float
+    :param incidence_angle: float
+        Incidence angle of light in degrees, measured from surface normal
+    :param emission_angle: float
         Angle between surface normal and observer direction, in degrees
 
     :return: vector of floats.
@@ -66,16 +70,41 @@ def reflected_radiance(reflectance: np.ndarray, irradiance: np.ndarray, phi: flo
     reflrad = np.zeros((len(wavelength), 2))
     reflrad[:, 0] = wavelength
 
-    reflrad[:, 1] = reflectance[:, 1] * (irradiance[:, 1] * np.cos(np.deg2rad(phi))) / np.pi
-    reflrad[:, 1] = reflrad[:, 1] * np.cos(np.deg2rad(theta))
+    # Reflected radiance from flat surface with 0 phase angle
+    reflrad[:, 1] = irradiance[:, 1] * reflectance
+
+    # Angle dependence with Lommel-Seeliger
+    reflrad[:, 1] = (reflrad[:, 1] / (4 * np.pi)) * (1 / (np.cos(np.deg2rad(incidence_angle)) + np.cos(np.deg2rad(emission_angle))))
 
     return reflrad
 
-def radiance2reflectance(radiance, d_S, phi, theta):
-    insolation = sol.solar_irradiance(d_S, C.wavelengths)
-    radiance = radiance / np.cos(np.deg2rad(theta))
-    reflectance = radiance / ((insolation[:, 1] * np.cos(np.deg2rad(phi))) / np.pi)
-    return reflectance
+
+def radiance2norm_reflectance(radiance):
+    """
+    Calculates a spectrum of normalized reflectance from a spectrum of reflected radiance. Divides the radiance
+    by the solar spectral irradiance at heliocentric distance of 1 AU, and normalizes the resulting reflectance
+    spectrum so that reflectance is 1 at the wavelength of 0.55 micrometers (a common convention with asteroid
+    reflectance spectra).
+
+    :param radiance: ndarray
+        Spectral radiance
+    :return: norm_reflectance: ndarray
+        Normalized reflectance
+    """
+
+    # Insolation at 1.0, the heliocentric distance does not matter with normalized data
+    insolation = utils.solar_irradiance(1.0, C.wavelengths)
+    reflectance = radiance / insolation[:, 1]
+
+    # Find the index where wavelength is closest to 0.55 µm
+    array = np.asarray(C.wavelengths)
+    idx = (np.abs(array - 0.55)).argmin()
+
+    # Normalization to R(0.55 µm) = 1
+    norm_reflectance = reflectance / reflectance.squeeze()[idx]
+
+    return norm_reflectance
+
 
 def noising(rad_data):
     """
@@ -98,17 +127,41 @@ def noising(rad_data):
     return rad_data
 
 
-def observed_radiance(d_S: float, phi: float, theta: float, T: float, reflectance: np.ndarray, waves: np.ndarray, filename: str, test: bool, plots=False):
+def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: float, reflectance: np.ndarray, waves: np.ndarray, filename: str, test: bool, plots=False):
+    """
+    Simulate observed radiance with given parameters. Calculates reflected and thermally emitted radiances in separate
+    functions, and sums them to get observed radiance. Adds noise to the summed radiance. Saves separate and summed
+    radiances to a .toml file together with observation related metadata provided in function arguments. Also saves
+    plots of reflectance and radiances, if specified in arguments.
 
+    :param d_S: float
+        Heliocentric distance in astronomical units
+    :param incidence_ang: float
+        Incidence angle in degrees
+    :param emission_ang: float
+        Emission angle in degrees
+    :param T: float
+        Surface temperature in Kelvin
+    :param reflectance: ndarray
+        Spectral reflectance
+    :param waves: ndarray
+        Wavelength vector in micrometers
+    :param filename: string
+        Name which will be included in files related to the radiances (plots and .toml), without extension
+    :param test: boolean
+        Whether the simulated measurement will be used for testing or training, only affects save location on disc
+    :param plots: boolean
+        Whether plots will be made for this simulated measurement
+    """
     # Calculate insolation at heliocentric distance of d_S
-    insolation = sol.solar_irradiance(d_S, waves)
+    insolation = utils.solar_irradiance(d_S, waves)
 
     # Calculate theoretical radiance reflected from an asteroid toward observer
-    reflrad = reflected_radiance(reflectance, insolation, phi, theta)
+    reflrad = reflected_radiance(reflectance, insolation, incidence_ang, emission_ang)
 
     # Calculate theoretical thermal emission from an asteroid's surface
     eps = C.emittance
-    thermrad = bb_radiance(T, eps, theta, waves)
+    thermrad = bb_radiance(T, eps, waves)
 
     # Sum the two calculated spectral radiances
     sumrad = np.zeros((len(waves), 2))
@@ -120,7 +173,7 @@ def observed_radiance(d_S: float, phi: float, theta: float, T: float, reflectanc
 
     # Collect the data into a dict
     rad_dict = {}
-    meta = {'heliocentric_distance': d_S, 'phase_angle': phi, 'emission_angle': theta, 'surface_temperature': T,
+    meta = {'heliocentric_distance': d_S, 'incidence_angle': incidence_ang, 'emission_angle': emission_ang, 'surface_temperature': T,
             'emittance': eps}
     rad_dict['metadata'] = meta
     rad_dict['wavelength'] = waves
@@ -129,22 +182,22 @@ def observed_radiance(d_S: float, phi: float, theta: float, T: float, reflectanc
     rad_dict['sum_radiance'] = sumrad[:, 1]
 
     # Save the dict as .toml
-    tomler.save_radiances(rad_dict, filename, test)
+    FH.save_radiances(rad_dict, filename, test)
 
     if plots == True:
 
         # Plotting reflectance and radiances, saving as .png
         figfolder = C.figfolder
 
-        plt.figure()
-        plt.plot(reflectance[:, 0], reflectance[:, 1])
+        fig = plt.figure()
+        plt.plot(C.wavelengths, reflectance)
         plt.xlabel('Wavelength [µm]')
         plt.ylabel('Reflectance')
         figpath = figfolder.joinpath(filename + '_reflectance.png')
         plt.savefig(figpath)
 
         plt.figure()
-        plt.title(f'Radiances: d_S = {d_S}, \phi = {phi}, T = {T}')
+        plt.title(f'Radiances: d_S = {d_S}, i = {incidence_ang}, e = {emission_ang}, T = {T}')
         plt.plot(reflrad[:, 0], reflrad[:,1])  # Reflected radiance
         plt.plot(thermrad[:, 0], thermrad[:, 1])  # Thermally emitted radiance
         plt.plot(waves, reflrad[:, 1] + thermrad[:, 1])  # Sum of the two radiances
@@ -153,35 +206,66 @@ def observed_radiance(d_S: float, phi: float, theta: float, T: float, reflectanc
         plt.legend(('Reflected', 'Thermal', 'Sum'))
         figpath = figfolder.joinpath(filename + ('_radiances.png'))
         plt.savefig(figpath)
+        plt.close(fig)
         # plt.show()
 
-def calculate_radiances(test: bool):
+    return rad_dict
 
+def calculate_radiances(reflectance_list: list, test: bool):
+    """
+    Simulate 10 observed radiances for each reflectance spectrum given in parameters. Radiances are saved on disc as
+    .toml files together with metadata related to random values used in their creation. Plots are saved for every 1000th
+    simulated set of radiances and the corresponding reflectance.
+
+    :param reflectance_list:
+        Spectral reflectances from which the radiances will be created.
+    :param test: boolean
+        Whether the data will be used for testing or training, affects only the save location.
+
+    :return: summed, separate: ndarrays
+        Arrays containing summed spectra and separate reflected and thermal spectra
+    """
     waves = C.wavelengths
-    theta = C.theta
-    if test == True:
-        aug_path = C.augmented_test_path
-    else:
-        aug_path = C.augmented_training_path
 
-    aug_list = os.listdir(aug_path)
+    # Empty arrays for storing data vectors
+    length = len(waves)
+    samples = len(reflectance_list)
+    summed = np.zeros((samples*10, length))
+    reflected = np.zeros((samples*10, length))
+    therm = np.zeros((samples*10, length))
 
-    j = 1
-    for filename in aug_list:
-        aug_filepath = aug_path.joinpath(filename)
-        reflectance = tomler.read_aug_reflectance(aug_filepath)
+    j = 0
+
+    # From each reflectance, create 10 radiances calculated with different parameters
+    for reflectance in reflectance_list:
         for i in range(10):
+            # Create random variables from min-max ranges given in constants
             d_S = random.random() * (C.d_S_max - C.d_S_min) + C.d_S_min
-            phi = random.randint(C.phi_min, C.phi_max)
+            incidence_ang = random.randint(C.i_min, C.i_max)
+            emission_ang = random.randint(C.e_min, C.e_max)
             T = random.randint(C.T_min, C.T_max)
-            if j % 100 == 0:
+
+            if j % 1000 == 0:
                 # Calculate radiances with the given parameters and
-                # Save plots for every hundredth radiance and reflectance
-                observed_radiance(d_S, phi, theta, T, reflectance, waves, 'rads_'+str(j), test, plots=True)
+                # save plots for every 1000th radiance and reflectance
+                obs_rad_dict = observed_radiance(d_S, incidence_ang, emission_ang, T, reflectance, waves, 'rads_' + str(j), test, plots=True)
             else:
-                observed_radiance(d_S, phi, theta, T, reflectance, waves, 'rads_' + str(j), test)
+                obs_rad_dict = observed_radiance(d_S, incidence_ang, emission_ang, T, reflectance, waves, 'rads_' + str(j), test)
+
+            # Discard the metadata and store data vectors into arrays
+            summed[j, :] = obs_rad_dict['sum_radiance']
+            reflected[j, :] = obs_rad_dict['reflected_radiance']
+            therm[j, :] = obs_rad_dict['emitted_radiance']
 
             j = j+1
+
+        # Place reflected and thermal spectra into one array for returning
+        separate = np.zeros((samples*10, length, 2))
+        separate[:, :, 0] = reflected
+        separate[:, :, 1] = therm
+
+    return summed, separate
+
 
 def read_radiances(test: bool):
     if test == True:
@@ -202,12 +286,12 @@ def read_radiances(test: bool):
 
     i = 0
     for filename in file_list:
-        rad_dict = tomler.read_radiance(filename, test)
+        rad_dict = FH.read_radiance(filename, test)
         # Extract the radiances, discard the metadata
         summed[i, :] = rad_dict['sum_radiance']
         reflected[i, :] = rad_dict['reflected_radiance']
         therm[i, :] = rad_dict['emitted_radiance']
-        print(f'Read file {filename}')
+        print(f'Read file {i} out of {len(file_list)}')
         i = i + 1
 
     separate = np.zeros((samples, length, 2))

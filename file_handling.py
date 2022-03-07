@@ -1,7 +1,47 @@
+"""
+Methods used for loading files and writing into files
+"""
+
 from pathlib import Path
 import numpy as np
 import toml
+import pickle
+import csv
+
 import constants as C
+
+
+def save_pickle(data_dict, path):
+    with open(path, 'wb') as file_pi:
+        pickle.dump(data_dict, file_pi)
+    print(f'Saved a pickle into {path}')
+
+
+def load_pickle(path):
+    with open(path, 'rb') as file_pi:
+        data = pickle.load(file_pi)
+    return data
+
+
+def load_csv(filepath):
+    with open(filepath, newline='') as csvfile:
+        reader = csv.reader(csvfile)
+        data = []
+        for row in reader:
+            data.append(int(row[0]))  # Take first (and only) element in row, convert to int and append to list
+    return data
+
+
+def save_toml(dictionary: dict, savepath):
+    with open(savepath, 'w+') as file:
+        toml.dump(dictionary, file, encoder=toml.encoder.TomlNumpyEncoder())
+    print(f'Saved a dictionary into {savepath}')
+
+
+def load_toml(filepath):
+    with open(filepath, 'r') as file:
+        data = toml.load(file)
+    return data
 
 
 def save_aug_reflectance(reflectance: np.ndarray, filename: str, test: bool):
@@ -82,6 +122,7 @@ def read_radiance(filename: str, test: bool):
 
     return radiance_dict
 
+
 def save_rad_bunch(dict):
 
     # Combine given filename with predetermined folder path and save as .toml
@@ -89,6 +130,7 @@ def save_rad_bunch(dict):
     with open(p, 'w+') as file:
         toml.dump(dict, file, encoder=toml.encoder.TomlNumpyEncoder())
     print(f'Saved radiances into {p}')
+
 
 def load_rad_bunch():
     p = C.rad_bunch_path

@@ -1,158 +1,295 @@
+"""
+Methods for building and using neural networks for separating reflected and thermally emitted radiances.
+"""
+
 import numpy as np
-import tensorflow as tf
 import matplotlib.pyplot as plt
 from scipy.stats import norm
 import os
+import time
 from pathlib import Path
 import pickle
-from tensorflow.keras.layers import Input, Dense, Flatten, Conv1D, MaxPooling1D, Dropout, Concatenate
+from contextlib import redirect_stdout  # For saving keras prints into text files
+import tensorflow as tf
+from tensorflow.keras.layers import Input, Dense, Flatten, Conv1D, MaxPooling1D, Dropout, Concatenate, Reshape
 from tensorflow.keras.models import Model, load_model
+import keras_tuner as kt
+
 import constants as C
-
-# # For running with GPU on server:
-# os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-# # Check available GPU with command nvidia-smi in terminal
-# os.environ["CUDA_VISIBLE_DEVICES"] = "4"
-
-# To show plots from server, make X11 connection and add this to Run configuration > Environment variables:
-# DISPLAY=localhost:10.0
-
-def create_slope(length):
-    val = (np.random.rand(1) - 0.5) * 0.3
-    # val = 0.1  # Static slope for testing
-    offset = np.random.rand(1)
-    # offset = 0.5  # Static offset
-    slope = np.linspace(0, val, length).flatten() + offset
-
-    if np.min(slope) < 0:
-        slope = slope + np.min(slope)
-
-    return slope
-
-def create_normal(length):
-    mu = np.random.rand(1) * (length/2)
-    sigma = (0.1 + np.random.rand(1)) * 0.1 * length
-    # Static mu and sigma for preliminary tests:
-    # mu = 20
-    # sigma = 10
-    normal = norm.pdf(range(length), mu, sigma) * 10
-
-    return normal
+import reflectance_data as refl
+import radiance_data as rad
+import file_handling as FH
 
 
-def create_data(length, samples):
-
-    data = np.zeros((samples, length))
-    ground1 = np.zeros((samples, length))
-    ground2 = np.zeros((samples, length))
-
-    for i in range(samples):
-        slope = create_slope(length)
-        normal = create_normal(length) + create_normal(length)
-        summed = normal + slope
-
-        data[i, :] = summed
-        ground1[i, :] = slope
-        ground2[i, :] = normal
-
-    return data, ground1, ground2
+def prepare_training_data():
+    """
+    Creating training and validation data. Takes reflectance spectra of asteroids, and divides them into a larger set
+    for training and a smaller set for validation. From each reflectance creates 10 simulated radiances with random
+    values for heliocentric distance, incidence and emission angles, and surface temperature. For training the
+    separate reflected and thermal radiances are the ground truth, and the sum of these is the input. Function
+    creates dictionaries for all simulated observations, writing into them the three spectra, and metadata
+    related to parameters used in their creation. Each dictionary is saved into its own .toml file.
 
 
-def create_model(input_length, waist_size, activation):
+    """
+    # #############################  # TODO Take meteorite reflectances also into account?
+    # # Load meteorite reflectances from files and create more from them through augmentation
+    # train_reflectances, test_reflectances = refl.read_meteorites(waves)
+    # refl.augmented_reflectances(train_reflectances, waves, test=False)
+    # refl.augmented_reflectances(test_reflectances, waves, test=True)
+    # #############################
 
-    # Create input for fully connected
-    input_data = Input(shape=(input_length, ))
+    #############################
+    # Load asteroid reflectances, they are already augmented
+    train_reflectances, test_reflectances = refl.read_asteroids()
 
-    # Calculate node count for first hidden layer by taking the nearest power of 2
-    node_count = 2 ** np.floor(np.log2(input_length))
-    # Create first hidden layer for encoder
-    encoder = Dense(node_count, activation=activation)(input_data)
+    # Calculate 10 radiances from each reflectance, save them on disc as toml, and return the data vectors
+    summed_test, separate_test = rad.calculate_radiances(test_reflectances, test=True)
+    summed_training, separate_training = rad.calculate_radiances(train_reflectances, test=False)
 
-    counts = [node_count]
-    while node_count/2 > waist_size:
-        node_count = node_count / 2
-        encoder = Dense(node_count, activation=activation)(encoder)
+    # Create a "bunch" from training and testing radiances and save both in their own files. This is orders of
+    # magnitude faster than reading each radiance from its own toml
+    def bunch_rads(summed, separate, filepath: Path):
+        rad_bunch = {}
+        rad_bunch['summed'] = summed
+        rad_bunch['separate'] = separate
+
+        FH.save_pickle(rad_bunch, filepath)
+
+    # summed_test, separate_test = rad.read_radiances(test=True)
+    bunch_rads(summed_test, separate_test, C.rad_bunch_test_path)
+    # summed_training, separate_training = rad.read_radiances(test=False)
+    bunch_rads(summed_training, separate_training, C.rad_bunch_training_path)
+
+
+def tune_model(epochs: int, max_trials: int, executions_per_trial: int):
+    """
+    Tune the model architecture using KerasTuner
+
+    :param epochs: int
+        Number of epochs trained for every trial
+    :param max_trials: int
+        Maximum number of trial configurations to be tested
+    :param executions_per_trial: int
+        How many times each tested configuration is trained (values larger than one used to reduce the effects of bad
+        random values)
+    """
+
+    # Hyperparameter optimization with KerasTuner
+    savefolder_name = f'optimization-run_{time.strftime("%Y%m%d-%H%M%S")}'
+    tuner = kt.BayesianOptimization(
+        hypermodel=create_hypermodel,
+        objective="val_loss",
+        max_trials=max_trials,
+        executions_per_trial=executions_per_trial,
+        overwrite=True,
+        directory=C.hyperparameter_path,
+        project_name=savefolder_name,
+    )
+    tuner.search_space_summary()
+    x_train, y_train, x_val, y_val = load_training_validation_data()
+    tuner.search(x_train, y_train, epochs=epochs, validation_data=(x_val, y_val))
+
+    tuner.results_summary()
+    # Save summary of results into a text file
+    tuning_results_path = Path(C.hyperparameter_path, savefolder_name)
+    with open(Path(tuning_results_path, 'trial_summary.txt'), 'w') as f:
+        with redirect_stdout(f):
+            tuner.results_summary()
+
+
+def create_hypermodel(hp):
+    """
+    Create and compile a neural network model for hyperparameter optimization. Structure is similar to unadjustable
+    network: dense input, conv1d, dense autoencoder, conv1d, dense output, concatenate. This function calls the
+    create_model -function using the hyperparameters as arguments.
+
+    Adjustable hyperparameters are:
+    - convolution filter count and kernel width,
+    - encoder start layer node count, relation of subsequent autoencoder layer node counts, waist layer node count,
+    - learning rate
+
+    :param hp:
+    Instance of KerasTuner's kt.HyperParameters()
+
+    :return: model
+    Compiled Keras Model -instance
+    """
+
+    # Convolution layer for the input, tune both filter number and kernel size
+    filters = hp.Int("filters", min_value=20, max_value=60, step=4)
+    kernel_size = hp.Int("kernel_size", min_value=20, max_value=40, step=2)
+
+    # Tune encoder/decoder start layer node count
+    encdec_start = hp.Int('encdec_start', min_value=800, max_value=1200, step=40)
+    # Tune number of nodes in waist layer
+    waist_size = hp.Int('waist_size', min_value=80, max_value=160, step=8)
+    # Tune the relation between node counts of subsequent encoder layers: (layer N nodes) / (layer N-1 nodes)
+    encdec_node_relation = hp.Float("encdec_node_relation", min_value=0.1, max_value=0.5, sampling="linear")
+
+    # Define optimizer, tune learning rate of the model
+    lr = hp.Float('lr', min_value=1e-7, max_value=1e-5, sampling='log')
+
+    # Create model in separate function with adjustable hyperparameters as inputs
+    model = create_model(filters, kernel_size, encdec_start, encdec_node_relation, waist_size, lr)
+
+    return model
+
+
+def create_model(conv_filters: int, conv_kernel: int, encdec_start: int, encdec_node_relation: float, waist_size: int, lr: float):
+    """
+    Create and compile an autoencoder using Keras.
+
+    Network structure:
+    dense input --> conv1d --> dense autoencoder --> conv1d --> dense output --> concatenate
+
+    :param conv_filters: int
+        Number of filters in each convolutional layer
+    :param conv_kernel: int
+        Kernel width in the convolution
+    :param encdec_start: int
+        Node count at the start of the encoder / at the end of the decoder
+    :param encdec_node_relation:
+        Relation between node counts of subsequent encoder layers: (layer N nodes) / (layer N-1 nodes)
+    :param waist_size: int
+        Node count of autoencoder waist layer
+    :param lr: float
+        Learning rate in training the network
+
+    :return: Keras Model -instance
+        Compiled model ready for training
+    """
+
+    # Input layer always depends on the input data, which depends on the wl-vector specified in constants
+    input_length = len(C.wavelengths)
+    input_data = Input(shape=(input_length, 1))
+
+    # Convolution layer
+    conv1 = Conv1D(filters=conv_filters, kernel_size=conv_kernel, padding='same', activation=C.activation)(input_data)
+    conv1 = Flatten()(conv1)
+
+    # Create encoder based on start, relation, and waist
+    node_count = encdec_start
+    encoder = Dense(node_count, activation=C.activation)(conv1)
+    counts = [node_count]  # Save node counts of all layers into a list
+    while node_count * encdec_node_relation > waist_size:
+        node_count = int(node_count * encdec_node_relation)
+        encoder = Dense(node_count, activation=C.activation)(encoder)
         counts.append(node_count)
-        # print(node_count)
 
-    # Create waist layer
-    waist = Dense(waist_size, activation=activation)(encoder)
+    waist = Dense(units=waist_size, activation=C.activation)(encoder)
 
     # Create two decoders, one for each output
     i = 0
     for node_count in reversed(counts):
         if i == 0:
-            decoder1 = Dense(node_count, activation=activation)(waist)
-            decoder2 = Dense(node_count, activation=activation)(waist)
+            decoder1 = Dense(node_count, activation=C.activation)(waist)
+            decoder2 = Dense(node_count, activation=C.activation)(waist)
             i = i + 1
         else:
-            decoder1 = Dense(node_count, activation=activation)(decoder1)
-            decoder2 = Dense(node_count, activation=activation)(decoder2)
+            decoder1 = Dense(node_count, activation=C.activation)(decoder1)
+            decoder2 = Dense(node_count, activation=C.activation)(decoder2)
 
-    # For some reason the outputs don't work with sigmoid
+    # Convolutional layer to match the encoder side
+    decoder1 = Reshape(target_shape=(int(node_count), 1))(decoder1)
+    decoder1 = Conv1D(filters=conv_filters, kernel_size=conv_kernel, padding='same', activation=C.activation)(decoder1)
+    decoder1 = Flatten()(decoder1)
+    decoder2 = Reshape(target_shape=(int(node_count), 1))(decoder2)
+    decoder2 = Conv1D(filters=conv_filters, kernel_size=conv_kernel, padding='same', activation=C.activation)(decoder2)
+    decoder2 = Flatten()(decoder2)
+
     output1 = Dense(input_length, activation='linear')(decoder1)
     output2 = Dense(input_length, activation='linear')(decoder2)
 
-    # Concatenate the two outputs into one vector to transport it to loss fn
+    # Concatenate the two outputs into one vector to transport it to loss function: Keras does not allow two outputs
     conc = Concatenate()([output1, output2])
 
-    # Create a model object(?) and return it
+    # Create a model object
     model = Model(inputs=[input_data], outputs=[conc])
+    model.summary()
+
+    # Define optimizer, set learning rate of the model
+    opt = tf.keras.optimizers.Adam(learning_rate=lr)
+
+    # Compile model
+    model.compile(optimizer=opt, loss=loss_fn)
 
     return model
 
 
 def loss_fn(ground, prediction):
-    # print(tf.shape(ground))
-    # print(tf.shape(prediction))
+    """
+    Calculate loss from predicted spectra and corresponding ground truth.
+
+    :param ground: tf.Tensor
+        Ground truth, two vectors for every item in batch
+    :param prediction: tf.Tensor
+        Prediction, one vector for every item in batch: consists of two vectors stacked one after another
+
+    :return:
+        Calculated loss
+    """
+
+    # Divide each of the inputs into two vectors for comparing ground and prediction
     y1 = ground[:, :, 0]
-    # print(y1.shape[1])
     y2 = ground[:, :, 1]
     y1_pred = prediction[:, 0:y1.shape[1]]
-    y2_pred = prediction[:, y1.shape[1]:2*y1.shape[1]+1]
+    y2_pred = prediction[:, y1.shape[1]:]
+
+    # Scaling the ground and prediction values: if not scaled, higher radiances will dominate, and lower will not
+    # be seen as errors. Should not affect network output units when done inside loss function
+    y1_max = tf.math.reduce_max(y1)
+    y2_max = tf.math.reduce_max(y2)
+    # To prevent division by (near) zero, add small constant value to maxima
+    y1_max = y1_max + 0.00001
+    y2_max = y2_max + 0.00001
+
+    # Scale both ground truth and predictions by dividing with maximum
+    y1 = tf.math.divide(y1, y1_max)
+    y2 = tf.math.divide(y2, y2_max)
+    y1_pred = tf.math.divide(y1_pred, y1_max)
+    y2_pred = tf.math.divide(y2_pred, y2_max)
 
     L2_dist1 = tf.norm(y1 - y1_pred, axis=1, keepdims=True)
     L2_dist2 = tf.norm(y2 - y2_pred, axis=1, keepdims=True)
     L2_dist = L2_dist1 + L2_dist2
 
-    predict1_grad = y1_pred[:, 1:100] - y1_pred[:, 0:99]  # TODO replace the hardcoded indices IF using this gradient
-    grad_norm1 = tf.norm(predict1_grad, axis=1, keepdims=True)
+    # Cosine distance: only thermal, since those are always similar to each other in shape
+    cosine_loss = tf.keras.losses.CosineSimilarity(axis=1)
+    cos_dist = cosine_loss(y2, y2_pred) + 1  # According to Keras documentation, -1 means similar and 1 means dissimilar: add 1 to stay positive!
 
-    predict2_grad = y2_pred[:, 1:100] - y2_pred[:, 0:99]
-    grad_norm2 = tf.norm(predict2_grad, axis=1, keepdims=True)
+    # Calculate loss as sum of L2 distances and cos distances of thermal
+    loss = L2_dist + cos_dist
 
-    loss = L2_dist #+ 0.0001 * (grad_norm1 + grad_norm2)  # TODO add cos_dist?
+    # # Printing loss into console (since debugger will not show tensor values)
+    # tf.compat.v1.control_dependencies([tf.print(loss)])
 
     return loss
 
 
+def load_training_validation_data():
+    """
+    Load training and validation data and ground truths from files and return them: training data from one pickle file,
+    validation data from another.
+
+    :return: x_train, y_train, x_val, y_val
+    Training data, training ground truth, validation data, validation ground truth
+    """
+
+    # Load training radiances from one file as dicts
+    rad_bunch_training = FH.load_pickle(C.rad_bunch_training_path)
+    x_train = rad_bunch_training['summed']
+    y_train = rad_bunch_training['separate']
+
+    # Load validation radiances from one file as dicts
+    rad_bunch_test = FH.load_pickle(C.rad_bunch_test_path)
+    x_val = rad_bunch_test['summed']
+    y_val = rad_bunch_test['separate']
+
+    return x_train, y_train, x_val, y_val
 
 
-
-
-# data, ground1, ground2 = create_data(length, samples)
-# ground = np.zeros((samples, length, 2))
-# ground[:, :, 0] = ground1
-# ground[:, :, 1] = ground2
-
-def init_autoencoder(length):
-
-    model = create_model(length, C.waist, C.activation)
-    model.summary()
-
-    opt = tf.keras.optimizers.Adam(learning_rate=C.learning_rate)
-
-    # Compile model
-    model.compile(optimizer=opt, loss=loss_fn)
-
-
-
-    return model
-
-def train_autoencoder(data, ground, early_stop=True, checkpoints=True, save_history=True):
-
-    length = len(C.wavelengths)
-    model = init_autoencoder(length)
+def train_autoencoder(model, early_stop=True, checkpoints=True, save_history=True, create_new_data=False):
 
     # Early stop callback
     early_stop_callback = tf.keras.callbacks.EarlyStopping(
@@ -181,14 +318,19 @@ def train_autoencoder(data, ground, early_stop=True, checkpoints=True, save_hist
     if checkpoints == True:
         model_callbacks.append(model_checkpoint_callback)
 
+    # Create training data from scratch, if specified in the arguments
+    if create_new_data == True:
+        prepare_training_data()
+
+    data, ground, X_val, y_val = load_training_validation_data()
+
     # Train model and save history
-    history = model.fit([data], [ground], batch_size=C.batches, epochs=C.epochs, validation_split=0.2,
+    history = model.fit([data], [ground], batch_size=C.batches, epochs=C.epochs, validation_data=(X_val, y_val),
                         callbacks=model_callbacks)
 
     # Save training history
     if save_history == True:
-        with open(C.training_history_path, 'wb') as file_pi:
-            pickle.dump(history.history, file_pi)
+        FH.save_pickle(history.history, C.training_history_path)
 
     # Summarize and plot history of loss
     plt.figure()
@@ -199,33 +341,8 @@ def train_autoencoder(data, ground, early_stop=True, checkpoints=True, save_hist
     plt.ylabel('loss')
     plt.xlabel('epoch')
     plt.legend(['train', 'test'], loc='upper left')
-    filename = C.run_figname + '_history.png'
-    plt.savefig(Path(C.training_path, filename), dpi=300)
-    # plt.show()
-    #
+    filename = C.training_run_name + '_history.png'
+    plt.savefig(Path(C.training_run_path, filename), dpi=300)
 
     # Return model to make predictions elsewhere
     return model
-
-# # Testing by creating new data and predicting with the model
-# for i in range(10):
-#     slope = create_slope(length)
-#     normal = create_normal(length) + create_normal(length)
-#     summed = normal + slope
-#     prediction = model.predict(np.array([summed.T])).squeeze()
-#     pred1 = prediction[0:int(len(prediction)/2)]
-#     pred2 = prediction[int(len(prediction)/2):len(prediction) + 1]
-#
-#     plt.figure()
-#     x = range(length)
-#     plt.plot(x, slope, 'r')
-#     plt.plot(x, normal, 'b')
-#     plt.plot(x, pred1.squeeze(), '--c')
-#     plt.plot(x, pred2.squeeze(), '--m')
-#
-#     plt.legend(('ground 1', 'ground 2', 'prediction 1', 'prediction 2'))
-#
-# plt.show(block=True)
-
-
-

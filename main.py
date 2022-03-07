@@ -1,9 +1,12 @@
 import random
 from os import path
 import os
+import time
 from pathlib import Path
 import numpy as np
 from matplotlib import pyplot as plt
+
+from contextlib import redirect_stdout  # For saving keras prints into text files
 # from astropy.io import fits
 from scipy import io
 import pandas as pd
@@ -11,131 +14,89 @@ from tensorflow import keras
 import pickle
 from sklearn.model_selection import train_test_split
 
-from solar import solar_irradiance
+import utils
 import constants as C
 import reflectance_data as refl
 import radiance_data as rad
-import toml_handler as tomler
+import file_handling as FH
 import neural_network as NN
+import validation as val  # TODO This uses symfit, which I have not installed on my thingfish conda env
 
-# For running with GPU on server:
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-# Check available GPU with command nvidia-smi in terminal
-os.environ["CUDA_VISIBLE_DEVICES"] = "5"
-
-# To show plots from server, make X11 connection and add this to Run configuration > Environment variables:
-# DISPLAY=localhost:10.0
+# PyPlot settings to be used in all plots
+plt.rcParams.update({'font.size': 16})
+plt.rcParams.update({'figure.autolayout': True})
+plt.rcParams.update({'savefig.dpi': 600})
 
 if __name__ == '__main__':
 
-    # # Accessing measurements of Ryugu by the Hayabusa2:
-    # hdulist = fits.open('hyb2_nirs3_20180710_cal.fit')
-    # hdulist.info()
-    # ryugu_header = hdulist[0].header
-    # print(ryugu_header)
-    # ryugu_data = hdulist[0].data
-    # # The wavelengths? Find somewhere, is not included in header for some reason
+    ############################
+    # For running with GPU on server:
+    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+    # Check available GPU with command nvidia-smi in terminal, pick one that is not in use
+    os.environ["CUDA_VISIBLE_DEVICES"] = "5"
+
+    # After you have started your computing task please use "nvidia-smi" command
+    # and check that your program has correctly reserved GPU memory and that it
+    # actually runs in GPU(s).
     #
-    # mystery_spectra = ryugu_data[1,0:127]
-    #
-    # plt.figure()
-    # plt.plot(mystery_spectra)
-    # plt.title('Ryugu')
-    # plt.show()
+    # Memory usage is in the middle column and GPU usage is in the rightmost co-
+    # lumn. If GPU usage shows 0% then your code runs only in CPU, not in GPU.
 
-    # Create wl-vector from 1 to 2.5 µm, with step size in µm
-    waves = C.wavelengths
+    # To use plt.show() from server, make X11 connection and add this to Run configuration > Environment variables:
+    # DISPLAY=localhost:10.0
+    # But in most cases it would be better to just save the plots as png in a folder.
+    ############################
 
-    # #############################
-    # # Load meteorite reflectances from files and create more from them through augmentation
-    # train_reflectances, test_reflectances = refl.read_meteorites(waves)
-    # refl.augmented_reflectances(train_reflectances, waves, test=False)
-    # refl.augmented_reflectances(test_reflectances, waves, test=True)
-    # #############################
+    # Create a neural network model
+    untrained = NN.create_model(
+        conv_filters=60,
+        conv_kernel=40,
+        encdec_start=800,
+        encdec_node_relation=0.5,
+        waist_size=160,
+        lr=1e-5
+    )
 
-    # rad.calculate_radiances(test=True)
-    # rad.calculate_radiances(test=False)
+    # # Load weights to continue training where you left off:
+    # last_epoch = 295
+    # weight_path = Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5')
+    # untrained.load_weights(weight_path)
 
-    # ##############################
-    # # Plot uncorrected and (ideally) corrected reflectance from one radiance sample to illustrate why this is relevant
-    # rad_dict = tomler.read_radiance('rads_5700.toml')
-    # meta = rad_dict['metadata']
-    # uncorrected = rad.radiance2reflectance(rad_dict['sum_radiance'], meta['heliocentric_distance'], meta['phase_angle'], meta['emission_angle'])
-    # corrected = rad.radiance2reflectance(rad_dict['reflected_radiance'], meta['heliocentric_distance'], meta['phase_angle'], meta['emission_angle'])
-    #
-    # plt.figure()
-    # plt.plot(C.wavelengths, corrected)
-    # plt.plot(C.wavelengths, uncorrected)
-    # plt.legend(('Corrected', 'Uncorrected'))
-    # plt.xlabel('Wavelength [µm]')
-    # plt.ylabel('Reflectance')
-    # plt.show()
-    # ##############################
-
-    # def bunch_rads(summed, separate, filepath: Path):
-    #
-    #     rad_bunch = {}
-    #     rad_bunch['summed'] = summed
-    #     rad_bunch['separate'] = separate
-    #
-    #     with open(filepath, 'wb') as file_pi:
-    #         pickle.dump(rad_bunch, file_pi)
-    #
-    #
-    # summed_test, separate_test = rad.read_radiances(test=True)
-    # bunch_rads(summed_test, separate_test, C.rad_bunch_test_path)
-    #
-    # summed_training, separate_training = rad.read_radiances(test=False)
-    # bunch_rads(summed_training, separate_training, C.rad_bunch_training_path)
-
-    # ##############################
-
-    # Load training radiances from one file as dicts
-    with open(C.rad_bunch_training_path, 'rb') as file_pi:
-        rad_bunch_training = pickle.load(file_pi)
-
-    X_train = rad_bunch_training['summed']
-    y_train = rad_bunch_training['separate']
-
-    # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=42)
-
-    model = NN.train_autoencoder(X_train, y_train, early_stop=False, checkpoints=True, save_history=True)
+    # Train the model
+    model = NN.train_autoencoder(untrained, early_stop=False, checkpoints=True, save_history=True, create_new_data=False)
 
     ##############################
 
-    # Load test radiances from one file as dicts
-    with open(C.rad_bunch_test_path, 'rb') as file_pi:
-        rad_bunch_test = pickle.load(file_pi)
+    # Build a model and load pre-trained weights
+    model = NN.create_model(
+        conv_filters=60,
+        conv_kernel=40,
+        encdec_start=800,
+        encdec_node_relation=0.5,
+        waist_size=160,
+        lr=1e-5
+    )
 
-    X_test = rad_bunch_test['summed']
-    y_test = rad_bunch_test['separate']
+    # last_epoch = 990
+    # weight_path = Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5')
+    weight_path = Path('/home/leevi/PycharmProjects/asteroid-thermal-modeling/training/300epochs_160waist_1e-05lr/weights/weights_297.hdf5')
+    model.load_weights(weight_path)
 
+    # Run validation with synthetic data and test with real data
+    val.validate_and_test(model)
 
+    ##############################
 
-    test_history = model.evaluate(X_test, y_test)
+    # # Loading errors from Bennu testing, plotting results
+    # errordict = FH.load_toml(Path('/home/leevi/PycharmProjects/asteroid-thermal-modeling/figs/validation_plots/validation-run_20220301-135222/bennu_validation/errors_Bennu.toml'))
+    # val.plot_Bennu_errors(errordict)
 
-    for i in range(20):
-        test_sample = np.expand_dims(X_test[i, :], axis=0)
-        prediction = model.predict(test_sample).squeeze() #model.predict(np.array([summed.T])).squeeze()
-        pred1 = prediction[0:int(len(prediction) / 2)]
-        pred2 = prediction[int(len(prediction) / 2):len(prediction) + 1]
+    # Plotting some errors as function of ground truth temperature
+    # folderpath = Path('/home/leevi/PycharmProjects/asteroid-thermal-modeling/figs/validation_plots/validation-run_20220224-110013/synthetic_validation')
+    # val.error_plots(folderpath)
 
-        plt.figure()
-        x = waves
-        plt.plot(x, y_test[i, :, 0], 'r')
-        plt.plot(x, y_test[i, :, 1], 'b')
-        plt.plot(x, pred1.squeeze(), '--c')
-        plt.plot(x, pred2.squeeze(), '--m')
-        plt.xlabel('Wavelength [µm]')
-        plt.ylabel('Radiance')
-        plt.legend(('ground 1', 'ground 2', 'prediction 1', 'prediction 2'))
+    ##############################
 
-        fig_filename = C.run_figname + f'_test{i+1}.png'
-        fig_path = Path(C.training_path, fig_filename)
-        plt.savefig(fig_path, dpi=300)
-
-    # plt.show()
-    # print('test')
 
 
 
