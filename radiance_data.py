@@ -12,7 +12,7 @@ from pathlib import Path
 
 import constants as C
 import file_handling as FH
-import solar as sol
+import utils
 
 
 def bb_radiance(T: float, eps: float, wavelength: np.ndarray):
@@ -93,7 +93,7 @@ def radiance2norm_reflectance(radiance):
     """
 
     # Insolation at 1.0, the heliocentric distance does not matter with normalized data
-    insolation = sol.solar_irradiance(1.0, C.wavelengths)
+    insolation = utils.solar_irradiance(1.0, C.wavelengths)
     reflectance = radiance / insolation[:, 1]
 
     # Find the index where wavelength is closest to 0.55 µm
@@ -154,7 +154,7 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
         Whether plots will be made for this simulated measurement
     """
     # Calculate insolation at heliocentric distance of d_S
-    insolation = sol.solar_irradiance(d_S, waves)
+    insolation = utils.solar_irradiance(d_S, waves)
 
     # Calculate theoretical radiance reflected from an asteroid toward observer
     reflrad = reflected_radiance(reflectance, insolation, incidence_ang, emission_ang)

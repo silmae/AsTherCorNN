@@ -3,14 +3,17 @@ Methods for building and using neural networks for separating reflected and ther
 """
 
 import numpy as np
-import tensorflow as tf
 import matplotlib.pyplot as plt
 from scipy.stats import norm
 import os
+import time
 from pathlib import Path
 import pickle
+from contextlib import redirect_stdout  # For saving keras prints into text files
+import tensorflow as tf
 from tensorflow.keras.layers import Input, Dense, Flatten, Conv1D, MaxPooling1D, Dropout, Concatenate, Reshape
 from tensorflow.keras.models import Model, load_model
+import keras_tuner as kt
 
 import constants as C
 import reflectance_data as refl
@@ -59,14 +62,52 @@ def prepare_training_data():
     bunch_rads(summed_training, separate_training, C.rad_bunch_training_path)
 
 
+def tune_model(epochs: int, max_trials: int, executions_per_trial: int):
+    """
+    Tune the model architecture using KerasTuner
+
+    :param epochs: int
+        Number of epochs trained for every trial
+    :param max_trials: int
+        Maximum number of trial configurations to be tested
+    :param executions_per_trial: int
+        How many times each tested configuration is trained (values larger than one used to reduce the effects of bad
+        random values)
+    """
+
+    # Hyperparameter optimization with KerasTuner
+    savefolder_name = f'optimization-run_{time.strftime("%Y%m%d-%H%M%S")}'
+    tuner = kt.BayesianOptimization(
+        hypermodel=create_hypermodel,
+        objective="val_loss",
+        max_trials=max_trials,
+        executions_per_trial=executions_per_trial,
+        overwrite=True,
+        directory=C.hyperparameter_path,
+        project_name=savefolder_name,
+    )
+    tuner.search_space_summary()
+    x_train, y_train, x_val, y_val = load_training_validation_data()
+    tuner.search(x_train, y_train, epochs=epochs, validation_data=(x_val, y_val))
+
+    tuner.results_summary()
+    # Save summary of results into a text file
+    tuning_results_path = Path(C.hyperparameter_path, savefolder_name)
+    with open(Path(tuning_results_path, 'trial_summary.txt'), 'w') as f:
+        with redirect_stdout(f):
+            tuner.results_summary()
+
+
 def create_hypermodel(hp):
     """
     Create and compile a neural network model for hyperparameter optimization. Structure is similar to unadjustable
-    network: dense input, conv1d, dense autoencoder, conv1d, dense output, concatenate.
+    network: dense input, conv1d, dense autoencoder, conv1d, dense output, concatenate. This function calls the
+    create_model -function using the hyperparameters as arguments.
+
     Adjustable hyperparameters are:
-    convolution filter count and kernel width,
-    encoder start layer node count, relation of subsequent autoencoder layer node counts, waist layer node count,
-    and learning rate.
+    - convolution filter count and kernel width,
+    - encoder start layer node count, relation of subsequent autoencoder layer node counts, waist layer node count,
+    - learning rate
 
     :param hp:
     Instance of KerasTuner's kt.HyperParameters()
@@ -304,11 +345,4 @@ def train_autoencoder(model, early_stop=True, checkpoints=True, save_history=Tru
     plt.savefig(Path(C.training_run_path, filename), dpi=300)
 
     # Return model to make predictions elsewhere
-    return model
-
-
-def load_model(weight_path):
-    model = init_autoencoder(len(C.wavelengths))
-    model.load_weights(weight_path)
-
     return model

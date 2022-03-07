@@ -1,4 +1,5 @@
 import time
+from contextlib import redirect_stdout  # For saving keras prints into text files
 
 import numpy as np
 from pathlib import Path
@@ -555,6 +556,35 @@ def validate_bennu(model, validation_run_folder):
     Bennuplot(errors_1000, errors_1230, errors_1500, 'thermal_SAM', 'Thermal SAM', savefolder)
 
 
+def validate_and_test(model):
+    """
+    Run validation with synthetic data and testing with real data, for a trained model given as argument.
+
+    :param model: Keras Model -instance
+        A trained model that will be tested
+    """
+
+    # Generate a unique folder name for results of test based on time the test was run
+    # timestr = time.strftime("%Y%m%d-%H%M%S")
+    timestr = 'test'  # folder name for test runs, otherwise a new folder is always created
+
+    # Create folder for results
+    validation_run_folder = Path(C.validation_plots_path, f'validation-run_{timestr}')
+    if os.path.isdir(validation_run_folder) == False:
+        os.mkdir(validation_run_folder)
+
+    # Print summary of model architecture into file
+    with open(Path(validation_run_folder, 'modelsummary.txt'), 'w') as f:
+        with redirect_stdout(f):
+            model.summary()
+
+    # Validation with synthetic data similar to training data
+    validate_synthetic(model, validation_run_folder)
+
+    # Testing with real asteroid data: do not look at this until the network works properly with synthetic data
+    # validate_bennu(model, validation_run_folder)
+
+
 def error_plots(folderpath):
     errordict = FH.load_toml(Path(folderpath, 'errors.toml'))
     # Plot scatters of ground temperature vs temperature error, thermal MAE and SAM vs height of thermal tail
@@ -610,3 +640,64 @@ def error_plots(folderpath):
     plt.ylabel('Reflected MAE')
     plt.savefig(Path(folderpath, 'reflMAE_groundtemp.png'))
     plt.close(fig)
+
+
+def plot_Bennu_errors(errordict):
+    errors_1000 = errordict['errors_1000']
+    errors_1230 = errordict['errors_1230']
+    errors_1500 = errordict['errors_1500']
+
+    def Bennuplot(errors_1000, errors_1230, errors_1500, data_name, label, savefolder):
+
+        def fetch_data(errordict, data_name):
+            temperature_dict = errordict['temperature']
+            ground_temps = np.asarray(temperature_dict['ground_temperature'])
+
+            if 'MAE' in data_name:
+                data_dict = errordict['MAE']
+                if 'reflected' in data_name:
+                    data = np.asarray(data_dict['reflected_MAE'])
+                else:
+                    data = np.asarray(data_dict['thermal_MAE'])
+            elif 'SAM' in data_name:
+                data_dict = errordict['SAM']
+                if 'reflected' in data_name:
+                    data = np.asarray(data_dict['reflected_SAM'])
+                else:
+                    data = np.asarray(data_dict['thermal_SAM'])
+            elif 'temperature' in data_name:
+                data_dict = errordict['temperature']
+                if 'predicted' in data_name:
+                    data = np.asarray(data_dict['predicted_temperature'])
+                elif 'error' in data_name:
+                    data = ground_temps - np.asarray(data_dict['predicted_temperature'])
+
+            return ground_temps, data
+
+        ground_temps_1000, data_1000 = fetch_data(errors_1000, data_name)
+        ground_temps_1230, data_1230 = fetch_data(errors_1230, data_name)
+        ground_temps_1500, data_1500 = fetch_data(errors_1500, data_name)
+
+        plt.figure()
+        plt.scatter(ground_temps_1000, data_1000, alpha=0.1)
+        plt.scatter(ground_temps_1230, data_1230, alpha=0.1)
+        plt.scatter(ground_temps_1500, data_1500, alpha=0.1)
+        plt.xlabel('Ground truth temperature [K]')
+        plt.ylabel(label)
+        leg = plt.legend(('10:00', '12:30', '15:00'), title='Local time on Bennu')
+        for lh in leg.legendHandles:
+            lh.set_alpha(1)
+        if data_name == 'predicted_temperature':
+            plt.plot(range(300, 350), range(300, 350), 'r')  # Plot a reference line with slope 1: ideal result
+        plt.savefig(Path(savefolder, f'{data_name}.png'))
+        # plt.show()
+
+    savefolder = C.validation_plots_path
+    Bennuplot(errors_1000, errors_1230, errors_1500, 'predicted_temperature', 'Predicted temperature [K]', savefolder)
+    Bennuplot(errors_1000, errors_1230, errors_1500, 'temperature_error', 'Temperature difference [K]', savefolder)
+    Bennuplot(errors_1000, errors_1230, errors_1500, 'reflected_MAE', 'Reflected MAE', savefolder)
+    Bennuplot(errors_1000, errors_1230, errors_1500, 'thermal_MAE', 'Thermal MAE', savefolder)
+    Bennuplot(errors_1000, errors_1230, errors_1500, 'reflected_SAM', 'Reflected SAM', savefolder)
+    Bennuplot(errors_1000, errors_1230, errors_1500, 'thermal_SAM', 'Thermal SAM', savefolder)
+    print('test')
+
