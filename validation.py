@@ -569,7 +569,7 @@ def validate_and_test(model):
     timestr = 'test'  # folder name for test runs, otherwise a new folder is always created
 
     # Create folder for results
-    validation_run_folder = Path(C.validation_plots_path, f'validation-run_{timestr}')
+    validation_run_folder = Path(C.val_and_test_path, f'validation-run_{timestr}')
     if os.path.isdir(validation_run_folder) == False:
         os.mkdir(validation_run_folder)
 
@@ -692,7 +692,7 @@ def plot_Bennu_errors(errordict):
         plt.savefig(Path(savefolder, f'{data_name}.png'))
         # plt.show()
 
-    savefolder = C.validation_plots_path
+    savefolder = C.val_and_test_path
     Bennuplot(errors_1000, errors_1230, errors_1500, 'predicted_temperature', 'Predicted temperature [K]', savefolder)
     Bennuplot(errors_1000, errors_1230, errors_1500, 'temperature_error', 'Temperature difference [K]', savefolder)
     Bennuplot(errors_1000, errors_1230, errors_1500, 'reflected_MAE', 'Reflected MAE', savefolder)

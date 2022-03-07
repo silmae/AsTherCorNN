@@ -29,6 +29,7 @@ Penttila_aug_path = Path('./spectral_data/reflectances/Penttila_asteroid_spectra
 albedo_path = Path('./spectral_data/reflectances/Penttila_asteroid_spectra/class-mean-albedos.tab')
 figfolder = Path('./figs')
 refl_plots_path = Path(figfolder, 'asteroid-reflectance-plots')
+rad_plots_path = Path(figfolder, 'radiance_plots')
 spectral_path = Path('./spectral_data')
 solar_path = Path('./spectral_data/solar_spectrum.txt')  # Solar irradiance spectrum
 augmented_path = Path('./spectral_data/reflectances/augmented')  # A folder of augmented spectra
@@ -42,7 +43,7 @@ spectral_path = Path('./spectral_data')
 rad_bunch_test_path = Path('./spectral_data/rad_bunch_test')  # All radiances, saved as a dict
 rad_bunch_training_path = Path('./spectral_data/rad_bunch_training')
 bennu_plots_path = Path(figfolder, 'Bennu-plots')
-validation_plots_path = Path(figfolder, 'validation_plots')
+val_and_test_path = Path('./validation_and_testing')
 
 
 # Keys for variables
