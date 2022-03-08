@@ -15,17 +15,17 @@ import file_handling as FH
 import utils
 
 
-def bb_radiance(T: float, eps: float, wavelength: np.ndarray):
+def thermal_radiance(T: float, eps: np.ndarray, wavelength: np.ndarray):
     """
     Calculate and return approximate thermal emission (blackbody, bb) radiance spectrum using Planck's law. Angle
     dependence of emitted radiance is approximated as Lambertian. TODO If this does not work with OREX, change Lambert?
 
-    :param T: float.
+    :param T: float
         Surface temperature, in Kelvins
-    :param eps: float.
-        Emissivity = sample emission spectrum divided by ideal blackbody spectrum of same temperature. Maybe in future
-        accepts a vector, but only constants for now
-    :param wavelength:
+    :param eps: np.ndarray
+        Emissivity = sample emission spectrum divided by ideal blackbody spectrum of same temperature. A vector with
+        same number of elements as reflectance.
+    :param wavelength: np.ndarray
         vector of floats. Wavelengths where the emission is to be calculated, in micrometers
 
     :return L_th:
@@ -42,7 +42,7 @@ def bb_radiance(T: float, eps: float, wavelength: np.ndarray):
 
     for i in range(len(wavelength)):
         wl = wavelength[i] / 1e6  # Convert wavelength from micrometers to meters
-        L_th[i, 1] = eps * (2 * h * c**2) / ((wl**5) * (np.exp((h * c)/(wl * kB * T)) - 1))  # Apply Planck's law
+        L_th[i, 1] = eps[i] * (2 * h * c**2) / ((wl**5) * (np.exp((h * c)/(wl * kB * T)) - 1))  # Apply Planck's law
         L_th[i, 1] = L_th[i,1] / 1e6  # Convert radiance from (W / m² / sr / m) to (W / m² / sr / µm)
 
     return L_th
@@ -127,7 +127,7 @@ def noising(rad_data):
     return rad_data
 
 
-def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: float, reflectance: np.ndarray, waves: np.ndarray, filename: str, test: bool, plots=False):
+def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: float, reflectance: np.ndarray, waves: np.ndarray, filename: str, test: bool, plots=False, save_file=True):
     """
     Simulate observed radiance with given parameters. Calculates reflected and thermally emitted radiances in separate
     functions, and sums them to get observed radiance. Adds noise to the summed radiance. Saves separate and summed
@@ -159,9 +159,10 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
     # Calculate theoretical radiance reflected from an asteroid toward observer
     reflrad = reflected_radiance(reflectance, insolation, incidence_ang, emission_ang)
 
+    # Calculate emittance according to Kirchhoff's law
+    emittance = 1 - reflectance
     # Calculate theoretical thermal emission from an asteroid's surface
-    eps = C.emittance
-    thermrad = bb_radiance(T, eps, waves)
+    thermrad = thermal_radiance(T, emittance, waves)
 
     # Sum the two calculated spectral radiances
     sumrad = np.zeros((len(waves), 2))
@@ -174,7 +175,7 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
     # Collect the data into a dict
     rad_dict = {}
     meta = {'heliocentric_distance': d_S, 'incidence_angle': incidence_ang, 'emission_angle': emission_ang, 'surface_temperature': T,
-            'emittance': eps}
+            'emittance': emittance}
     rad_dict['metadata'] = meta
     rad_dict['wavelength'] = waves
     rad_dict['reflected_radiance'] = reflrad[:, 1]
@@ -182,7 +183,8 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
     rad_dict['sum_radiance'] = sumrad[:, 1]
 
     # Save the dict as .toml
-    FH.save_radiances(rad_dict, filename, test)
+    if save_file == True:
+        FH.save_radiances(rad_dict, filename, test)
 
     if plots == True:
 

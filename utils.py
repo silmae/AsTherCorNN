@@ -32,7 +32,7 @@ def calculate_subsolar_temperature(heliocentric_distance: float, albedo=0, emiss
     return T_ss
 
 
-def plot_maximum_temperatures(distance_min: float = 0.5, distance_max: float = 4.0):
+def maximum_temperatures(distance_min: float = 0.5, distance_max: float = 4.0, num: int = 50):
     """
     Calculate and plot maximum temperatures of ideal blackbody radiators warmed by the Sun, placed at different
     heliocentric distances.
@@ -41,12 +41,14 @@ def plot_maximum_temperatures(distance_min: float = 0.5, distance_max: float = 4
         Minimum heliocentric distance in astronomical units, default is 0.5 AU
     :param distance_max: float
         Maximum heliocentric distance in astronomical units, default is 4.0 AU
+    :param num: int
+        Number of temperatures to be calculated, default is 50
 
     :return ss_temps_max: list
         A list of maximum subsolar temperatures
     """
 
-    d_S = np.linspace(distance_min, distance_max)
+    d_S = np.linspace(distance_min, distance_max, num=num)
     ss_temps_max = []
 
     for distance in d_S:
@@ -59,6 +61,7 @@ def plot_maximum_temperatures(distance_min: float = 0.5, distance_max: float = 4
     plt.ylabel('Subsolar temperature [K]')
     plt.savefig(Path(C.figfolder, 'ss-temp_hc-dist.png'))
     plt.show()
+
     return ss_temps_max
 
 

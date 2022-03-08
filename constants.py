@@ -30,6 +30,7 @@ albedo_path = Path('./spectral_data/reflectances/Penttila_asteroid_spectra/class
 figfolder = Path('./figs')
 refl_plots_path = Path(figfolder, 'asteroid-reflectance-plots')
 rad_plots_path = Path(figfolder, 'radiance_plots')
+max_temp_plots_path = Path(figfolder, 'max_temp_plots')
 spectral_path = Path('./spectral_data')
 solar_path = Path('./spectral_data/solar_spectrum.txt')  # Solar irradiance spectrum
 augmented_path = Path('./spectral_data/reflectances/augmented')  # A folder of augmented spectra

@@ -274,7 +274,7 @@ def read_asteroids():
     Scaled reflectance spectra, partitioned according to split given in constants.py
 
     """
-    aug_path = C.Penttila_aug_path  # Spectra augmented by Penttilö
+    aug_path = C.Penttila_aug_path  # Spectra augmented by Penttilä
     orig_path = C.Penttila_orig_path  # Un-augmented, original spectra from MITHNEOS and Bus-Demeo
 
     aug_frame = pd.read_csv(aug_path, sep='\t', header=None, engine='python')  # Read wl and reflectance from file
