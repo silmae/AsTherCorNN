@@ -186,7 +186,7 @@ def create_model(conv_filters: int, conv_kernel: int, encdec_start: int, encdec_
             decoder = Dense(node_count, activation=C.activation)(waist)
             i = i + 1
         else:
-            decoder1 = Dense(node_count, activation=C.activation)(decoder)
+            decoder = Dense(node_count, activation=C.activation)(decoder)
 
     # Convolutional layer to match the encoder side
     decoder = Reshape(target_shape=(int(node_count), 1))(decoder)
@@ -325,7 +325,7 @@ def train_autoencoder(model, early_stop=True, checkpoints=True, save_history=Tru
     plt.xlabel('epoch')
     plt.legend(['train', 'test'], loc='upper left')
     filename = C.training_run_name + '_history.png'
-    plt.savefig(Path(C.training_run_path, filename), dpi=300)
+    plt.savefig(Path(C.training_run_path, filename), dpi=600)
 
     # Return model to make predictions elsewhere
     return model

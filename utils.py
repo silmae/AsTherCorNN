@@ -41,6 +41,9 @@ def plot_maximum_temperatures(distance_min: float = 0.5, distance_max: float = 4
         Minimum heliocentric distance in astronomical units, default is 0.5 AU
     :param distance_max: float
         Maximum heliocentric distance in astronomical units, default is 4.0 AU
+
+    :return ss_temps_max: list
+        A list of maximum subsolar temperatures
     """
 
     d_S = np.linspace(distance_min, distance_max)
@@ -56,6 +59,7 @@ def plot_maximum_temperatures(distance_min: float = 0.5, distance_max: float = 4
     plt.ylabel('Subsolar temperature [K]')
     plt.savefig(Path(C.figfolder, 'ss-temp_hc-dist.png'))
     plt.show()
+    return ss_temps_max
 
 
 def solar_irradiance(distance, wavelengths, plot=False):

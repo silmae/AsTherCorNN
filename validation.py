@@ -105,6 +105,10 @@ def test_model(X_test, y_test, model, temperatures, savefolder):
         ground_therm = y_test[i, :, 1]
         ground_refl = test_sample.squeeze() - ground_therm  # Alternative ground truth to which the alternative reflected is compared
 
+        # Plot some results for closer inspection from 25 first test spectra
+        if i < 25:
+            plot_val_test_results(test_sample, ground_refl, ground_therm, pred_refl, pred_therm, savefolder, i+1)
+
         # Calculate temperature of prediction by fitting to Planck function, compare to ground truth gotten as argument
         ground_temp = temperatures[i]
         print(f'Ground temperature: {ground_temp}')
@@ -202,74 +206,62 @@ def test_model(X_test, y_test, model, temperatures, savefolder):
     plt.savefig(Path(savefolder, 'reflMAE_groundtemp.png'))
     plt.close(fig)
 
-    # Plot some results for closer inspection from 25 random test spectra
-    index = np.random.randint(0, len(X_test[:, 0]), size=25)
-    for i in index:
-        # Plot and save some radiances from ground truth and radiances produced by the model prediction
-        test_sample = np.expand_dims(X_test[i, :], axis=0)
-        prediction = model.predict(test_sample).squeeze()
-        pred1 = prediction[0:int(len(prediction) / 2)]
-        pred2 = prediction[int(len(prediction) / 2):len(prediction) + 1]
-        # pred1 = test_sample.squeeze() - pred2  # Alternative reflected prediction: input vector minus predicted thermal radiance
-
-        ground1 = y_test[i, :, 0]
-        ground2 = y_test[i, :, 1]
-        # ground1 = test_sample.squeeze() - ground2  # Alternative ground truth to which the alternative reflected is compared
-
-
-        fig = plt.figure()
-        x = C.wavelengths
-        plt.plot(x, ground1)
-        plt.plot(x, ground2)
-        plt.plot(x, pred1.squeeze(), linestyle='--')
-        plt.plot(x, pred2.squeeze(), linestyle='--')
-        plt.xlabel('Wavelength [µm]')
-        plt.ylabel('Radiance [W / m² / sr / µm]')
-        plt.legend(('ground 1', 'ground 2', 'prediction 1', 'prediction 2'))
-
-        fig_filename = C.training_run_name + f'_test_{i + 1}_radiance.png'
-        fig_path = Path(savefolder, fig_filename)
-        plt.savefig(fig_path)
-        plt.close(fig)
-
-        # Plot and save reflectances: from uncorrected (test_sample), ground truth (y_test), and NN corrected (pred1)
-        uncorrected = rad.radiance2norm_reflectance(test_sample).squeeze()
-        ground = rad.radiance2norm_reflectance(y_test[i, :, 0])
-        NN_corrected = rad.radiance2norm_reflectance(pred1)
-
-        fig = plt.figure()
-        x = C.wavelengths
-        plt.plot(x, uncorrected)
-        plt.plot(x, ground)
-        plt.plot(x, NN_corrected)
-        plt.xlabel('Wavelength [µm]')
-        plt.ylabel('Normalized reflectance')
-        plt.legend(('Uncorrected', 'Ground truth', 'NN-corrected'))
-
-        fig_filename = C.training_run_name + f'_test_{i + 1}_reflectance.png'
-        fig_path = Path(savefolder, fig_filename)
-        plt.savefig(fig_path)
-        plt.close(fig)
-
-        # Plot and save thermal radiances: ground truth and NN-result
-        ground = y_test[i, :, 1].squeeze()
-        NN_corrected = pred2
-
-        fig = plt.figure()
-        x = C.wavelengths
-        plt.plot(x, ground)
-        plt.plot(x, NN_corrected)
-        plt.xlabel('Wavelength [µm]')
-        plt.ylabel('Thermal radiance')
-        plt.legend(('Ground truth', 'NN-corrected'))
-
-        fig_filename = C.training_run_name + f'_test_{i + 1}_thermal.png'
-        fig_path = Path(savefolder, fig_filename)
-        plt.savefig(fig_path)
-        plt.close(fig)
-
     # Return the dictionary containing calculated errors, in addition to saving it on disc
     return error_dict
+
+
+def plot_val_test_results(test_sample, ground1, ground2, pred1, pred2, savefolder, index):
+
+    fig = plt.figure()
+    x = C.wavelengths
+    plt.plot(x, ground1)
+    plt.plot(x, ground2)
+    plt.plot(x, pred1.squeeze(), linestyle='--')
+    plt.plot(x, pred2.squeeze(), linestyle='--')
+    plt.xlabel('Wavelength [µm]')
+    plt.ylabel('Radiance [W / m² / sr / µm]')
+    plt.legend(('ground 1', 'ground 2', 'prediction 1', 'prediction 2'))
+
+    fig_filename = C.training_run_name + f'_test_{index + 1}_radiance.png'
+    fig_path = Path(savefolder, fig_filename)
+    plt.savefig(fig_path)
+    plt.close(fig)
+
+    # Plot and save reflectances: from uncorrected (test_sample), ground truth (y_test), and NN corrected (pred1)
+    uncorrected = rad.radiance2norm_reflectance(test_sample).squeeze()
+    ground = rad.radiance2norm_reflectance(ground1)
+    NN_corrected = rad.radiance2norm_reflectance(pred1)
+
+    fig = plt.figure()
+    x = C.wavelengths
+    plt.plot(x, uncorrected)
+    plt.plot(x, ground)
+    plt.plot(x, NN_corrected)
+    plt.xlabel('Wavelength [µm]')
+    plt.ylabel('Normalized reflectance')
+    plt.legend(('Uncorrected', 'Ground truth', 'NN-corrected'))
+
+    fig_filename = C.training_run_name + f'_test_{index + 1}_reflectance.png'
+    fig_path = Path(savefolder, fig_filename)
+    plt.savefig(fig_path)
+    plt.close(fig)
+
+    # Plot and save thermal radiances: ground truth and NN-result
+    ground = ground2
+    NN_corrected = pred2
+
+    fig = plt.figure()
+    x = C.wavelengths
+    plt.plot(x, ground)
+    plt.plot(x, NN_corrected)
+    plt.xlabel('Wavelength [µm]')
+    plt.ylabel('Thermal radiance')
+    plt.legend(('Ground truth', 'NN-corrected'))
+
+    fig_filename = C.training_run_name + f'_test_{index + 1}_thermal.png'
+    fig_path = Path(savefolder, fig_filename)
+    plt.savefig(fig_path)
+    plt.close(fig)
 
 
 def validate_synthetic(model, validation_run_folder):
@@ -563,10 +555,10 @@ def validate_and_test(model):
             model.summary()
 
     # Validation with synthetic data similar to training data
-    validate_synthetic(model, validation_run_folder)
+    # validate_synthetic(model, validation_run_folder)
 
     # Testing with real asteroid data: do not look at this until the network works properly with synthetic data
-    # validate_bennu(model, validation_run_folder)
+    validate_bennu(model, validation_run_folder)
 
 
 def error_plots(folderpath):

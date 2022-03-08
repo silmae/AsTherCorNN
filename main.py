@@ -46,27 +46,27 @@ if __name__ == '__main__':
     # DISPLAY=localhost:10.0
     # But in most cases it would be better to just save the plots as png in a folder.
     ############################
-
-    # Create a neural network model
-    untrained = NN.create_model(
-        conv_filters=60,
-        conv_kernel=40,
-        encdec_start=800,
-        encdec_node_relation=0.5,
-        waist_size=160,
-        lr=1e-5
-    )
-
-    # # Load weights to continue training where you left off:
-    # last_epoch = 295
-    # weight_path = Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5')
-    # untrained.load_weights(weight_path)
-
-    # Train the model
-    model = NN.train_autoencoder(untrained, early_stop=False, checkpoints=True, save_history=True, create_new_data=False)
+    # # TRAINING
+    # # Create a neural network model
+    # untrained = NN.create_model(
+    #     conv_filters=60,
+    #     conv_kernel=40,
+    #     encdec_start=800,
+    #     encdec_node_relation=0.5,
+    #     waist_size=160,
+    #     lr=1e-5
+    # )
+    #
+    # # # Load weights to continue training where you left off:
+    # # last_epoch = 295
+    # # weight_path = Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5')
+    # # untrained.load_weights(weight_path)
+    #
+    # # Train the model
+    # model = NN.train_autoencoder(untrained, early_stop=False, checkpoints=True, save_history=True, create_new_data=False)
 
     ##############################
-
+    # VALIDATION
     # Build a model and load pre-trained weights
     model = NN.create_model(
         conv_filters=60,
@@ -77,9 +77,9 @@ if __name__ == '__main__':
         lr=1e-5
     )
 
-    # last_epoch = 990
-    # weight_path = Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5')
-    weight_path = Path('/home/leevi/PycharmProjects/asteroid-thermal-modeling/training/300epochs_160waist_1e-05lr/weights/weights_297.hdf5')
+    last_epoch = 1
+    weight_path = Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5')
+    # weight_path = Path('/home/leevi/PycharmProjects/asteroid-thermal-modeling/training/300epochs_160waist_1e-05lr/weights/weights_297.hdf5')
     model.load_weights(weight_path)
 
     # Run validation with synthetic data and test with real data
