@@ -245,7 +245,12 @@ def calculate_radiances(reflectance_list: list, test: bool):
             d_S = random.random() * (C.d_S_max - C.d_S_min) + C.d_S_min
             incidence_ang = random.randint(C.i_min, C.i_max)
             emission_ang = random.randint(C.e_min, C.e_max)
-            T = random.randint(C.T_min, C.T_max)
+
+            # Calculate maximum temperature for an ideal blackbody at the same heliocentric distance
+            maxtemp = utils.calculate_subsolar_temperature(d_S)
+            mintemp = C.T_min  # TODO Find a realistic minimum temperature that depends on the maximum somehow
+            # Calculate random temperature between the minimum and maximum
+            T = random.random() * (maxtemp - mintemp) + mintemp
 
             if j % 1000 == 0:
                 # Calculate radiances with the given parameters and

@@ -13,7 +13,7 @@ c = scipy.constants.c  # 2.998e8  # speed of light in vacuum, m / s
 kB = scipy.constants.Boltzmann  # 1.381e-23  # Boltzmann constant, m² kg / s² / K (= J / K)
 h = scipy.constants.h  # 6.626e-34  # Planck constant, m² kg / s (= J s)
 stefan_boltzmann = scipy.constants.Stefan_Boltzmann  # 5.67e-8 W / m² / K⁴, Stefan-Boltzmann constant
-emittance = 0.9  # Emittance of an asteroid TODO Use Kirchoff's law (eps = 1-R) to get emittance from reflectance?
+# emittance = 0.9  # Emittance of an asteroid, an approximation. Use Kirchoff's law (eps = 1-R) to get emittance from reflectance
 
 # Wavelength vector
 # step = 0.002  # µm
@@ -56,7 +56,7 @@ mu = 0  # mean
 sigma = 0  # 0.01  # standard deviation
 
 # Constraints for modeled radiances
-d_S_min, d_S_max = 0.7, 2  # Heliocentric distance, in AU
+d_S_min, d_S_max = 0.7, 2.8  # Heliocentric distance, in AU
 T_min, T_max = 150, 430  # Asteroid surface temperature, in Kelvins
 i_min, i_max = 0, 89  # Measurement phase angle, in degrees
 e_min, e_max = 0, 89  # Emission angle, angle between surface normal and observer direction, in degrees
@@ -68,7 +68,7 @@ refl_test_partition = 0.1  # Part of reflectances to be used for test data
 activation = 'relu'
 learning_rate = 4e-6
 batches = 32
-epochs = 1
+epochs = 500
 waist = 160  # Autoencoder middle layer node count
 loss_gradient_multiplier = 0.05
 loss_negative_penalty_multiplier = 1e4
