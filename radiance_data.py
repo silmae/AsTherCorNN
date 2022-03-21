@@ -127,7 +127,7 @@ def noising(rad_data):
     return rad_data
 
 
-def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: float, reflectance: np.ndarray, waves: np.ndarray, filename: str, test: bool, plots=False, save_file=True):
+def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: float, reflectance: np.ndarray, waves: np.ndarray, constant_emissivity: bool, filename: str, test: bool, plots=False, save_file=True):
     """
     Simulate observed radiance with given parameters. Calculates reflected and thermally emitted radiances in separate
     functions, and sums them to get observed radiance. Adds noise to the summed radiance. Saves separate and summed
@@ -146,6 +146,8 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
         Spectral reflectance
     :param waves: ndarray
         Wavelength vector in micrometers
+    :param constant_emissivity: bool
+        Whether thermal calculation will use constant 0.9 emissivity or calculate emissivity through Kirchhoff's law
     :param filename: string
         Name which will be included in files related to the radiances (plots and .toml), without extension
     :param test: boolean
@@ -159,8 +161,13 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
     # Calculate theoretical radiance reflected from an asteroid toward observer
     reflrad = reflected_radiance(reflectance, insolation, incidence_ang, emission_ang)
 
-    # Calculate emittance according to Kirchhoff's law
-    emittance = 1 - reflectance
+    if constant_emissivity == False:
+        # Calculate emittance according to Kirchhoff's law
+        emittance = 1 - reflectance
+    elif constant_emissivity == True:
+        emittance = np.empty((len(waves), 1))
+        emittance.fill(C.emittance)
+
     # Calculate theoretical thermal emission from an asteroid's surface
     thermrad = thermal_radiance(T, emittance, waves)
 
@@ -213,7 +220,7 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
 
     return rad_dict
 
-def calculate_radiances(reflectance_list: list, test: bool):
+def calculate_radiances(reflectance_list: list, test: bool, constant_emissivity=False):
     """
     Simulate 10 observed radiances for each reflectance spectrum given in parameters. Radiances are saved on disc as
     .toml files together with metadata related to random values used in their creation. Plots are saved for every 1000th
@@ -223,6 +230,9 @@ def calculate_radiances(reflectance_list: list, test: bool):
         Spectral reflectances from which the radiances will be created.
     :param test: boolean
         Whether the data will be used for testing or training, affects only the save location.
+    :param constant_emissivity: Boolean
+        Whether or not the thermal data generation will use constant 0.9 emissivity. Default is false, using Kirchhoff's
+        law to generate emissivity spectrum from reflectance spectrum.
 
     :return: summed, separate: ndarrays
         Arrays containing summed spectra and separate reflected and thermal spectra
@@ -248,16 +258,16 @@ def calculate_radiances(reflectance_list: list, test: bool):
 
             # Calculate maximum temperature for an ideal blackbody at the same heliocentric distance
             maxtemp = utils.calculate_subsolar_temperature(d_S)
-            mintemp = C.T_min  # TODO Find a realistic minimum temperature that depends on the maximum somehow
+            mintemp = maxtemp - 100  # TODO Find a realistic minimum temperature that depends on the maximum somehow
             # Calculate random temperature between the minimum and maximum
             T = random.random() * (maxtemp - mintemp) + mintemp
 
             if j % 1000 == 0:
                 # Calculate radiances with the given parameters and
                 # save plots for every 1000th radiance and reflectance
-                obs_rad_dict = observed_radiance(d_S, incidence_ang, emission_ang, T, reflectance, waves, 'rads_' + str(j), test, plots=True)
+                obs_rad_dict = observed_radiance(d_S, incidence_ang, emission_ang, T, reflectance, waves, constant_emissivity, 'rads_' + str(j), test, plots=True)
             else:
-                obs_rad_dict = observed_radiance(d_S, incidence_ang, emission_ang, T, reflectance, waves, 'rads_' + str(j), test)
+                obs_rad_dict = observed_radiance(d_S, incidence_ang, emission_ang, T, reflectance, waves, constant_emissivity, 'rads_' + str(j), test)
 
             # Discard the metadata and store data vectors into arrays
             summed[j, :] = obs_rad_dict['sum_radiance']

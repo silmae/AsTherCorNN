@@ -29,9 +29,8 @@ def prepare_training_data():
     separate reflected and thermal radiances are the ground truth, and the sum of these is the input. Function
     creates dictionaries for all simulated observations, writing into them the three spectra, and metadata
     related to parameters used in their creation. Each dictionary is saved into its own .toml file.
-
-
     """
+
     # #############################  # TODO Take meteorite reflectances also into account?
     # # Load meteorite reflectances from files and create more from them through augmentation
     # train_reflectances, test_reflectances = refl.read_meteorites(waves)
@@ -44,8 +43,8 @@ def prepare_training_data():
     train_reflectances, test_reflectances = refl.read_asteroids()
 
     # Calculate 10 radiances from each reflectance, save them on disc as toml, and return the data vectors
-    summed_test, separate_test = rad.calculate_radiances(test_reflectances, test=True)
-    summed_training, separate_training = rad.calculate_radiances(train_reflectances, test=False)
+    summed_test, separate_test = rad.calculate_radiances(test_reflectances, test=True, constant_emissivity=True)
+    summed_training, separate_training = rad.calculate_radiances(train_reflectances, test=False, constant_emissivity=True)
 
     # Create a "bunch" from training and testing radiances and save both in their own files. This is orders of
     # magnitude faster than reading each radiance from its own toml
@@ -117,18 +116,18 @@ def create_hypermodel(hp):
     """
 
     # Convolution layer for the input, tune both filter number and kernel size
-    filters = hp.Int("filters", min_value=20, max_value=60, step=4)
-    kernel_size = hp.Int("kernel_size", min_value=20, max_value=40, step=2)
+    filters = hp.Int("filters", min_value=8, max_value=60, step=4)
+    kernel_size = hp.Int("kernel_size", min_value=4, max_value=40, step=2)
 
     # Tune encoder/decoder start layer node count
-    encdec_start = hp.Int('encdec_start', min_value=800, max_value=1200, step=40)
+    encdec_start = hp.Int('encdec_start', min_value=200, max_value=1200, step=40)
     # Tune number of nodes in waist layer
-    waist_size = hp.Int('waist_size', min_value=80, max_value=160, step=8)
+    waist_size = hp.Int('waist_size', min_value=16, max_value=160, step=8)
     # Tune the relation between node counts of subsequent encoder layers: (layer N nodes) / (layer N-1 nodes)
-    encdec_node_relation = hp.Float("encdec_node_relation", min_value=0.1, max_value=0.5, sampling="linear")
+    encdec_node_relation = hp.Float("encdec_node_relation", min_value=0.1, max_value=0.9, sampling="linear")
 
-    # Define optimizer, tune learning rate of the model
-    lr = hp.Float('lr', min_value=1e-7, max_value=1e-5, sampling='log')
+    # DTune learning rate of the model
+    lr = hp.Float('lr', min_value=1e-7, max_value=1e-4, sampling='log')
 
     # Create model in separate function with adjustable hyperparameters as inputs
     model = create_model(filters, kernel_size, encdec_start, encdec_node_relation, waist_size, lr)
@@ -138,7 +137,7 @@ def create_hypermodel(hp):
 
 def create_model(conv_filters: int, conv_kernel: int, encdec_start: int, encdec_node_relation: float, waist_size: int, lr: float):
     """
-    Create and compile an autoencoder using Keras.
+    Create and compile an autoencoder with 1D convolution before and after using Keras.
 
     Network structure:
     dense input --> conv1d --> dense autoencoder --> conv1d --> dense output --> concatenate
@@ -204,7 +203,7 @@ def create_model(conv_filters: int, conv_kernel: int, encdec_start: int, encdec_
     opt = tf.keras.optimizers.Adam(learning_rate=lr)
 
     # Compile model
-    model.compile(optimizer=opt, loss=loss_fn)
+    model.compile(optimizer=opt, loss=loss_fn)  # loss=tf.keras.losses.MeanSquaredLogarithmicError())
 
     return model
 
@@ -229,13 +228,36 @@ def loss_fn(ground, prediction):
     # be seen as errors. Should not affect network output units when done inside loss function
     ground_max = tf.math.reduce_max(ground)
     # To prevent division by (near) zero, add small constant value to maxima
-    ground_max = ground_max + 0.00001
+    ground_max = ground_max + 0.0000001
+    scaling_factor = ground_max
+    # prediction_max = tf.math.reduce_max(prediction)
+    # prediction_max = prediction_max + 0.0000001
+    # scalars = tf.stack([ground_max, prediction_max], axis=0)
+
+    # # Calculate L1 norm from both prediction and ground, scale both with the larger of the two
+    # prediction_norm = tf.norm(prediction, axis=1, keepdims=True, ord=1)
+    # ground_norm = tf.norm(ground, axis=1, keepdims=True, ord=1)
+    # scalars = tf.stack([ground_norm, prediction_norm], axis=0)
+
+    # scaling_factor = tf.math.reduce_max(scalars)
+
+    # tf.compat.v1.control_dependencies([tf.print(ground_norm)])
+    # tf.compat.v1.control_dependencies([tf.print(prediction_norm)])
+    # tf.compat.v1.control_dependencies([tf.print(scaling_factor)])
 
     # Scale both ground truth and predictions by dividing with maximum
-    y1 = tf.math.divide(ground, ground_max)
-    y1_pred = tf.math.divide(prediction, ground_max)
+    ground = tf.math.divide(ground, scaling_factor)
+    prediction = tf.math.divide(prediction, scaling_factor)
+
+    # ground_sum = tf.math.reduce_sum(ground)
+    # prediction_sum = tf.math.reduce_sum(tf.math.abs(prediction))  # Absolute because this fucker will try to compensate with negative values
+    #
+    # sum_error = tf.math.abs(ground_sum - prediction_sum)  # TODO Maybe use a scaling factor? This can get pretty big
 
     L2_dist = tf.norm(ground - prediction, axis=1, keepdims=True)
+
+    # # Keras mean absolute error
+    # mae = tf.keras.losses.mean_absolute_error(ground, prediction)
 
     # Cosine distance: only thermal, since those are always similar to each other in shape
     cosine_loss = tf.keras.losses.CosineSimilarity(axis=1)
@@ -244,8 +266,11 @@ def loss_fn(ground, prediction):
     # Calculate loss as sum of L2 distance and cos distance
     loss = L2_dist + cos_dist
 
-    # # Printing loss into console (since debugger will not show tensor values)
+    # Printing loss into console (since debugger will not show tensor values)
+    # tf.compat.v1.control_dependencies([tf.print(L2_dist)])
+    # tf.compat.v1.control_dependencies([tf.print(cos_dist)])
     # tf.compat.v1.control_dependencies([tf.print(loss)])
+
 
     return loss
 
@@ -306,6 +331,8 @@ def train_autoencoder(model, early_stop=True, checkpoints=True, save_history=Tru
         prepare_training_data()
 
     data, ground, X_val, y_val = load_training_validation_data()
+    # ground = ground[:, :, 1]  # For native Keras losses
+    # y_val = y_val[:, :, 1]
 
     # Train model and save history
     history = model.fit([data], [ground], batch_size=C.batches, epochs=C.epochs, validation_data=(X_val, y_val),

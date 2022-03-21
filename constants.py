@@ -41,8 +41,8 @@ radiance_training_path = Path(radiance_path, 'training')
 radiance_test_path = Path(radiance_path, 'test')
 training_path = Path('./training')
 spectral_path = Path('./spectral_data')
-rad_bunch_test_path = Path('./spectral_data/rad_bunch_test')  # All radiances, saved as a dict
-rad_bunch_training_path = Path('./spectral_data/rad_bunch_training')
+rad_bunch_test_path = Path('./spectral_data/rad_bunch_test_0.9-emittance_general')  # All radiances, saved as a dict
+rad_bunch_training_path = Path('./spectral_data/rad_bunch_training_0.9-emittance_general')
 bennu_plots_path = Path(figfolder, 'Bennu-plots')
 val_and_test_path = Path('./validation_and_testing')
 
@@ -57,21 +57,26 @@ sigma = 0  # 0.01  # standard deviation
 
 # Constraints for modeled radiances
 d_S_min, d_S_max = 0.7, 2.8  # Heliocentric distance, in AU
+# d_S_min, d_S_max = 0.8968944004459729, 1.355887651343651  # Heliocentric distances for Bennu, in AU
 T_min, T_max = 150, 430  # Asteroid surface temperature, in Kelvins
-i_min, i_max = 0, 89  # Measurement phase angle, in degrees
+i_min, i_max = 0, 89  # Incidence angle, angle between surface normal and incident light, in degrees
 e_min, e_max = 0, 89  # Emission angle, angle between surface normal and observer direction, in degrees
+emittance = 0.9
 # IN TRUTH both emission and incidence angles can go up to 90... but if both hit 90, we get division by zero when
 # calculating reflected radiance, and everything explodes
 
 # Neural network parameters
 refl_test_partition = 0.1  # Part of reflectances to be used for test data
 activation = 'relu'
-learning_rate = 4e-6
 batches = 32
-epochs = 500
+
+epochs = 550
+conv_filters = 60
+conv_kernel = 40
+encdec_start = 800
+encdec_node_relation = 0.50
 waist = 160  # Autoencoder middle layer node count
-loss_gradient_multiplier = 0.05
-loss_negative_penalty_multiplier = 1e4
+learning_rate = 1e-6
 
 training_run_name = f'{epochs}epochs_{waist}waist_{learning_rate}lr'
 training_run_path = Path(training_path, training_run_name)
@@ -82,8 +87,8 @@ if os.path.isdir(weights_path) == False:
     os.mkdir(weights_path)
 training_history_path = Path(training_run_path, f'{training_run_name}_trainHistory')
 # Early stop:
-min_delta = 1
-patience = 50
+min_delta = 0.0001
+patience = 20
 
 # Paths for saving results of hyperparameter tuning
 hyperparameter_path = 'hyperparameter_tuning'  # KerasTuner wants the path as a string

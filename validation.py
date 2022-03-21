@@ -44,19 +44,21 @@ def fit_Planck(radiance: np.ndarray):
     b = b * 1e6  # Convert to µm K
     eps = C.emittance  # Emittance
 
-    # Temperature as fitting parameter, wavelength as variable
+    # Temperature and emissivity as fitting parameters, wavelength as variable
     init_guess = (C.T_max + C.T_min) / 2
     T = symfit.Parameter('T', value=init_guess, min=C.T_min, max=C.T_max)
+    # eps = symfit.Parameter('eps', value=C.emittance, min=0.5, max=0.99)
     wl = symfit.Variable('wl')
 
     model = eps * a / ((wl ** 5) * (sympy.exp(b / (wl * T)) - 1))  # Apply re-parametrized Planck's law
 
     fit = symfit.Fit(model, C.wavelengths, radiance, minimizer=[symfit.core.minimizers.NelderMead])
     fit_result = fit.execute()
+    # print(f'Emissivity: {fit_result.value(eps)}')
 
     # Plot of fit result together with original radiance data
     fig = plt.figure()
-    y = model(wl=C.wavelengths, T=fit_result.value(T))
+    y = model(wl=C.wavelengths, T=fit_result.value(T))#, eps=fit_result.value(eps))
     plt.plot(C.wavelengths, y)
     plt.plot(C.wavelengths, radiance)
     plt.xlabel('Wavelength [µm]')
@@ -71,7 +73,7 @@ def fit_Planck(radiance: np.ndarray):
 def test_model(X_test, y_test, model, temperatures, savefolder):
 
     time_start = time.perf_counter_ns()
-    test_result = model.evaluate(X_test, y_test, verbose=0)
+    test_result = model.evaluate(X_test, y_test, verbose=0)  # (X_test, y_test[:, :, 1], verbose=0)
     time_stop = time.perf_counter_ns()
     print(f'Elapsed prediction time in seconds for {len(X_test[:, 0])} samples was {(time_stop - time_start) / 1e9}')
     print(f'Test with Keras resulted in a loss of {test_result}')
@@ -93,7 +95,7 @@ def test_model(X_test, y_test, model, temperatures, savefolder):
     temperature_ground = []
     temperature_pred = []
     indices = range(len(X_test[:, 0]))  # Full error calculation, takes some time
-    # indices = range(int(len(X_test[:, 0]) * 0.1))  # 10 percent of samples used for error calculation, takes less time
+    plot_indices = np.random.randint(0, len(X_test[:, 0]), 20)
 
     for i in indices:
         test_sample = np.expand_dims(X_test[i, :], axis=0)
@@ -106,7 +108,7 @@ def test_model(X_test, y_test, model, temperatures, savefolder):
         ground_refl = test_sample.squeeze() - ground_therm  # Alternative ground truth to which the alternative reflected is compared
 
         # Plot some results for closer inspection from 25 first test spectra
-        if i < 25:
+        if i in plot_indices:
             plot_val_test_results(test_sample, ground_refl, ground_therm, pred_refl, pred_therm, savefolder, i+1)
 
         # Calculate temperature of prediction by fitting to Planck function, compare to ground truth gotten as argument
@@ -270,6 +272,10 @@ def validate_synthetic(model, validation_run_folder):
     X_test = rad_bunch_test['summed']
     y_test = rad_bunch_test['separate']
 
+    # indices = range(int(len(X_test[:, 0]) * 0.1))  # 10 percent of samples used for error calculation, takes less time
+    # X_test = X_test[indices]
+    # y_test = y_test[indices]
+
     validation_plots_synthetic_path = Path(validation_run_folder, 'synthetic_validation')
     if os.path.isdir(validation_plots_synthetic_path) == False:
         os.mkdir(validation_plots_synthetic_path)
@@ -326,7 +332,7 @@ def bennu_refine(fitslist: list, time: int, discard_indices, plots=False):
     uncor_sum_rad = np.sum(uncorrected_rad, 1)
     cor_sum_rad = np.sum(corrected_rad, 1)
 
-    # Data is from several scans over Bennu's surface, each scan beginning and ending off-asteroid. See plot of
+    # Data is from several scans over Bennu's surface, each scan beginning and ending off-asteroid. See this plot of
     # radiances summed over wl:s:
     # plt.figure()
     # plt.plot(range(len(uncor_sum_rad)), uncor_sum_rad)
@@ -541,8 +547,8 @@ def validate_and_test(model):
     """
 
     # Generate a unique folder name for results of test based on time the test was run
-    # timestr = time.strftime("%Y%m%d-%H%M%S")
-    timestr = 'test'  # folder name for test runs, otherwise a new folder is always created
+    timestr = time.strftime("%Y%m%d-%H%M%S")
+    # timestr = 'test'  # folder name for test runs, otherwise a new folder is always created
 
     # Create folder for results
     validation_run_folder = Path(C.val_and_test_path, f'validation-run_{timestr}')
@@ -555,7 +561,7 @@ def validate_and_test(model):
             model.summary()
 
     # Validation with synthetic data similar to training data
-    # validate_synthetic(model, validation_run_folder)
+    validate_synthetic(model, validation_run_folder)
 
     # Testing with real asteroid data: do not look at this until the network works properly with synthetic data
     validate_bennu(model, validation_run_folder)

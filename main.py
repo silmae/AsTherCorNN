@@ -20,7 +20,6 @@ import reflectance_data as refl
 import radiance_data as rad
 import file_handling as FH
 import neural_network as NN
-import validation as val  # TODO This uses symfit, which I have not installed on my thingfish conda env
 
 # PyPlot settings to be used in all plots
 plt.rcParams.update({'font.size': 16})
@@ -47,45 +46,60 @@ if __name__ == '__main__':
     # But in most cases it would be better to just save the plots as png in a folder.
 
     ############################
-    # TRAINING
-    # Create a neural network model
-    untrained = NN.create_model(
-        conv_filters=60,
-        conv_kernel=40,
-        encdec_start=800,
-        encdec_node_relation=0.5,
-        waist_size=160,
-        lr=1e-5
-    )
+    # # HYPERPARAMETER OPTIMIZATION
+    # NN.tune_model(300, 45, 1)
 
-    # # Load weights to continue training where you left off:
-    # last_epoch = 295
-    # weight_path = Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5')
-    # untrained.load_weights(weight_path)
+    # Best result:
+    # filters: 16
+    # kernel_size: 14
+    # encdec_start: 640
+    # waist_size: 152
+    # encdec_node_relation: 0.434315545803469
+    # lr: 1.148807011507265e-05
+    # Score: 0.35971516370773315
 
-    # Train the model
-    model = NN.train_autoencoder(untrained, early_stop=False, checkpoints=True, save_history=True, create_new_data=False)
-
-    ##############################
-
-    # # VALIDATION
-    # # Build a model and load pre-trained weights
-    # model = NN.create_model(
-    #     conv_filters=60,
-    #     conv_kernel=40,
-    #     encdec_start=800,
-    #     encdec_node_relation=0.5,
-    #     waist_size=160,
-    #     lr=1e-5
+    ############################
+    # # TRAINING
+    # # NN.prepare_training_data()
+    # # Create a neural network model
+    # untrained = NN.create_model(
+    #     conv_filters=C.conv_filters,
+    #     conv_kernel=C.conv_kernel,
+    #     encdec_start=C.encdec_start,
+    #     encdec_node_relation=C.encdec_node_relation,
+    #     waist_size=C.waist,
+    #     lr=C.learning_rate
     # )
     #
-    # last_epoch = 1
-    # weight_path = Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5')
-    # # weight_path = Path('/home/leevi/PycharmProjects/asteroid-thermal-modeling/training/300epochs_160waist_1e-05lr/weights/weights_297.hdf5')
-    # model.load_weights(weight_path)
+    # # # Load weights to continue training where you left off:
+    # # last_epoch = 299
+    # # weight_path = Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5')
+    # # untrained.load_weights(weight_path)
     #
-    # # Run validation with synthetic data and test with real data
-    # val.validate_and_test(model)
+    # # Train the model
+    # model = NN.train_autoencoder(untrained, early_stop=True, checkpoints=True, save_history=True, create_new_data=False)
+
+    ##############################
+    # VALIDATION
+    import validation as val  # TODO This uses symfit, which I have not installed on my thingfish conda env
+
+    # Build a model and load pre-trained weights
+    model = NN.create_model(
+        conv_filters=C.conv_filters,
+        conv_kernel=C.conv_kernel,
+        encdec_start=C.encdec_start,
+        encdec_node_relation=C.encdec_node_relation,
+        waist_size=C.waist,
+        lr=C.learning_rate
+    )
+
+    last_epoch = 189
+    weight_path = Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5')
+    # weight_path = Path('/home/leevi/PycharmProjects/asteroid-thermal-modeling/training/300epochs_160waist_1e-05lr/weights/weights_297.hdf5')
+    model.load_weights(weight_path)
+
+    # Run validation with synthetic data and test with real data
+    val.validate_and_test(model)
 
     ##############################
 
