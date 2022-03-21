@@ -213,61 +213,73 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
         plt.xlabel('Wavelength [µm]')
         plt.ylabel('Radiance')
         plt.legend(('Reflected', 'Thermal', 'Sum'))
-        figpath = figfolder.joinpath(filename + ('_radiances.png'))
+        figpath = Path(C.rad_plots_path, f'{filename}_radiances.png')
         plt.savefig(figpath)
         plt.close(fig)
         # plt.show()
 
     return rad_dict
 
-def calculate_radiances(reflectance_list: list, test: bool, constant_emissivity=False):
+def calculate_radiances(reflectance_list: list, test: bool, samples_per_temperature: int = 2, constant_emissivity=True):
     """
-    Simulate 10 observed radiances for each reflectance spectrum given in parameters. Radiances are saved on disc as
-    .toml files together with metadata related to random values used in their creation. Plots are saved for every 1000th
-    simulated set of radiances and the corresponding reflectance.
+    Generate vector of temperature values based on minimum given in constants and maximum calculated from minimum
+    heliocentric distance. For each temperature simulate a number of observed radiances with reflectance vector
+    chosen randomly. Values for incidence- and emission angles and heliocentric distance are likewise random, with
+    constraints for their values pulled from constants.py
 
-    :param reflectance_list:
+    Each set of observed radiances is saved into its own .toml file, every 10 000th radiance and its reflectance is
+    plotted. Radiances are returned without their metadata, as ndarray.
+
+    :param reflectance_list: list
         Spectral reflectances from which the radiances will be created.
     :param test: boolean
         Whether the data will be used for testing or training, affects only the save location.
+    :param samples_per_temperature: int
+        How many spectra will be generated per temperature value. Default is 200.
     :param constant_emissivity: Boolean
-        Whether or not the thermal data generation will use constant 0.9 emissivity. Default is false, using Kirchhoff's
-        law to generate emissivity spectrum from reflectance spectrum.
+        Whether or not the thermal data generation will use constant 0.9 emissivity. Default is true, if false will use
+        Kirchhoff's law to generate emissivity spectrum from reflectance spectrum.
 
     :return: summed, separate: ndarrays
         Arrays containing summed spectra and separate reflected and thermal spectra
     """
     waves = C.wavelengths
 
+    # Minimum temperature pulled from constants
+    T_min = int(C.T_min)
+    # Maximum temperature as maximum possible for minimum heliocentric distance
+    T_max = int(utils.calculate_subsolar_temperature(C.d_S_min))
+
+    # Generate vector of temperatures from minimum to maximum with 1 K separation
+    temperature_vector = np.linspace(T_min, T_max, T_max - T_min + 1)
+
     # Empty arrays for storing data vectors
     length = len(waves)
-    samples = len(reflectance_list)
-    summed = np.zeros((samples*10, length))
-    reflected = np.zeros((samples*10, length))
-    therm = np.zeros((samples*10, length))
+    samples = len(temperature_vector) * samples_per_temperature
+    summed = np.zeros((samples, length))
+    reflected = np.zeros((samples, length))
+    therm = np.zeros((samples, length))
 
     j = 0
 
     # From each reflectance, create 10 radiances calculated with different parameters
-    for reflectance in reflectance_list:
-        for i in range(10):
+    for temperature in temperature_vector:
+        for i in range(samples_per_temperature):
             # Create random variables from min-max ranges given in constants
             d_S = random.random() * (C.d_S_max - C.d_S_min) + C.d_S_min
             incidence_ang = random.randint(C.i_min, C.i_max)
             emission_ang = random.randint(C.e_min, C.e_max)
 
-            # Calculate maximum temperature for an ideal blackbody at the same heliocentric distance
-            maxtemp = utils.calculate_subsolar_temperature(d_S)
-            mintemp = maxtemp - 100  # TODO Find a realistic minimum temperature that depends on the maximum somehow
-            # Calculate random temperature between the minimum and maximum
-            T = random.random() * (maxtemp - mintemp) + mintemp
+            # Take a random reflectance from the list given as argument
+            reflectance_index = random.randint(0, len(reflectance_list)-1)
+            reflectance = reflectance_list[reflectance_index]
 
-            if j % 1000 == 0:
+            if j % 10000 == 0:
                 # Calculate radiances with the given parameters and
-                # save plots for every 1000th radiance and reflectance
-                obs_rad_dict = observed_radiance(d_S, incidence_ang, emission_ang, T, reflectance, waves, constant_emissivity, 'rads_' + str(j), test, plots=True)
+                # save plots for every 10 000th radiance and reflectance
+                obs_rad_dict = observed_radiance(d_S, incidence_ang, emission_ang, temperature, reflectance, waves, constant_emissivity, 'rads_' + str(j), test, plots=True)
             else:
-                obs_rad_dict = observed_radiance(d_S, incidence_ang, emission_ang, T, reflectance, waves, constant_emissivity, 'rads_' + str(j), test)
+                obs_rad_dict = observed_radiance(d_S, incidence_ang, emission_ang, temperature, reflectance, waves, constant_emissivity, 'rads_' + str(j), test)
 
             # Discard the metadata and store data vectors into arrays
             summed[j, :] = obs_rad_dict['sum_radiance']
@@ -277,7 +289,7 @@ def calculate_radiances(reflectance_list: list, test: bool, constant_emissivity=
             j = j+1
 
         # Place reflected and thermal spectra into one array for returning
-        separate = np.zeros((samples*10, length, 2))
+        separate = np.zeros((samples, length, 2))
         separate[:, :, 0] = reflected
         separate[:, :, 1] = therm
 

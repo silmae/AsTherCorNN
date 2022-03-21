@@ -43,8 +43,8 @@ def prepare_training_data():
     train_reflectances, test_reflectances = refl.read_asteroids()
 
     # Calculate 10 radiances from each reflectance, save them on disc as toml, and return the data vectors
-    summed_test, separate_test = rad.calculate_radiances(test_reflectances, test=True, constant_emissivity=True)
-    summed_training, separate_training = rad.calculate_radiances(train_reflectances, test=False, constant_emissivity=True)
+    summed_test, separate_test = rad.calculate_radiances(test_reflectances, test=True, samples_per_temperature=int(len(test_reflectances)/10))
+    summed_training, separate_training = rad.calculate_radiances(train_reflectances, test=False, samples_per_temperature=int(len(train_reflectances)/10))
 
     # Create a "bunch" from training and testing radiances and save both in their own files. This is orders of
     # magnitude faster than reading each radiance from its own toml
@@ -230,16 +230,16 @@ def loss_fn(ground, prediction):
     # To prevent division by (near) zero, add small constant value to maxima
     ground_max = ground_max + 0.0000001
     scaling_factor = ground_max
-    # prediction_max = tf.math.reduce_max(prediction)
-    # prediction_max = prediction_max + 0.0000001
-    # scalars = tf.stack([ground_max, prediction_max], axis=0)
+    prediction_max = tf.math.reduce_max(prediction)
+    prediction_max = prediction_max + 0.0000001
+    scalars = tf.stack([ground_max, prediction_max], axis=0)
 
     # # Calculate L1 norm from both prediction and ground, scale both with the larger of the two
     # prediction_norm = tf.norm(prediction, axis=1, keepdims=True, ord=1)
     # ground_norm = tf.norm(ground, axis=1, keepdims=True, ord=1)
     # scalars = tf.stack([ground_norm, prediction_norm], axis=0)
 
-    # scaling_factor = tf.math.reduce_max(scalars)
+    scaling_factor = tf.math.reduce_max(scalars)
 
     # tf.compat.v1.control_dependencies([tf.print(ground_norm)])
     # tf.compat.v1.control_dependencies([tf.print(prediction_norm)])

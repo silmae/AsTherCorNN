@@ -272,9 +272,9 @@ def validate_synthetic(model, validation_run_folder):
     X_test = rad_bunch_test['summed']
     y_test = rad_bunch_test['separate']
 
-    # indices = range(int(len(X_test[:, 0]) * 0.1))  # 10 percent of samples used for error calculation, takes less time
-    # X_test = X_test[indices]
-    # y_test = y_test[indices]
+    indices = range(int(len(X_test[:, 0]) * 0.1))  # 10 percent of samples used for error calculation, takes less time
+    X_test = X_test[indices]
+    y_test = y_test[indices]
 
     validation_plots_synthetic_path = Path(validation_run_folder, 'synthetic_validation')
     if os.path.isdir(validation_plots_synthetic_path) == False:
