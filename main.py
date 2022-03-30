@@ -46,17 +46,8 @@ if __name__ == '__main__':
     # But in most cases it would be better to just save the plots as png in a folder.
 
     ############################
-    # # HYPERPARAMETER OPTIMIZATION
-    # NN.tune_model(300, 45, 1)
-
-    # Best result:
-    # filters: 16
-    # kernel_size: 14
-    # encdec_start: 640
-    # waist_size: 152
-    # encdec_node_relation: 0.434315545803469
-    # lr: 1.148807011507265e-05
-    # Score: 0.35971516370773315
+    # HYPERPARAMETER OPTIMIZATION
+    # NN.tune_model(300, 20, 1)
 
     ############################
     # # TRAINING
@@ -77,7 +68,7 @@ if __name__ == '__main__':
     # # untrained.load_weights(weight_path)
     #
     # # Train the model
-    # model = NN.train_autoencoder(untrained, early_stop=True, checkpoints=True, save_history=True, create_new_data=False)
+    # model = NN.train_autoencoder(untrained, early_stop=False, checkpoints=True, save_history=True, create_new_data=False)
 
     ##############################
     # VALIDATION
@@ -93,7 +84,7 @@ if __name__ == '__main__':
         lr=C.learning_rate
     )
 
-    last_epoch = 200
+    last_epoch = 1000
     weight_path = Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5')
     # weight_path = Path('/home/leevi/PycharmProjects/asteroid-thermal-modeling/training/300epochs_160waist_1e-05lr/weights/weights_297.hdf5')
     model.load_weights(weight_path)

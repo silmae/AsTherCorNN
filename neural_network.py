@@ -14,6 +14,7 @@ import tensorflow as tf
 from tensorflow.keras.layers import Input, Dense, Flatten, Conv1D, MaxPooling1D, Dropout, Concatenate, Reshape
 from tensorflow.keras.models import Model, load_model
 import keras_tuner as kt
+import sklearn.utils
 
 import constants as C
 import reflectance_data as refl
@@ -116,18 +117,18 @@ def create_hypermodel(hp):
     """
 
     # Convolution layer for the input, tune both filter number and kernel size
-    filters = hp.Int("filters", min_value=8, max_value=60, step=4)
-    kernel_size = hp.Int("kernel_size", min_value=4, max_value=40, step=2)
+    filters = hp.Int("filters", min_value=10, max_value=80, step=10)
+    kernel_size = hp.Int("kernel_size", min_value=5, max_value=60, step=5)
 
     # Tune encoder/decoder start layer node count
-    encdec_start = hp.Int('encdec_start', min_value=200, max_value=1200, step=40)
+    encdec_start = hp.Int('encdec_start', min_value=200, max_value=1200, step=50)
     # Tune number of nodes in waist layer
-    waist_size = hp.Int('waist_size', min_value=16, max_value=160, step=8)
+    waist_size = hp.Int('waist_size', min_value=20, max_value=300, step=10)
     # Tune the relation between node counts of subsequent encoder layers: (layer N nodes) / (layer N-1 nodes)
     encdec_node_relation = hp.Float("encdec_node_relation", min_value=0.1, max_value=0.9, sampling="linear")
 
-    # DTune learning rate of the model
-    lr = hp.Float('lr', min_value=1e-7, max_value=1e-4, sampling='log')
+    # Tune learning rate of the model
+    lr = hp.Float('lr', min_value=1e-8, max_value=1e-4, sampling='log')
 
     # Create model in separate function with adjustable hyperparameters as inputs
     model = create_model(filters, kernel_size, encdec_start, encdec_node_relation, waist_size, lr)
@@ -230,16 +231,16 @@ def loss_fn(ground, prediction):
     # To prevent division by (near) zero, add small constant value to maxima
     ground_max = ground_max + 0.0000001
     scaling_factor = ground_max
-    prediction_max = tf.math.reduce_max(prediction)
-    prediction_max = prediction_max + 0.0000001
-    scalars = tf.stack([ground_max, prediction_max], axis=0)
+    # prediction_max = tf.math.reduce_max(prediction)
+    # prediction_max = prediction_max + 0.0000001
+    # scalars = tf.stack([ground_max, prediction_max], axis=0)
 
     # # Calculate L1 norm from both prediction and ground, scale both with the larger of the two
     # prediction_norm = tf.norm(prediction, axis=1, keepdims=True, ord=1)
     # ground_norm = tf.norm(ground, axis=1, keepdims=True, ord=1)
     # scalars = tf.stack([ground_norm, prediction_norm], axis=0)
 
-    scaling_factor = tf.math.reduce_max(scalars)
+    # scaling_factor = tf.math.reduce_max(scalars)
 
     # tf.compat.v1.control_dependencies([tf.print(ground_norm)])
     # tf.compat.v1.control_dependencies([tf.print(prediction_norm)])
@@ -263,8 +264,16 @@ def loss_fn(ground, prediction):
     cosine_loss = tf.keras.losses.CosineSimilarity(axis=1)
     cos_dist = cosine_loss(ground, prediction) + 1  # According to Keras documentation, -1 means similar and 1 means dissimilar: add 1 to stay positive!
 
+    # # Calculate total variation in prediction: if this is high, the produced spectrum is noisy
+    # shp = tf.shape(prediction)
+    # x1 = tf.slice(prediction, [0, 0], [shp[0], shp[1] - 1])
+    # x2 = tf.slice(prediction, [0, 1], [shp[0], shp[1] - 1])
+    # total_variation = tf.reduce_sum(tf.abs(tf.subtract(x1, x2)))
+
+    # tf.compat.v1.control_dependencies([tf.print(total_variation)])
+
     # Calculate loss as sum of L2 distance and cos distance
-    loss = L2_dist + cos_dist
+    loss = L2_dist + cos_dist #+ total_variation * 1e-5
 
     # Printing loss into console (since debugger will not show tensor values)
     # tf.compat.v1.control_dependencies([tf.print(L2_dist)])
@@ -288,11 +297,13 @@ def load_training_validation_data():
     rad_bunch_training = FH.load_pickle(C.rad_bunch_training_path)
     x_train = rad_bunch_training['summed']
     y_train = rad_bunch_training['separate']
+    x_train, y_train = sklearn.utils.shuffle(x_train, y_train, random_state=0)
 
     # Load validation radiances from one file as dicts
     rad_bunch_test = FH.load_pickle(C.rad_bunch_test_path)
     x_val = rad_bunch_test['summed']
     y_val = rad_bunch_test['separate']
+    x_val, y_val = sklearn.utils.shuffle(x_val, y_val, random_state=0)
 
     return x_train, y_train, x_val, y_val
 

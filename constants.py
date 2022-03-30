@@ -41,8 +41,8 @@ radiance_training_path = Path(radiance_path, 'training')
 radiance_test_path = Path(radiance_path, 'test')
 training_path = Path('./training')
 spectral_path = Path('./spectral_data')
-rad_bunch_test_path = Path('./spectral_data/rad_bunch_test_0.9-emittance_Bennu')  # All radiances, saved as a dict
-rad_bunch_training_path = Path('./spectral_data/rad_bunch_training_0.9-emittance_Bennu')
+rad_bunch_test_path = Path('./spectral_data/rad_bunch_test_0.9-emittance_general')  # All radiances, saved as a dict
+rad_bunch_training_path = Path('./spectral_data/rad_bunch_training_0.9-emittance_general')
 bennu_plots_path = Path(figfolder, 'Bennu-plots')
 val_and_test_path = Path('./validation_and_testing')
 
@@ -56,8 +56,8 @@ mu = 0  # mean
 sigma = 0.001  # 0.01  # standard deviation
 
 # Constraints for modeled radiances
-# d_S_min, d_S_max = 0.7, 2.8  # Heliocentric distance for asteroids where the problem is relevant, in AU
-d_S_min, d_S_max = 0.8968944004459729, 1.355887651343651  # Heliocentric distances for Bennu, in AU
+d_S_min, d_S_max = 0.7, 2.8  # Heliocentric distance for asteroids where the problem is relevant, in AU
+# d_S_min, d_S_max = 0.8968944004459729, 1.355887651343651  # Heliocentric distances for Bennu, in AU
 T_min, T_max = 150, 430  # Asteroid surface temperature, in Kelvins
 i_min, i_max = 0, 89  # Incidence angle, angle between surface normal and incident light, in degrees
 e_min, e_max = 0, 89  # Emission angle, angle between surface normal and observer direction, in degrees
@@ -69,14 +69,22 @@ emittance = 0.9
 refl_test_partition = 0.1  # Part of reflectances to be used for test data
 activation = 'relu'
 batches = 32
-
-epochs = 200
-conv_filters = 10
+epochs = 1000
+# Best configuration from latest run, trial summary
+# Hyperparameters:
+# filters: 50
+# kernel_size: 60
+# encdec_start: 1150
+# waist_size: 190
+# encdec_node_relation: 0.6812388944493599
+# lr: 1.5571627657283562e-06
+# Score: 0.17982378602027893
+conv_filters = 60
 conv_kernel = 40
-encdec_start = 256
+encdec_start = 800
 encdec_node_relation = 0.50
-waist = 64  # Autoencoder middle layer node count
-learning_rate = 1e-8
+waist = 200  # Autoencoder middle layer node count
+learning_rate = 5e-8
 
 training_run_name = f'{epochs}epochs_{waist}waist_{learning_rate}lr'
 training_run_path = Path(training_path, training_run_name)
@@ -88,7 +96,7 @@ if os.path.isdir(weights_path) == False:
 training_history_path = Path(training_run_path, f'{training_run_name}_trainHistory')
 # Early stop:
 min_delta = 0.0001
-patience = 20
+patience = 50
 
 # Paths for saving results of hyperparameter tuning
 hyperparameter_path = 'hyperparameter_tuning'  # KerasTuner wants the path as a string

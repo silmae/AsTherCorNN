@@ -1,11 +1,12 @@
 import time
+from pathlib import Path
+import os
 from contextlib import redirect_stdout  # For saving keras prints into text files
 
 import numpy as np
-from pathlib import Path
 import matplotlib.pyplot as plt
 from astropy.io import fits
-import os
+import sklearn.utils
 import pickle
 import symfit
 import sympy
@@ -75,7 +76,8 @@ def test_model(X_test, y_test, model, temperatures, savefolder):
     time_start = time.perf_counter_ns()
     test_result = model.evaluate(X_test, y_test, verbose=0)  # (X_test, y_test[:, :, 1], verbose=0)
     time_stop = time.perf_counter_ns()
-    print(f'Elapsed prediction time in seconds for {len(X_test[:, 0])} samples was {(time_stop - time_start) / 1e9}')
+    elapsed_time_s = (time_stop - time_start) / 1e9
+    print(f'Elapsed prediction time for {len(X_test[:, 0])} samples was {elapsed_time_s} seconds')
     print(f'Test with Keras resulted in a loss of {test_result}')
 
     # Calculate some differences between ground truth and prediction vectors
@@ -86,12 +88,21 @@ def test_model(X_test, y_test, model, temperatures, savefolder):
         sum_s1_s2 = np.dot(s1, s2)
         cosangle = (sum_s1_s2 / (s1_norm * s2_norm))
         return cosangle
+    # Mean absolute error between two vectors
+    def MAE(s1, s2):
+        return sum(abs(s1 - s2)) / len(s1)
+
     # Lists for storing the errors
-    refl_mae = []
-    refl_cos = []
-    therm_mae = []
-    therm_cos = []
-    temperature_error = []
+    reflrad_mae_corrected = []
+    reflrad_cos_corrected = []
+    reflrad_mae_uncorrected = []
+    reflrad_cos_uncorrected = []
+    reflectance_mae_corrected = []
+    reflectance_cos_corrected = []
+    reflectance_mae_uncorrected = []
+    reflectance_cos_uncorrected = []
+    thermrad_mae = []
+    thermrad_cos = []
     temperature_ground = []
     temperature_pred = []
     indices = range(len(X_test[:, 0]))  # Full error calculation, takes some time
@@ -101,15 +112,21 @@ def test_model(X_test, y_test, model, temperatures, savefolder):
         test_sample = np.expand_dims(X_test[i, :], axis=0)
         prediction = model.predict(test_sample).squeeze()  # model.predict(np.array([summed.T])).squeeze()
         pred_refl = test_sample.squeeze() - prediction
+        uncorrected_refl = test_sample.squeeze()
         pred_therm = prediction
 
         # ground_refl = y_test[i, :, 0]
         ground_therm = y_test[i, :, 1]
         ground_refl = test_sample.squeeze() - ground_therm  # Alternative ground truth to which the alternative reflected is compared
 
-        # Plot some results for closer inspection from 25 first test spectra
+        # Plot some results for closer inspection from 25 random test spectra
         if i in plot_indices:
             plot_val_test_results(test_sample, ground_refl, ground_therm, pred_refl, pred_therm, savefolder, i+1)
+
+        # Calculate normalized reflectance from uncorrected, NN-corrected, and ground truth reflected radiances
+        reflectance_ground = rad.radiance2norm_reflectance(ground_refl)
+        reflectance_uncorrected = rad.radiance2norm_reflectance(uncorrected_refl)
+        reflectance_corrected = rad.radiance2norm_reflectance(pred_refl)
 
         # Calculate temperature of prediction by fitting to Planck function, compare to ground truth gotten as argument
         ground_temp = temperatures[i]
@@ -119,38 +136,62 @@ def test_model(X_test, y_test, model, temperatures, savefolder):
         print(f'Prediction temperature: {pred_temp}')
         temperature_pred.append(pred_temp)
 
-        temperature_error.append(ground_temp - pred_temp)
+        # Mean absolute errors from radiance
+        mae1_corrected = MAE(pred_refl, ground_refl)  #sum(abs(pred_refl - ground_refl)) / len(pred_refl)
+        mae1_uncorrected = MAE(uncorrected_refl, ground_refl) #sum(abs(uncorrected_refl - ground_refl)) / len(uncorrected_refl)
+        mae2 = MAE(pred_therm, ground_therm) #sum(abs(pred_therm - ground_therm)) / len(pred_therm)
+        reflrad_mae_corrected.append(mae1_corrected)
+        reflrad_mae_uncorrected.append(mae1_uncorrected)
+        thermrad_mae.append(mae2)
 
-        # Mean absolute error
-        mae1 = sum(abs(pred_refl - ground_refl)) / len(pred_refl)
-        mae2 = sum(abs(pred_therm - ground_therm)) / len(pred_therm)
-        refl_mae.append(mae1)
-        therm_mae.append(mae2)
-
-        cosang1 = cosine_distance(pred_refl, ground_refl)
+        # Cosine distances from radiances
+        cosang1_corrected = cosine_distance(pred_refl, ground_refl)
+        cosang1_uncorrected = cosine_distance(uncorrected_refl, ground_refl)
         cosang2 = cosine_distance(pred_therm, ground_therm)
-        refl_cos.append(cosang1)
-        therm_cos.append(cosang2)
+        reflrad_cos_corrected.append(cosang1_corrected)
+        reflrad_cos_uncorrected.append(cosang1_uncorrected)
+        thermrad_cos.append(cosang2)
+
+        # Mean absolute errors and cosine distance from reflectances
+        R_MAE_corrected = MAE(reflectance_corrected, reflectance_ground)
+        R_MAE_uncorrected = MAE(reflectance_uncorrected, reflectance_ground)
+        reflectance_mae_corrected.append(R_MAE_corrected)
+        reflectance_mae_uncorrected.append(R_MAE_uncorrected)
+
+        R_cos_corrected = cosine_distance(reflectance_corrected, reflectance_ground)
+        R_cos_uncorrected = cosine_distance(reflectance_uncorrected, reflectance_ground)
+        reflectance_cos_corrected.append(R_cos_corrected)
+        reflectance_cos_uncorrected.append(R_cos_uncorrected)
 
         print(f'Calculated MAE and cosine angle for sample {i} out of {len(indices)}')
 
     # Gather all calculated errors in a single dictionary and save that as toml
     mean_dict = {}
-    mean_dict['mean_reflected_MAE'] = np.mean(refl_mae)
-    mean_dict['mean_thermal_MAE'] = np.mean(therm_mae)
-    mean_dict['mean_reflected_SAM'] = np.mean(refl_cos)
-    mean_dict['mean_thermal_SAM'] = np.mean(therm_cos)
-    mean_dict['mean_temp_error'] = np.mean(temperature_error)
+    mean_dict['mean_reflected_MAE'] = np.mean(reflrad_mae_corrected)
+    mean_dict['mean_thermal_MAE'] = np.mean(thermrad_mae)
+    mean_dict['mean_reflected_SAM'] = np.mean(reflrad_cos_corrected)
+    mean_dict['mean_thermal_SAM'] = np.mean(thermrad_cos)
     mean_dict['samples'] = i+1
+    mean_dict['elapsed_prediction_time_s'] = elapsed_time_s
+
     temperature_dict = {}
     temperature_dict['ground_temperature'] = temperature_ground
     temperature_dict['predicted_temperature'] = temperature_pred
+
     MAE_dict = {}
-    MAE_dict['reflected_MAE'] = refl_mae
-    MAE_dict['thermal_MAE'] = therm_mae
+    MAE_dict['reflected_MAE'] = reflrad_mae_corrected
+    MAE_dict['reflected_MAE_uncorrected'] = reflrad_mae_uncorrected
+    MAE_dict['thermal_MAE'] = thermrad_mae
+    MAE_dict['reflectance_MAE'] = reflectance_mae_corrected
+    MAE_dict['reflectance_MAE_uncorrected'] = reflectance_mae_uncorrected
+
     SAM_dict = {}
-    SAM_dict['reflected_SAM'] = refl_cos
-    SAM_dict['thermal_SAM'] = therm_cos
+    SAM_dict['reflected_SAM'] = reflrad_cos_corrected
+    SAM_dict['reflected_SAM_uncorrected'] = reflrad_cos_uncorrected
+    SAM_dict['thermal_SAM'] = thermrad_cos
+    SAM_dict['reflectance_SAM'] = reflectance_cos_corrected
+    SAM_dict['reflectance_SAM_uncorrected'] = reflectance_cos_uncorrected
+
     error_dict = {}
     error_dict['mean'] = mean_dict
     error_dict['temperature'] = temperature_dict
@@ -159,15 +200,7 @@ def test_model(X_test, y_test, model, temperatures, savefolder):
 
     FH.save_toml(error_dict, Path(savefolder, 'errors.toml'))
 
-    # Plot scatters of ground temperature vs temperature error, thermal MAE and SAM vs height of thermal tail
-    fig = plt.figure()
-    plt.figure()
-    plt.scatter(temperature_ground, temperature_error, alpha=0.1)
-    plt.xlabel('Ground truth temperature')
-    plt.ylabel('Temperature difference')
-    plt.savefig(Path(savefolder, 'tempdif_groundtemp.png'))
-    plt.close(fig)
-
+    # Plot scatters of several errors vs ground truth temperature
     fig = plt.figure()
     plt.scatter(temperature_ground, temperature_pred, alpha=0.1)
     plt.xlabel('Ground truth temperature [K]')
@@ -178,34 +211,66 @@ def test_model(X_test, y_test, model, temperatures, savefolder):
 
     fig = plt.figure()
     plt.figure()
-    plt.scatter(temperature_ground, refl_cos, alpha=0.1)
-    plt.xlabel('Ground truth temperature')
-    plt.ylabel('Reflected SAM')
-    plt.savefig(Path(savefolder, 'reflSAM_groundtemp.png'))
+    plt.scatter(temperature_ground, reflrad_cos_uncorrected, alpha=0.1)
+    plt.scatter(temperature_ground, reflrad_cos_corrected, alpha=0.1)
+    plt.xlabel('Ground truth temperature [K]')
+    plt.ylabel('Reflected cosine distance')
+    leg = plt.legend(('NN-corrected', 'Uncorrected'))
+    for lh in leg.legendHandles:
+        lh.set_alpha(1)
+    plt.savefig(Path(savefolder, 'reflrad_SAM_groundtemp.png'))
     plt.close(fig)
 
     fig = plt.figure()
     plt.figure()
-    plt.scatter(temperature_ground, therm_cos, alpha=0.1)
-    plt.xlabel('Ground truth temperature')
-    plt.ylabel('Thermal SAM')
+    plt.scatter(temperature_ground, reflectance_cos_uncorrected, alpha=0.1)
+    plt.scatter(temperature_ground, reflectance_cos_corrected, alpha=0.1)
+    plt.xlabel('Ground truth temperature [K]')
+    plt.ylabel('Reflectance cosine distance')
+    leg = plt.legend(('NN-corrected', 'Uncorrected'))
+    for lh in leg.legendHandles:
+        lh.set_alpha(1)
+    plt.savefig(Path(savefolder, 'reflectance_SAM_groundtemp.png'))
+    plt.close(fig)
+
+    fig = plt.figure()
+    plt.figure()
+    plt.scatter(temperature_ground, reflectance_mae_uncorrected, alpha=0.1)
+    plt.scatter(temperature_ground, reflectance_mae_corrected, alpha=0.1)
+    plt.xlabel('Ground truth temperature [K]')
+    plt.ylabel('Reflectance MAE')
+    leg = plt.legend(('NN-corrected', 'Uncorrected'))
+    for lh in leg.legendHandles:
+        lh.set_alpha(1)
+    plt.savefig(Path(savefolder, 'reflectance_MAE_groundtemp.png'))
+    plt.close(fig)
+
+    fig = plt.figure()
+    plt.figure()
+    plt.scatter(temperature_ground, thermrad_cos, alpha=0.1)
+    plt.xlabel('Ground truth temperature [K]')
+    plt.ylabel('Thermal cosine distance')
     plt.savefig(Path(savefolder, 'thermSAM_groundtemp.png'))
     plt.close(fig)
 
     fig = plt.figure()
     plt.figure()
-    plt.scatter(temperature_ground, therm_mae, alpha=0.1)
-    plt.xlabel('Ground truth temperature')
+    plt.scatter(temperature_ground, thermrad_mae, alpha=0.1)
+    plt.xlabel('Ground truth temperature [K]')
     plt.ylabel('Thermal MAE')
     plt.savefig(Path(savefolder, 'thermMAE_groundtemp.png'))
     plt.close(fig)
 
     fig = plt.figure()
     plt.figure()
-    plt.scatter(temperature_ground, refl_mae, alpha=0.1)
-    plt.xlabel('Ground truth temperature')
+    plt.scatter(temperature_ground, reflrad_mae_uncorrected, alpha=0.1)
+    plt.scatter(temperature_ground, reflrad_mae_corrected, alpha=0.1)
+    plt.xlabel('Ground truth temperature [K]')
     plt.ylabel('Reflected MAE')
-    plt.savefig(Path(savefolder, 'reflMAE_groundtemp.png'))
+    leg = plt.legend(('NN-corrected', 'Uncorrected'))
+    for lh in leg.legendHandles:
+        lh.set_alpha(1)
+    plt.savefig(Path(savefolder, 'reflrad_MAE_groundtemp.png'))
     plt.close(fig)
 
     # Return the dictionary containing calculated errors, in addition to saving it on disc
@@ -257,7 +322,7 @@ def plot_val_test_results(test_sample, ground1, ground2, pred1, pred2, savefolde
     plt.plot(x, ground)
     plt.plot(x, NN_corrected)
     plt.xlabel('Wavelength [µm]')
-    plt.ylabel('Thermal radiance')
+    plt.ylabel('Thermal radiance [W / m² / sr / µm]')
     plt.legend(('Ground truth', 'NN-corrected'))
 
     fig_filename = C.training_run_name + f'_test_{index + 1}_thermal.png'
@@ -272,7 +337,10 @@ def validate_synthetic(model, validation_run_folder):
     X_test = rad_bunch_test['summed']
     y_test = rad_bunch_test['separate']
 
-    indices = range(int(len(X_test[:, 0]) * 0.1))  # 10 percent of samples used for error calculation, takes less time
+    # Shuffle to get samples from all temperatures when using part of the data
+    X_test, y_test = sklearn.utils.shuffle(X_test, y_test, random_state=0)
+
+    indices = range(int(len(X_test[:, 0]) * 0.5))  # 10 percent of samples used for error calculation, takes less time
     X_test = X_test[indices]
     y_test = y_test[indices]
 
@@ -293,6 +361,7 @@ def validate_synthetic(model, validation_run_folder):
     temperatures = np.asarray(temperatures)
 
     error_dict = test_model(X_test, y_test, model, temperatures, validation_plots_synthetic_path)
+    FH.save_toml(error_dict, Path(validation_plots_synthetic_path, 'error_dict.toml'))
 
 
 def bennu_refine(fitslist: list, time: int, discard_indices, plots=False):
@@ -402,7 +471,7 @@ def bennu_refine(fitslist: list, time: int, discard_indices, plots=False):
             plt.plot(C.wavelengths, thermal_tail_Bennu[i, :])
             plt.legend(('Uncorrected', 'Corrected', 'Thermal tail'))
             plt.xlabel('Wavelength [µm]')
-            plt.ylabel('Radiance [W/m²/sr/µm]')
+            plt.ylabel('Radiance [W / m² / sr / µm]')
             plt.xlim((2, 2.45))
             plt.ylim((0, 0.4))
             # plt.savefig(Path(plotpath, f'bennurads_{time}_{i}.png'))
@@ -469,7 +538,7 @@ def validate_bennu(model, validation_run_folder):
                                        'bennu_validation')  # Save location of plots from validating with Bennu data
     if os.path.isdir(validation_plots_Bennu_path) == False:
         os.mkdir(validation_plots_Bennu_path)
-
+    #
     print('Testing with Bennu data, local time 15:00')
     errors_1500 = test_model_Bennu(uncorrected_1500, corrected_1500, thermal_tail_1500, temperatures_1500, str(1500), validation_plots_Bennu_path)
     print('Testing with Bennu data, local time 12:30')
@@ -484,6 +553,11 @@ def validate_bennu(model, validation_run_folder):
     errors_Bennu['errors_1500'] = errors_1500
     FH.save_toml(errors_Bennu, Path(validation_plots_Bennu_path, 'errors_Bennu.toml'))
 
+    # errordict = FH.load_toml(Path('validation_and_testing/validation-run_20220330-130206/bennu_validation/errors_Bennu.toml'))
+    # errors_1000 = errordict['errors_1000']
+    # errors_1230 = errordict['errors_1230']
+    # errors_1500 = errordict['errors_1500']
+
     # Plotting and saving results for all three datasets
     def Bennuplot(errors_1000, errors_1230, errors_1500, data_name, label, savefolder):
 
@@ -493,29 +567,23 @@ def validate_bennu(model, validation_run_folder):
 
             if 'MAE' in data_name:
                 data_dict = errordict['MAE']
-                if 'reflected' in data_name:
-                    data = np.asarray(data_dict['reflected_MAE'])
-                else:
-                    data = np.asarray(data_dict['thermal_MAE'])
+                data = np.asarray(data_dict[data_name])
+
             elif 'SAM' in data_name:
                 data_dict = errordict['SAM']
-                if 'reflected' in data_name:
-                    data = np.asarray(data_dict['reflected_SAM'])
-                else:
-                    data = np.asarray(data_dict['thermal_SAM'])
+                data = data_dict[data_name]
+
             elif 'temperature' in data_name:
                 data_dict = errordict['temperature']
-                if 'predicted' in data_name:
-                    data = np.asarray(data_dict['predicted_temperature'])
-                elif 'error' in data_name:
-                    data = ground_temps - np.asarray(data_dict['predicted_temperature'])
+                data = data_dict[data_name]
 
             return ground_temps, data
+
         ground_temps_1000, data_1000 = fetch_data(errors_1000, data_name)
         ground_temps_1230, data_1230 = fetch_data(errors_1230, data_name)
         ground_temps_1500, data_1500 = fetch_data(errors_1500, data_name)
 
-        plt.figure()
+        fig = plt.figure()
         plt.scatter(ground_temps_1000, data_1000, alpha=0.1)
         plt.scatter(ground_temps_1230, data_1230, alpha=0.1)
         plt.scatter(ground_temps_1500, data_1500, alpha=0.1)
@@ -528,14 +596,63 @@ def validate_bennu(model, validation_run_folder):
             plt.plot(range(300, 350), range(300, 350), 'r')  # Plot a reference line with slope 1: ideal result
         plt.savefig(Path(savefolder, f'{data_name}.png'))
         # plt.show()
+        plt.close(fig)
+
 
     savefolder = validation_plots_Bennu_path
     Bennuplot(errors_1000, errors_1230, errors_1500, 'predicted_temperature', 'Predicted temperature [K]', savefolder)
-    Bennuplot(errors_1000, errors_1230, errors_1500, 'temperature_error', 'Temperature difference [K]', savefolder)
     Bennuplot(errors_1000, errors_1230, errors_1500, 'reflected_MAE', 'Reflected MAE', savefolder)
     Bennuplot(errors_1000, errors_1230, errors_1500, 'thermal_MAE', 'Thermal MAE', savefolder)
     Bennuplot(errors_1000, errors_1230, errors_1500, 'reflected_SAM', 'Reflected SAM', savefolder)
     Bennuplot(errors_1000, errors_1230, errors_1500, 'thermal_SAM', 'Thermal SAM', savefolder)
+
+    # Plots where error of the uncorrected results is shown alongside the corrected
+    def Bennu_comparison_plots(corrected_name, uncorrected_name, label, lim=(0,0)):
+        temp_dict_1000 = errors_1000['temperature']
+        ground_temps_1000 = np.asarray(temp_dict_1000['ground_temperature'])
+        temp_dict_1230 = errors_1230['temperature']
+        ground_temps_1230 = np.asarray(temp_dict_1230['ground_temperature'])
+        temp_dict_1500 = errors_1500['temperature']
+        ground_temps_1500 = np.asarray(temp_dict_1500['ground_temperature'])
+
+        if 'MAE' in corrected_name:
+            dict_name = 'MAE'
+        elif 'SAM' in corrected_name:
+            dict_name = 'SAM'
+        dict_1000 = errors_1000[dict_name]
+        corrected_1000 = dict_1000[corrected_name]
+        uncorrected_1000 = dict_1000[uncorrected_name]
+        dict_1230 = errors_1230[dict_name]
+        corrected_1230 = dict_1230[corrected_name]
+        uncorrected_1230 = dict_1230[uncorrected_name]
+        dict_1500 = errors_1500[dict_name]
+        corrected_1500 = dict_1500[corrected_name]
+        uncorrected_1500 = dict_1500[uncorrected_name]
+
+        fig = plt.figure()
+        # Default pyplot colors: '#1f77b4', '#ff7f0e', '#2ca02c'
+        uncor_scatter1 =plt.scatter(ground_temps_1000, uncorrected_1000, alpha=0.1, color='#1f77b4')
+        uncor_scatter2 =plt.scatter(ground_temps_1230, uncorrected_1230, alpha=0.1, color='#1f77b4')
+        uncor_scatter3 =plt.scatter(ground_temps_1500, uncorrected_1500, alpha=0.1, color='#1f77b4')
+
+        cor_scatter1 = plt.scatter(ground_temps_1000, corrected_1000, alpha=0.1, color='#ff7f0e')
+        cor_scatter2 = plt.scatter(ground_temps_1230, corrected_1230, alpha=0.1, color='#ff7f0e')
+        cor_scatter3 = plt.scatter(ground_temps_1500, corrected_1500, alpha=0.1, color='#ff7f0e')
+
+        if lim != (0, 0):
+            plt.ylim(lim)
+        leg = plt.legend([cor_scatter1, uncor_scatter1], ['NN-corrected', 'Uncorrected'])  #plt.legend(('NN-corrected', 'Uncorrected'), title='Local time on Bennu')
+        for lh in leg.legendHandles:
+            lh.set_alpha(1)
+        plt.xlabel('Ground truth temperature [K]')
+        plt.ylabel(label)
+        plt.savefig(Path(savefolder, f'{corrected_name}_{uncorrected_name}.png'))
+        plt.close(fig)
+
+    Bennu_comparison_plots('reflected_MAE', 'reflected_MAE_uncorrected', 'Reflected radiance MAE', lim=(0, 0.005))
+    Bennu_comparison_plots('reflected_SAM', 'reflected_SAM_uncorrected', 'Reflected radiance cosine distance', lim=(0.9999, 1.0))
+    Bennu_comparison_plots('reflectance_MAE', 'reflectance_MAE_uncorrected', 'Reflectance MAE', lim=(0, 0.01))
+    Bennu_comparison_plots('reflectance_SAM', 'reflectance_SAM_uncorrected', 'Reflectance cosine distance', lim=(0.999, 1.0))
 
 
 def validate_and_test(model):
