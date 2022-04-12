@@ -25,8 +25,8 @@ import file_handling as FH
 def prepare_training_data():
     """
     Creating training and validation data. Takes reflectance spectra of asteroids, and divides them into a larger set
-    for training and a smaller set for validation. From each reflectance creates 10 simulated radiances with random
-    values for heliocentric distance, incidence and emission angles, and surface temperature. For training the
+    for training and a smaller set for validation. From each reflectance creates a number of simulated radiances with
+    random values for heliocentric distance, incidence and emission angles, and surface temperature. For training the
     separate reflected and thermal radiances are the ground truth, and the sum of these is the input. Function
     creates dictionaries for all simulated observations, writing into them the three spectra, and metadata
     related to parameters used in their creation. Each dictionary is saved into its own .toml file.
@@ -43,7 +43,7 @@ def prepare_training_data():
     # Load asteroid reflectances, they are already augmented
     train_reflectances, test_reflectances = refl.read_asteroids()
 
-    # Calculate 10 radiances from each reflectance, save them on disc as toml, and return the data vectors
+    # Calculate a number of  radiances from each reflectance, save them on disc as toml, and return the data vectors
     summed_test, separate_test = rad.calculate_radiances(test_reflectances, test=True, samples_per_temperature=int(len(test_reflectances)/10))
     summed_training, separate_training = rad.calculate_radiances(train_reflectances, test=False, samples_per_temperature=int(len(train_reflectances)/10))
 

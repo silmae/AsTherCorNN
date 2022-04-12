@@ -233,20 +233,19 @@ def scale_asteroid_reflectances(normalized_frame: pd.DataFrame, albedo_frame: pd
         alb = albedo_frame.loc[asteroid_class].values
         geom_albedos = np.array([alb[0] - 0.5*alb[1], alb[0], alb[0] + 0.5*alb[1]])
 
-        # Convert geometrical albedo to Bond albedo, assuming Lommel-Seeliger TODO Formula by Penttilä, find a reference or make it yoself
-        bond_albedos = 16 * geom_albedos * (1 - np.log(2)) / 3
-
         # Scale normalized reflectance with the three albedo values
         for i in range(3):
-            # Scale by multiplying with p/mean(norm_refl): values stay between 0 and 1, mean of scaled vector will be p
-            R = norm_reflectance * (bond_albedos[i] / np.mean(norm_reflectance))
+            # Un-normalize reflectance by scaling it with visual geometrical albedo
+            spectral_reflectance = norm_reflectance * geom_albedos[i]
+            # Convert reflectance to single-scattering albedo, using Lommel-Seeliger
+            spectral_single_scattering_albedo = 8 * spectral_reflectance
 
-            # Print if the physical limits of min and max reflectance are exceeded
-            if np.max(R) > 1 or np.min(R) < 0:
-                print(f'Unphysical reflectance detected! Max {np.max(R)}, min {np.min(R)}')
-            if np.mean(R) - bond_albedos[i] > 0.001:
-                print(f'Deviation from albedo detected! Difference between albedo and mean R {np.mean(R) - bond_albedos[i]}')
-            spectral_reflectances.append(R)
+            # Print if the physical limits of min and max reflectance are exceeded. And they will be, since L-S is not
+            # really suitable for bodies with geom. albedo > 0.125
+            if np.max(spectral_single_scattering_albedo) > 1 or np.min(spectral_single_scattering_albedo) < 0:
+                print(f'Unphysical reflectance detected! Max {np.max(spectral_single_scattering_albedo)}, min {np.min(spectral_single_scattering_albedo)}')
+
+            spectral_reflectances.append(spectral_single_scattering_albedo)
 
         # Plot every hundreth set of three reflectances, save plots to disc
         if plot_index % 100 == 0:

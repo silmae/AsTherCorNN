@@ -12,6 +12,7 @@ import symfit
 import sympy
 
 import constants as C
+import file_handling
 import neural_network as NN
 import radiance_data as rad
 import file_handling as FH
@@ -631,9 +632,9 @@ def validate_bennu(model, validation_run_folder):
 
         fig = plt.figure()
         # Default pyplot colors: '#1f77b4', '#ff7f0e', '#2ca02c'
-        uncor_scatter1 =plt.scatter(ground_temps_1000, uncorrected_1000, alpha=0.1, color='#1f77b4')
-        uncor_scatter2 =plt.scatter(ground_temps_1230, uncorrected_1230, alpha=0.1, color='#1f77b4')
-        uncor_scatter3 =plt.scatter(ground_temps_1500, uncorrected_1500, alpha=0.1, color='#1f77b4')
+        uncor_scatter1 = plt.scatter(ground_temps_1000, uncorrected_1000, alpha=0.1, color='#1f77b4')
+        uncor_scatter2 = plt.scatter(ground_temps_1230, uncorrected_1230, alpha=0.1, color='#1f77b4')
+        uncor_scatter3 = plt.scatter(ground_temps_1500, uncorrected_1500, alpha=0.1, color='#1f77b4')
 
         cor_scatter1 = plt.scatter(ground_temps_1000, corrected_1000, alpha=0.1, color='#ff7f0e')
         cor_scatter2 = plt.scatter(ground_temps_1230, corrected_1230, alpha=0.1, color='#ff7f0e')
@@ -695,58 +696,76 @@ def error_plots(folderpath):
     MAE_dict = errordict['MAE']
     therm_MAE = MAE_dict['thermal_MAE']
     refl_MAE = MAE_dict['reflected_MAE']
+    refl_MAE_uncor = MAE_dict['reflected_MAE_uncorrected']
+    R_MAE = MAE_dict['reflectance_MAE']
+    R_MAE_uncor = MAE_dict['reflectance_MAE_uncorrected']
 
     SAM_dict = errordict['SAM']
     therm_SAM = SAM_dict['thermal_SAM']
     refl_SAM = SAM_dict['reflected_SAM']
+    refl_SAM_uncor = SAM_dict['reflected_SAM_uncorrected']
+    R_SAM = SAM_dict['reflectance_SAM']
+    R_SAM_uncor = SAM_dict['reflectance_SAM_uncorrected']
 
-    fig = plt.figure()
-    plt.figure()
-    plt.scatter(temperature_ground, temperature_error, alpha=0.1)
-    plt.xlabel('Ground truth temperature')
-    plt.ylabel('Temperature difference')
-    plt.savefig(Path(folderpath, 'tempdif_groundtemp.png'))
-    plt.close(fig)
+    def plot_and_save(data, label, filename):
+        fig = plt.figure()
+        plt.scatter(temperature_ground, data, alpha=0.1)
+        # plt.scatter(temperature_ground, R_MAE, alpha=0.1)
+        # plt.scatter(temperature_ground, R_MAE_uncor, alpha=0.1)
+        plt.xlabel('Ground truth temperature')
+        # plt.ylim(0,0.02)
+        plt.ylabel(label)
+        plt.savefig(Path(folderpath, filename))
+        plt.show()
+        plt.close(fig)
+    # plot_and_save(np.asarray(refl_MAE_uncor) - np.asarray(refl_MAE), r'MAE($L_{th}$) improvement', 'refl-MAE-improvement_groundtemp.png')
+    # plot_and_save(np.asarray(R_MAE_uncor) - np.asarray(R_MAE), r'MAE($R$) improvement', 'R-MAE-improvement_groundtemp.png')
 
-    fig = plt.figure()
-    plt.figure()
-    plt.scatter(temperature_ground, refl_SAM, alpha=0.1)
-    plt.xlabel('Ground truth temperature')
-    plt.ylabel('Reflected SAM')
-    plt.savefig(Path(folderpath, 'reflSAM_groundtemp.png'))
-    plt.close(fig)
-
-    fig = plt.figure()
-    plt.figure()
-    plt.scatter(temperature_ground, therm_SAM, alpha=0.1)
-    plt.xlabel('Ground truth temperature')
-    plt.ylabel('Thermal SAM')
-    plt.savefig(Path(folderpath, 'thermSAM_groundtemp.png'))
-    plt.close(fig)
-
-    fig = plt.figure()
-    plt.figure()
-    plt.scatter(temperature_ground, therm_MAE, alpha=0.1)
-    plt.xlabel('Ground truth temperature')
-    plt.ylabel('Thermal MAE')
-    plt.savefig(Path(folderpath, 'thermMAE_groundtemp.png'))
-    plt.close(fig)
-
-    fig = plt.figure()
-    plt.figure()
-    plt.scatter(temperature_ground, refl_MAE, alpha=0.1)
-    plt.xlabel('Ground truth temperature')
-    plt.ylabel('Reflected MAE')
-    plt.savefig(Path(folderpath, 'reflMAE_groundtemp.png'))
-    plt.close(fig)
+    plot_and_save(np.asarray(refl_SAM_uncor) - np.asarray(refl_SAM), r'SAM($L_{th}$) improvement', 'refl-SAM-improvement_groundtemp.png')
+    plot_and_save(np.asarray(R_SAM_uncor) - np.asarray(R_SAM), r'SAM($R$) improvement', 'R-SAM-improvement_groundtemp.png')
+    plot_and_save()
 
 
-def plot_Bennu_errors(errordict):
+    # fig = plt.figure()
+    # plt.figure()
+    # plt.scatter(temperature_ground, refl_SAM, alpha=0.1)
+    # plt.xlabel('Ground truth temperature')
+    # plt.ylabel('Reflected SAM')
+    # plt.savefig(Path(folderpath, 'reflSAM_groundtemp.png'))
+    # plt.close(fig)
+    #
+    # fig = plt.figure()
+    # plt.figure()
+    # plt.scatter(temperature_ground, therm_SAM, alpha=0.1)
+    # plt.xlabel('Ground truth temperature')
+    # plt.ylabel('Thermal SAM')
+    # plt.savefig(Path(folderpath, 'thermSAM_groundtemp.png'))
+    # plt.close(fig)
+    #
+    # fig = plt.figure()
+    # plt.figure()
+    # plt.scatter(temperature_ground, therm_MAE, alpha=0.1)
+    # plt.xlabel('Ground truth temperature')
+    # plt.ylabel('Thermal MAE')
+    # plt.savefig(Path(folderpath, 'thermMAE_groundtemp.png'))
+    # plt.close(fig)
+    #
+    # fig = plt.figure()
+    # plt.figure()
+    # plt.scatter(temperature_ground, refl_MAE, alpha=0.1)
+    # plt.xlabel('Ground truth temperature')
+    # plt.ylabel('Reflected MAE')
+    # plt.savefig(Path(folderpath, 'reflMAE_groundtemp.png'))
+    # plt.close(fig)
+
+
+def plot_Bennu_errors(folderpath):
+    errordict = file_handling.load_toml(Path(folderpath, 'errors_Bennu.toml'))
     errors_1000 = errordict['errors_1000']
     errors_1230 = errordict['errors_1230']
     errors_1500 = errordict['errors_1500']
 
-    def Bennuplot(errors_1000, errors_1230, errors_1500, data_name, label, savefolder):
+    def Bennuplot(errors_1000, errors_1230, errors_1500, data_name, label):
 
         def fetch_data(errordict, data_name):
             temperature_dict = errordict['temperature']
@@ -788,15 +807,70 @@ def plot_Bennu_errors(errordict):
             lh.set_alpha(1)
         if data_name == 'predicted_temperature':
             plt.plot(range(300, 350), range(300, 350), 'r')  # Plot a reference line with slope 1: ideal result
-        plt.savefig(Path(savefolder, f'{data_name}.png'))
+        plt.savefig(Path(folderpath, f'{data_name}.png'))
         # plt.show()
 
-    savefolder = C.val_and_test_path
-    Bennuplot(errors_1000, errors_1230, errors_1500, 'predicted_temperature', 'Predicted temperature [K]', savefolder)
-    Bennuplot(errors_1000, errors_1230, errors_1500, 'temperature_error', 'Temperature difference [K]', savefolder)
-    Bennuplot(errors_1000, errors_1230, errors_1500, 'reflected_MAE', 'Reflected MAE', savefolder)
-    Bennuplot(errors_1000, errors_1230, errors_1500, 'thermal_MAE', 'Thermal MAE', savefolder)
-    Bennuplot(errors_1000, errors_1230, errors_1500, 'reflected_SAM', 'Reflected SAM', savefolder)
-    Bennuplot(errors_1000, errors_1230, errors_1500, 'thermal_SAM', 'Thermal SAM', savefolder)
+    # savefolder = C.val_and_test_path
+    # Bennuplot(errors_1000, errors_1230, errors_1500, 'predicted_temperature', 'Predicted temperature [K]')
+    # Bennuplot(errors_1000, errors_1230, errors_1500, 'reflected_MAE', 'Reflected MAE')
+    # Bennuplot(errors_1000, errors_1230, errors_1500, 'thermal_MAE', 'Thermal MAE')
+    # Bennuplot(errors_1000, errors_1230, errors_1500, 'reflected_SAM', 'Reflected SAM')
+    # Bennuplot(errors_1000, errors_1230, errors_1500, 'thermal_SAM', 'Thermal SAM')
     print('test')
+
+    def Bennu_comparison_plots(corrected_name, uncorrected_name, label, lim=(0,0)):
+        temp_dict_1000 = errors_1000['temperature']
+        ground_temps_1000 = np.asarray(temp_dict_1000['ground_temperature'])
+        temp_dict_1230 = errors_1230['temperature']
+        ground_temps_1230 = np.asarray(temp_dict_1230['ground_temperature'])
+        temp_dict_1500 = errors_1500['temperature']
+        ground_temps_1500 = np.asarray(temp_dict_1500['ground_temperature'])
+
+        if 'MAE' in corrected_name:
+            dict_name = 'MAE'
+        elif 'SAM' in corrected_name:
+            dict_name = 'SAM'
+        dict_1000 = errors_1000[dict_name]
+        corrected_1000 = dict_1000[corrected_name]
+        uncorrected_1000 = dict_1000[uncorrected_name]
+        dict_1230 = errors_1230[dict_name]
+        corrected_1230 = dict_1230[corrected_name]
+        uncorrected_1230 = dict_1230[uncorrected_name]
+        dict_1500 = errors_1500[dict_name]
+        corrected_1500 = dict_1500[corrected_name]
+        uncorrected_1500 = dict_1500[uncorrected_name]
+
+        fig = plt.figure()
+
+        # cor_scatter1 = plt.scatter(ground_temps_1000, uncorrected_1000, alpha=0.1, color='r', marker='x')#'#ff7f0e')
+        # cor_scatter2 = plt.scatter(ground_temps_1230, uncorrected_1230, alpha=0.1, color='r', marker='x')#'#ff7f0e')
+        # cor_scatter3 = plt.scatter(ground_temps_1500, uncorrected_1500, alpha=0.1, color='r', marker='x')#'#ff7f0e')
+        # Default pyplot colors: '#1f77b4', '#ff7f0e', '#2ca02c'
+        # uncor_scatter1 = plt.scatter(ground_temps_1000, np.asarray(uncorrected_1000) - np.asarray(corrected_1000), alpha=0.1)#, color='#1f77b4')
+        # uncor_scatter2 = plt.scatter(ground_temps_1230, np.asarray(uncorrected_1230) - np.asarray(corrected_1230), alpha=0.1)#, color='#1f77b4')
+        # uncor_scatter3 = plt.scatter(ground_temps_1500, np.asarray(uncorrected_1500) - np.asarray(corrected_1500), alpha=0.1)#, color='#1f77b4')
+        uncor_scatter1 = plt.scatter(ground_temps_1000, np.asarray(uncorrected_1000) - np.asarray(corrected_1000),
+                                     alpha=0.1)  # , color='#1f77b4')
+        uncor_scatter2 = plt.scatter(ground_temps_1230, np.asarray(uncorrected_1230) - np.asarray(corrected_1230),
+                                     alpha=0.1)  # , color='#1f77b4')
+        uncor_scatter3 = plt.scatter(ground_temps_1500, np.asarray(uncorrected_1500) - np.asarray(corrected_1500),
+                                     alpha=0.1)  # , color='#1f77b4')
+
+
+        if lim != (0, 0):
+            plt.ylim(lim)
+
+        leg = plt.legend(('10:00', '12:30', '15:00'), title='Local time on Bennu')
+        for lh in leg.legendHandles:
+            lh.set_alpha(1)
+        plt.xlabel('Ground truth temperature [K]')
+        plt.ylabel(label)
+        # plt.show()
+        plt.savefig(Path(folderpath, f'{corrected_name}_improvement.png'))
+        plt.close(fig)
+
+    Bennu_comparison_plots('reflected_MAE', 'reflected_MAE_uncorrected', r'MAE($L_{refl}$) improvement)', lim=(-0.002, 0.004))
+    Bennu_comparison_plots('reflected_SAM', 'reflected_SAM_uncorrected', r'$L_{refl}$ cosine distance improvement', lim=(0, 0))
+    Bennu_comparison_plots('reflectance_MAE', 'reflectance_MAE_uncorrected', r'MAE($R$) improvement', lim=(-0.007, 0.009))
+    Bennu_comparison_plots('reflectance_SAM', 'reflectance_SAM_uncorrected', r'$R$ cosine distance improvement', lim=(0, 0))
 

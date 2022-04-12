@@ -51,10 +51,10 @@ def thermal_radiance(T: float, eps: np.ndarray, wavelength: np.ndarray):
 def reflected_radiance(reflectance: np.ndarray, irradiance: np.ndarray, incidence_angle: float, emission_angle: float):
     """
     Calculate spectral radiance reflected from a surface, based on the surface reflectance, irradiance incident on it,
-    and the phase angle of the measurement. Angle dependence is calculated using the Lommel-Seeliger model.
+    and the phase angle of the measurement. Angle dependence (BRDF) is calculated using the Lommel-Seeliger model.
 
     :param reflectance: vector of floats
-        Spectral reflectance.
+        Spectral reflectance, calculated using estimation for single-scattering albedo
     :param irradiance: vector of floats
         Spectral irradiance incident on the surface.
     :param incidence_angle: float
@@ -70,11 +70,11 @@ def reflected_radiance(reflectance: np.ndarray, irradiance: np.ndarray, incidenc
     reflrad = np.zeros((len(wavelength), 2))
     reflrad[:, 0] = wavelength
 
-    # Reflected radiance from flat surface with 0 phase angle
-    reflrad[:, 1] = irradiance[:, 1] * reflectance
+    # BRDF with Lommel-Seeliger
+    reflrad[:, 1] = (reflectance / (4 * np.pi)) * (1 / (np.cos(np.deg2rad(incidence_angle)) + np.cos(np.deg2rad(emission_angle))))
 
-    # Angle dependence with Lommel-Seeliger
-    reflrad[:, 1] = (reflrad[:, 1] / (4 * np.pi)) * (1 / (np.cos(np.deg2rad(incidence_angle)) + np.cos(np.deg2rad(emission_angle))))
+    # Reflected radiance from incident irradiance and BRDF
+    reflrad[:, 1] = irradiance[:, 1] * reflrad[:, 1]
 
     return reflrad
 
@@ -111,9 +111,7 @@ def noising(rad_data):
     Apply Gaussian noise to spectral data
 
     :param rad_data: ndarray
-
         Radiance data to which the noise will be applied: first column is wavelength, second is spectral radiance
-
     :return:
         Noisified radiance data
     """
@@ -238,7 +236,8 @@ def calculate_radiances(reflectance_list: list, test: bool, samples_per_temperat
         How many spectra will be generated per temperature value. Default is 200.
     :param constant_emissivity: Boolean
         Whether or not the thermal data generation will use constant 0.9 emissivity. Default is true, if false will use
-        Kirchhoff's law to generate emissivity spectrum from reflectance spectrum.
+        Kirchhoff's law to generate emissivity spectrum from reflectance spectrum. Note that Kirchhoff should only
+        be used when working with reflectances originally corrected using Kirchhoff.
 
     :return: summed, separate: ndarrays
         Arrays containing summed spectra and separate reflected and thermal spectra
@@ -247,7 +246,7 @@ def calculate_radiances(reflectance_list: list, test: bool, samples_per_temperat
 
     # Minimum temperature pulled from constants
     T_min = int(C.T_min)
-    # Maximum temperature as maximum possible for minimum heliocentric distance
+    # Maximum temperature as theoretical maximum at minimum heliocentric distance
     T_max = int(utils.calculate_subsolar_temperature(C.d_S_min))
 
     # Generate vector of temperatures from minimum to maximum with 1 K separation
@@ -262,7 +261,7 @@ def calculate_radiances(reflectance_list: list, test: bool, samples_per_temperat
 
     j = 0
 
-    # From each reflectance, create 10 radiances calculated with different parameters
+    # For each temperature
     for temperature in temperature_vector:
         for i in range(samples_per_temperature):
             # Create random variables from min-max ranges given in constants

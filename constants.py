@@ -41,8 +41,8 @@ radiance_training_path = Path(radiance_path, 'training')
 radiance_test_path = Path(radiance_path, 'test')
 training_path = Path('./training')
 spectral_path = Path('./spectral_data')
-rad_bunch_test_path = Path('./spectral_data/rad_bunch_test_0.9-emittance_general')  # All radiances, saved as a dict
-rad_bunch_training_path = Path('./spectral_data/rad_bunch_training_0.9-emittance_general')
+rad_bunch_test_path = Path('./spectral_data/rad_bunch_test_0.9-emittance_bennu_unphysical')  # All radiances, saved as a dict
+rad_bunch_training_path = Path('./spectral_data/rad_bunch_training_0.9-emittance_bennu_unphysical')
 bennu_plots_path = Path(figfolder, 'Bennu-plots')
 val_and_test_path = Path('./validation_and_testing')
 
@@ -58,7 +58,7 @@ sigma = 0.001  # 0.01  # standard deviation
 # Constraints for modeled radiances
 d_S_min, d_S_max = 0.7, 2.8  # Heliocentric distance for asteroids where the problem is relevant, in AU
 # d_S_min, d_S_max = 0.8968944004459729, 1.355887651343651  # Heliocentric distances for Bennu, in AU
-T_min, T_max = 150, 430  # Asteroid surface temperature, in Kelvins
+T_min, T_max = 200, 430  # Asteroid surface temperature, in Kelvins
 i_min, i_max = 0, 89  # Incidence angle, angle between surface normal and incident light, in degrees
 e_min, e_max = 0, 89  # Emission angle, angle between surface normal and observer direction, in degrees
 emittance = 0.9
@@ -69,7 +69,7 @@ emittance = 0.9
 refl_test_partition = 0.1  # Part of reflectances to be used for test data
 activation = 'relu'
 batches = 32
-epochs = 1000
+epochs = 1101
 # Best configuration from latest run, trial summary
 # Hyperparameters:
 # filters: 50

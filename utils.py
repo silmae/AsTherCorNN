@@ -102,21 +102,14 @@ def thermal_error_from_hc_distance(distance_min: float, distance_max: float, sam
             alb = albedo_frame.loc[asteroid_class].values
             geom_albedo = alb[0] - 0.5*alb[1]
 
-            # Convert geometrical albedo to Bond albedo, assuming Lommel-Seeliger TODO Formula by Penttilä, find a reference or make it yoself
-            bond_albedo = 16 * geom_albedo * (1 - np.log(2)) / 3
-
-            # Scale by multiplying with p/mean(norm_refl): values stay between 0 and 1, mean of scaled vector will be p
-            reflectance = norm_reflectance * (bond_albedo / np.mean(norm_reflectance))
+            # Un-normalize reflectance by scaling it with visual geometrical albedo
+            spectral_reflectance = norm_reflectance * geom_albedo
+            # Convert reflectance to single-scattering albedo, using Lommel-Seeliger
+            spectral_single_scattering_albedo = 8 * spectral_reflectance
 
             # Print if the physical limits of min and max reflectance are exceeded
-            if np.max(reflectance) > 1 or np.min(reflectance) < 0:
-                print(f'Unphysical reflectance detected! Max {np.max(reflectance)}, min {np.min(reflectance)}')
-            if np.mean(reflectance) - bond_albedo > 0.001:
-                print(f'Deviation from albedo detected! Difference between albedo and mean R {np.mean(reflectance) - bond_albedo}')
-            break
-
-    # Calculate spectral emittance with Kirchhoff's law
-    emittance = 1 - reflectance
+            if np.max(spectral_single_scattering_albedo) > 1 or np.min(spectral_single_scattering_albedo) < 0:
+                print(f'Unphysical reflectance detected! Max {np.max(spectral_single_scattering_albedo)}, min {np.min(spectral_single_scattering_albedo)}')
 
     # A list of heliocentric distances
     distances = np.linspace(distance_min, distance_max, samples)
@@ -132,8 +125,9 @@ def thermal_error_from_hc_distance(distance_min: float, distance_max: float, sam
                                               incidence_ang=0,
                                               emission_ang=0,
                                               T=temperatures[i],
-                                              reflectance=reflectance,
+                                              reflectance=spectral_single_scattering_albedo,
                                               waves=C.wavelengths,
+                                              constant_emissivity=True,
                                               filename='filename',
                                               test=True,
                                               save_file=False)
