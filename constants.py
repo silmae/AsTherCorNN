@@ -46,7 +46,6 @@ rad_bunch_training_path = Path('./spectral_data/rad_bunch_training_0.9-emittance
 bennu_plots_path = Path(figfolder, 'Bennu-plots')
 val_and_test_path = Path('./validation_and_testing')
 
-
 # Keys for variables
 wl_key = 'wavelength'
 R_key = 'reflectance'
@@ -61,15 +60,17 @@ d_S_min, d_S_max = 0.8968944004459729 - 0.1, 1.355887651343651 + 0.1  # Heliocen
 T_min, T_max = 200, 430  # Asteroid surface temperature, in Kelvins
 i_min, i_max = 0, 89  # Incidence angle, angle between surface normal and incident light, in degrees
 e_min, e_max = 0, 89  # Emission angle, angle between surface normal and observer direction, in degrees
-emittance = 0.9
 # IN TRUTH both emission and incidence angles can go up to 90... but if both hit 90, we get division by zero when
 # calculating reflected radiance, and everything explodes
+
+emissivity_min, emissivity_max = 0.6, 0.99  # Emissivity, ratio between thermal emission from body and from ideal bb
+p_min, p_max = 0.01, 0.40  # Geometrical albedo, ratio of light reflected from asteroid and from Lambertian disc
 
 # Neural network parameters
 refl_test_partition = 0.1  # Part of reflectances to be used for test data
 activation = 'relu'
 batches = 32
-epochs = 1102
+epochs = 1103
 # Best configuration from latest run, trial summary
 # Hyperparameters:
 # filters: 50

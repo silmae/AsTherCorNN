@@ -165,7 +165,7 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
     elif constant_emissivity == True:
         # Approximate emissivity with constant 0.9
         emittance = np.empty((len(waves), 1))
-        emittance.fill(C.emittance)
+        emittance.fill(C.emissivity)
 
     # Calculate theoretical thermal emission from an asteroid's surface
     thermrad = thermal_radiance(T, emittance, waves)

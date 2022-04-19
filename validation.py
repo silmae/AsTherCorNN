@@ -44,7 +44,7 @@ def fit_Planck(radiance: np.ndarray):
     a = a * 1e24  # Convert to kg µm⁴/s³
     b = 0.01439  # m K
     b = b * 1e6  # Convert to µm K
-    eps = C.emittance  # Emittance
+    eps = C.emissivity  # Emittance
 
     # Temperature and emissivity as fitting parameters, wavelength as variable
     init_guess = (C.T_max + C.T_min) / 2

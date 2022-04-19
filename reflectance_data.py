@@ -229,23 +229,20 @@ def scale_asteroid_reflectances(normalized_frame: pd.DataFrame, albedo_frame: pd
         # The first value of a row is the asteroid class, the rest is normalized reflectance
         asteroid_class, norm_reflectance = row[0], row[1:]
 
-        # Fetch the asteroid class albedo and its range. Take three values using the min, mid, and max of the range
-        alb = albedo_frame.loc[asteroid_class].values
-        geom_albedos = np.array([alb[0] - 0.5*alb[1], alb[0], alb[0] + 0.5*alb[1]])
+        # Geometrical albedo, pulled from uniform distribution between min and max
+        geom_albedo = random.uniform(C.p_min, C.p_max)
 
-        # Scale normalized reflectance with the three albedo values
-        for i in range(3):
-            # Un-normalize reflectance by scaling it with visual geometrical albedo
-            spectral_reflectance = norm_reflectance * geom_albedos[i]
-            # Convert reflectance to single-scattering albedo, using Lommel-Seeliger
-            spectral_single_scattering_albedo = 8 * spectral_reflectance
+        # Un-normalize reflectance by scaling it with visual geometrical albedo
+        spectral_reflectance = norm_reflectance * geom_albedo
+        # Convert reflectance to single-scattering albedo, using Lommel-Seeliger
+        spectral_single_scattering_albedo = 8 * spectral_reflectance
 
-            # Print if the physical limits of min and max reflectance are exceeded. And they will be, since L-S is not
-            # really suitable for bodies with geom. albedo > 0.125
-            if np.max(spectral_single_scattering_albedo) > 1 or np.min(spectral_single_scattering_albedo) < 0:
-                print(f'Unphysical reflectance detected! Max {np.max(spectral_single_scattering_albedo)}, min {np.min(spectral_single_scattering_albedo)}')
+        # Print if the physical limits of min and max reflectance are exceeded. And they will be, since L-S is not
+        # really suitable for bodies with geom. albedo > 0.125
+        if np.max(spectral_single_scattering_albedo) > 1 or np.min(spectral_single_scattering_albedo) < 0:
+            print(f'Unphysical reflectance detected! Max {np.max(spectral_single_scattering_albedo)}, min {np.min(spectral_single_scattering_albedo)}')
 
-            spectral_reflectances.append(spectral_single_scattering_albedo)
+        spectral_reflectances.append(spectral_single_scattering_albedo)
 
         # Plot every hundreth set of three reflectances, save plots to disc
         if plot_index % 100 == 0:

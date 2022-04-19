@@ -52,7 +52,7 @@ if __name__ == '__main__':
 
     ############################
     # # # TRAINING
-    # # NN.prepare_training_data()
+    NN.prepare_training_data()
     # # Create a neural network model
     # untrained = NN.create_model(
     #     conv_filters=C.conv_filters,
