@@ -44,8 +44,8 @@ def prepare_training_data():
     train_reflectances, test_reflectances = refl.read_asteroids()
 
     # Calculate a number of  radiances from each reflectance, save them on disc as toml, and return the data vectors
-    summed_test, separate_test = rad.calculate_radiances(test_reflectances, test=True, samples_per_temperature=int(len(test_reflectances)/10))
-    summed_training, separate_training = rad.calculate_radiances(train_reflectances, test=False, samples_per_temperature=int(len(train_reflectances)/10))
+    summed_test, separate_test = rad.calculate_radiances(test_reflectances, test=True, samples_per_temperature=int(len(test_reflectances)/5), emissivity_type='random')
+    summed_training, separate_training = rad.calculate_radiances(train_reflectances, test=False, samples_per_temperature=int(len(train_reflectances)/5), emissivity_type='random')
 
     # Create a "bunch" from training and testing radiances and save both in their own files. This is orders of
     # magnitude faster than reading each radiance from its own toml

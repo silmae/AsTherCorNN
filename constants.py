@@ -41,8 +41,8 @@ radiance_training_path = Path(radiance_path, 'training')
 radiance_test_path = Path(radiance_path, 'test')
 training_path = Path('./training')
 spectral_path = Path('./spectral_data')
-rad_bunch_test_path = Path('./spectral_data/rad_bunch_test_0.9-emittance_bennu_unphysical')  # All radiances, saved as a dict
-rad_bunch_training_path = Path('./spectral_data/rad_bunch_training_0.9-emittance_bennu_unphysical')
+rad_bunch_test_path = Path('./spectral_data/rad_bunch_test_bennu_random')  # All radiances, saved as a dict
+rad_bunch_training_path = Path('./spectral_data/rad_bunch_training_bennu_random')
 bennu_plots_path = Path(figfolder, 'Bennu-plots')
 val_and_test_path = Path('./validation_and_testing')
 
@@ -52,7 +52,7 @@ R_key = 'reflectance'
 
 # Gaussian distribution for noising
 mu = 0  # mean
-sigma = 0.001  # 0.01  # standard deviation
+sigma = 0.005  # 0.01  # standard deviation
 
 # Constraints for modeled radiances
 # d_S_min, d_S_max = 0.7, 2.8  # Heliocentric distance for asteroids where the problem is relevant, in AU
@@ -70,7 +70,7 @@ p_min, p_max = 0.01, 0.40  # Geometrical albedo, ratio of light reflected from a
 refl_test_partition = 0.1  # Part of reflectances to be used for test data
 activation = 'relu'
 batches = 32
-epochs = 1103
+epochs = 510
 # Best configuration from latest run, trial summary
 # Hyperparameters:
 # filters: 50

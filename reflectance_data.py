@@ -206,13 +206,15 @@ def augmented_reflectances(reflectance_spectra: list, waves: np.ndarray, test: b
         FH.save_aug_reflectance(spectrum, f'reflectance{j}', test)
 
 
-def scale_asteroid_reflectances(normalized_frame: pd.DataFrame, albedo_frame: pd.DataFrame):
+def scale_asteroid_reflectances(normalized_frame: pd.DataFrame, albedos_per_reflectance: int, albedo_frame: pd.DataFrame):
     """
     Scale normalized asteroid reflectance spectra to absolute reflectances using typical albedo values for each
     asteroid class.
 
     :param normalized_frame: 
         Pandas dataframe of normalized asteroid reflectances, with class of each asteroid included
+    :param albedos_per_reflectance:
+        How many versions of each reflectance, scaled with different random albedo values
     :param albedo_frame:
         Pandas dataframe of typical albedos for asteroid classes, including a range of variation for each
     
@@ -229,20 +231,21 @@ def scale_asteroid_reflectances(normalized_frame: pd.DataFrame, albedo_frame: pd
         # The first value of a row is the asteroid class, the rest is normalized reflectance
         asteroid_class, norm_reflectance = row[0], row[1:]
 
-        # Geometrical albedo, pulled from uniform distribution between min and max
-        geom_albedo = random.uniform(C.p_min, C.p_max)
+        for i in range(albedos_per_reflectance):
+            # Geometrical albedo, pulled from uniform distribution between min and max
+            geom_albedo = random.uniform(C.p_min, C.p_max)
 
-        # Un-normalize reflectance by scaling it with visual geometrical albedo
-        spectral_reflectance = norm_reflectance * geom_albedo
-        # Convert reflectance to single-scattering albedo, using Lommel-Seeliger
-        spectral_single_scattering_albedo = 8 * spectral_reflectance
+            # Un-normalize reflectance by scaling it with visual geometrical albedo
+            spectral_reflectance = norm_reflectance * geom_albedo
+            # Convert reflectance to single-scattering albedo, using Lommel-Seeliger
+            spectral_single_scattering_albedo = 8 * spectral_reflectance
 
-        # Print if the physical limits of min and max reflectance are exceeded. And they will be, since L-S is not
-        # really suitable for bodies with geom. albedo > 0.125
-        if np.max(spectral_single_scattering_albedo) > 1 or np.min(spectral_single_scattering_albedo) < 0:
-            print(f'Unphysical reflectance detected! Max {np.max(spectral_single_scattering_albedo)}, min {np.min(spectral_single_scattering_albedo)}')
+            # Print if the physical limits of min and max reflectance are exceeded. And they will be, since L-S is not
+            # really suitable for bodies with geom. albedo > 0.125
+            if np.max(spectral_single_scattering_albedo) > 1 or np.min(spectral_single_scattering_albedo) < 0:
+                print(f'Unphysical reflectance detected! Max {np.max(spectral_single_scattering_albedo)}, min {np.min(spectral_single_scattering_albedo)}')
 
-        spectral_reflectances.append(spectral_single_scattering_albedo)
+            spectral_reflectances.append(spectral_single_scattering_albedo)
 
         # Plot every hundreth set of three reflectances, save plots to disc
         if plot_index % 100 == 0:
@@ -291,8 +294,8 @@ def read_asteroids():
     train_frame = aug_frame.iloc[test_part:, :]
 
     # Scale normalized spectra using class mean albedos
-    test_reflectances = scale_asteroid_reflectances(test_frame, albedo_frame)
-    train_reflectances = scale_asteroid_reflectances(train_frame, albedo_frame)
+    test_reflectances = scale_asteroid_reflectances(test_frame, 5, albedo_frame)
+    train_reflectances = scale_asteroid_reflectances(train_frame, 5, albedo_frame)
 
     return train_reflectances, test_reflectances
 

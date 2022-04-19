@@ -125,7 +125,9 @@ def noising(rad_data):
     return rad_data
 
 
-def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: float, reflectance: np.ndarray, waves: np.ndarray, constant_emissivity: bool, filename: str, test: bool, plots=False, save_file=True):
+def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: float, reflectance: np.ndarray,
+                      waves: np.ndarray, emissivity: float or list or np.ndarray, filename: str, test: bool,
+                      plots=False, save_file=True):
     """
     Simulate observed radiance with given parameters. Calculates reflected and thermally emitted radiances in separate
     functions, and sums them to get observed radiance. Adds noise to the summed radiance. Saves separate and summed
@@ -144,8 +146,9 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
         Spectral reflectance
     :param waves: ndarray
         Wavelength vector in micrometers
-    :param constant_emissivity: bool
-        Whether thermal calculation will use constant 0.9 emissivity or calculate emissivity through Kirchhoff's law
+    :param emissivity: float, list, or ndarray
+        If float, assumed to be constant over wavelengths. If ndarray, assumed to have same wavelength vector as defined
+        in constants.py
     :param filename: string
         Name which will be included in files related to the radiances (plots and .toml), without extension
     :param test: boolean
@@ -159,13 +162,24 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
     # Calculate theoretical radiance reflected from an asteroid toward observer
     reflrad = reflected_radiance(reflectance, insolation, incidence_ang, emission_ang)
 
-    if constant_emissivity == False:
-        # Calculate emittance according to Kirchhoff's law
-        emittance = 1 - reflectance
-    elif constant_emissivity == True:
-        # Approximate emissivity with constant 0.9
+    if type(emissivity) == float or len(emissivity) == 1:
+        # If a single float, make it into a vector where each element is that number
         emittance = np.empty((len(waves), 1))
-        emittance.fill(C.emissivity)
+        emittance.fill(emissivity)
+    elif type(emissivity) == list:
+        # If emissivity is a list with correct length, convert to ndarray
+        if len(emissivity) == len(C.wavelengths):
+            emittance = np.asarray(emissivity)
+        else:
+            print('Emissivity list was not same length as wavelength vector. Stopping execution...')
+            quit()
+    elif type(emissivity) == np.ndarray:
+        # If emissivity array is of correct shape, rename it to emittance and proceed
+        if emissivity.shape == C.wavelengths.shape or emissivity.shape == (C.wavelengths.shape, 1) or emissivity.shape == (1, C.wavelengths.shape):
+            emittance = emissivity
+        else:
+            print('Emissivity array was not same shape as wavelength vector. Stopping execution...')
+            quit()
 
     # Calculate theoretical thermal emission from an asteroid's surface
     thermrad = thermal_radiance(T, emittance, waves)
@@ -181,7 +195,7 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
     # Collect the data into a dict
     rad_dict = {}
     meta = {'heliocentric_distance': d_S, 'incidence_angle': incidence_ang, 'emission_angle': emission_ang, 'surface_temperature': T,
-            'emittance': emittance}
+            'emissivity': emittance}
     rad_dict['metadata'] = meta
     rad_dict['wavelength'] = waves
     rad_dict['reflected_radiance'] = reflrad[:, 1]
@@ -219,7 +233,7 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
 
     return rad_dict
 
-def calculate_radiances(reflectance_list: list, test: bool, samples_per_temperature: int = 2, constant_emissivity=True):
+def calculate_radiances(reflectance_list: list, test: bool, samples_per_temperature: int = 2, emissivity_type: str = 'constant'):
     """
     Generate vector of temperature values based on minimum given in constants and maximum calculated from minimum
     heliocentric distance. For each temperature simulate a number of observed radiances with reflectance vector
@@ -235,10 +249,10 @@ def calculate_radiances(reflectance_list: list, test: bool, samples_per_temperat
         Whether the data will be used for testing or training, affects only the save location.
     :param samples_per_temperature: int
         How many spectra will be generated per temperature value. Default is 200.
-    :param constant_emissivity: Boolean
-        Whether or not the thermal data generation will use constant 0.9 emissivity. Default is true, if false will use
-        Kirchhoff's law to generate emissivity spectrum from reflectance spectrum. Note that Kirchhoff should only
-        be used when working with reflectances originally corrected using Kirchhoff.
+    :param emissivity_type: string
+        Must be "constant", "kirchhoff", or "random". Fist is 0.9 for all samples, second is spectral emissivity
+        calculated from spectral reflectance with Kirchhoff's law, third is random value between min and max given
+        in constants.py (stays constant over wavelengths)
 
     :return: summed, separate: ndarrays
         Arrays containing summed spectra and separate reflected and thermal spectra
@@ -274,12 +288,24 @@ def calculate_radiances(reflectance_list: list, test: bool, samples_per_temperat
             reflectance_index = random.randint(0, len(reflectance_list)-1)
             reflectance = reflectance_list[reflectance_index]
 
+            # Emissivity according to type given in arguments
+            if emissivity_type == 'kirchhoff':
+                emissivity = 1 - reflectance
+            elif emissivity_type == 'constant':
+                emissivity = 0.9
+            elif emissivity_type == 'random':
+                emissivity = random.uniform(C.emissivity_min, C.emissivity_max)
+            else:
+                print("Emissivity type did not correspond to any known value, stopping execution. Next time try "
+                      "constant, kirchhoff, or random.")
+                quit()
+
             if j % 10000 == 0:
                 # Calculate radiances with the given parameters and
                 # save plots for every 10 000th radiance and reflectance
-                obs_rad_dict = observed_radiance(d_S, incidence_ang, emission_ang, temperature, reflectance, waves, constant_emissivity, 'rads_' + str(j), test, plots=True)
+                obs_rad_dict = observed_radiance(d_S, incidence_ang, emission_ang, temperature, reflectance, waves, emissivity, 'rads_' + str(j), test, plots=True)
             else:
-                obs_rad_dict = observed_radiance(d_S, incidence_ang, emission_ang, temperature, reflectance, waves, constant_emissivity, 'rads_' + str(j), test)
+                obs_rad_dict = observed_radiance(d_S, incidence_ang, emission_ang, temperature, reflectance, waves, emissivity, 'rads_' + str(j), test)
 
             # Discard the metadata and store data vectors into arrays
             summed[j, :] = obs_rad_dict['sum_radiance']
