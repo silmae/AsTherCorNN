@@ -56,8 +56,8 @@ mu = 0  # mean
 sigma = 0.001  # 0.01  # standard deviation
 
 # Constraints for modeled radiances
-d_S_min, d_S_max = 0.7, 2.8  # Heliocentric distance for asteroids where the problem is relevant, in AU
-# d_S_min, d_S_max = 0.8968944004459729, 1.355887651343651  # Heliocentric distances for Bennu, in AU
+# d_S_min, d_S_max = 0.7, 2.8  # Heliocentric distance for asteroids where the problem is relevant, in AU
+d_S_min, d_S_max = 0.8968944004459729 - 0.1, 1.355887651343651 + 0.1  # Heliocentric distances for Bennu, in AU
 T_min, T_max = 200, 430  # Asteroid surface temperature, in Kelvins
 i_min, i_max = 0, 89  # Incidence angle, angle between surface normal and incident light, in degrees
 e_min, e_max = 0, 89  # Emission angle, angle between surface normal and observer direction, in degrees
@@ -69,7 +69,7 @@ emittance = 0.9
 refl_test_partition = 0.1  # Part of reflectances to be used for test data
 activation = 'relu'
 batches = 32
-epochs = 1101
+epochs = 1102
 # Best configuration from latest run, trial summary
 # Hyperparameters:
 # filters: 50

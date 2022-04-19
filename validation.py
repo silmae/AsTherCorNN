@@ -216,7 +216,7 @@ def test_model(X_test, y_test, model, temperatures, savefolder):
     plt.scatter(temperature_ground, reflrad_cos_corrected, alpha=0.1)
     plt.xlabel('Ground truth temperature [K]')
     plt.ylabel('Reflected cosine distance')
-    leg = plt.legend(('NN-corrected', 'Uncorrected'))
+    leg = plt.legend(('Uncorrected', 'NN-corrected'))
     for lh in leg.legendHandles:
         lh.set_alpha(1)
     plt.savefig(Path(savefolder, 'reflrad_SAM_groundtemp.png'))
@@ -228,7 +228,7 @@ def test_model(X_test, y_test, model, temperatures, savefolder):
     plt.scatter(temperature_ground, reflectance_cos_corrected, alpha=0.1)
     plt.xlabel('Ground truth temperature [K]')
     plt.ylabel('Reflectance cosine distance')
-    leg = plt.legend(('NN-corrected', 'Uncorrected'))
+    leg = plt.legend(('Uncorrected', 'NN-corrected'))
     for lh in leg.legendHandles:
         lh.set_alpha(1)
     plt.savefig(Path(savefolder, 'reflectance_SAM_groundtemp.png'))
@@ -240,7 +240,7 @@ def test_model(X_test, y_test, model, temperatures, savefolder):
     plt.scatter(temperature_ground, reflectance_mae_corrected, alpha=0.1)
     plt.xlabel('Ground truth temperature [K]')
     plt.ylabel('Reflectance MAE')
-    leg = plt.legend(('NN-corrected', 'Uncorrected'))
+    leg = plt.legend(('Uncorrected', 'NN-corrected'))
     for lh in leg.legendHandles:
         lh.set_alpha(1)
     plt.savefig(Path(savefolder, 'reflectance_MAE_groundtemp.png'))
@@ -268,7 +268,7 @@ def test_model(X_test, y_test, model, temperatures, savefolder):
     plt.scatter(temperature_ground, reflrad_mae_corrected, alpha=0.1)
     plt.xlabel('Ground truth temperature [K]')
     plt.ylabel('Reflected MAE')
-    leg = plt.legend(('NN-corrected', 'Uncorrected'))
+    leg = plt.legend(('Uncorrected', 'NN-corrected'))
     for lh in leg.legendHandles:
         lh.set_alpha(1)
     plt.savefig(Path(savefolder, 'reflrad_MAE_groundtemp.png'))
@@ -341,7 +341,7 @@ def validate_synthetic(model, validation_run_folder):
     # Shuffle to get samples from all temperatures when using part of the data
     X_test, y_test = sklearn.utils.shuffle(X_test, y_test, random_state=0)
 
-    indices = range(int(len(X_test[:, 0]) * 0.5))  # 10 percent of samples used for error calculation, takes less time
+    indices = range(int(len(X_test[:, 0]) * 0.1))  # 10 percent of samples used for error calculation, takes less time
     X_test = X_test[indices]
     y_test = y_test[indices]
 

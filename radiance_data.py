@@ -163,6 +163,7 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
         # Calculate emittance according to Kirchhoff's law
         emittance = 1 - reflectance
     elif constant_emissivity == True:
+        # Approximate emissivity with constant 0.9
         emittance = np.empty((len(waves), 1))
         emittance.fill(C.emittance)
 
