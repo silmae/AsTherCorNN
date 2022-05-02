@@ -30,7 +30,7 @@ Penttila_aug_path = Path('./spectral_data/reflectances/Penttila_asteroid_spectra
 '''Reflectance spectra of asteroids, augmented'''
 albedo_path = Path('./spectral_data/reflectances/Penttila_asteroid_spectra/class-mean-albedos.tab')
 '''Mean albedos of asteroid spectral classes'''
-solar_path = Path('./spectral_data/solar_spectrum.txt')
+solar_path = Path('./spectral_data/solar-spectral-irradiance/solar_spectrum.txt')
 '''Solar irradiance spectrum'''
 rad_bunch_test_path = Path('./spectral_data/rad_bunch_test_bennu_random')
 '''All synthetic test radiances, saved as a pickle'''
@@ -42,7 +42,7 @@ radiance_test_path = Path(radiance_path, 'test')
 
 figfolder = Path('./figs')
 refl_plots_path = Path(figfolder, 'asteroid-reflectance-plots')
-rad_plots_path = Path(figfolder, 'radiance_plots')
+rad_plots_path = Path(figfolder, 'radiance-plots')
 max_temp_plots_path = Path(figfolder, 'max_temp_plots')
 bennu_plots_path = Path(figfolder, 'Bennu-plots')
 val_and_test_path = Path('./validation_and_testing')
@@ -77,12 +77,12 @@ epochs = 520
 
 conv_filters = 60
 conv_kernel = 40
-encdec_start = 800
-encdec_node_relation = 0.50
-waist = 200  # Autoencoder middle layer node count
+encoder_start = 1024  # 800
+encoder_node_relation = 0.50
+encoder_stop = 4  # Autoencoder middle layer node count
 learning_rate = 5e-8
 
-training_run_name = f'{epochs}epochs_{waist}waist_{learning_rate}lr'
+training_run_name = f'{epochs}epochs_{encoder_stop}waist_{learning_rate}lr'
 training_run_path = Path(training_path, training_run_name)
 if os.path.isdir(training_run_path) == False:
     os.mkdir(training_run_path)  # Create directory for saving all the thing related to a training run

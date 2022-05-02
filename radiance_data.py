@@ -279,9 +279,12 @@ def calculate_radiances(reflectance_list: list, test: bool, samples_per_temperat
     # Empty arrays for storing data vectors
     length = len(waves)
     samples = len(temperature_vector) * samples_per_temperature
-    summed = np.zeros((samples, length))
-    reflected = np.zeros((samples, length))
-    therm = np.zeros((samples, length))
+    sum_radiances = np.zeros((samples, length))
+    temperatures = np.zeros((samples, 1))
+    emissivities = np.zeros((samples, 1))
+    
+    # reflected = np.zeros((samples, length))
+    # therm = np.zeros((samples, length))
 
     j = 0
 
@@ -314,19 +317,19 @@ def calculate_radiances(reflectance_list: list, test: bool, samples_per_temperat
             else:
                 obs_rad_dict = observed_radiance(d_S, incidence_ang, emission_ang, temperature, reflectance, waves, emissivity, 'rads_' + str(j), test)
 
-            # Discard the metadata and store data vectors into arrays
-            summed[j, :] = obs_rad_dict['sum_radiance']
-            reflected[j, :] = obs_rad_dict['reflected_radiance']
-            therm[j, :] = obs_rad_dict['emitted_radiance']
+            # Store summed radiance, temperature, and emittance into arrays, discard other data in the dict
+            sum_radiances[j, :] = obs_rad_dict['sum_radiance']
+            temperatures[j, :] = temperature
+            emissivities[j, :] = emissivity
 
             j = j+1
 
         # Place reflected and thermal spectra into one array for returning
-        separate = np.zeros((samples, length, 2))
-        separate[:, :, 0] = reflected
-        separate[:, :, 1] = therm
+        thermal_parameters = np.zeros((samples, 2))
+        thermal_parameters[:, 0] = temperatures.flatten()
+        thermal_parameters[:, 1] = emissivities.flatten()
 
-    return summed, separate
+    return sum_radiances, thermal_parameters
 
 
 def read_radiances(test: bool):

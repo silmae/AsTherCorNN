@@ -44,22 +44,22 @@ def prepare_training_data():
     train_reflectances, test_reflectances = refl.read_asteroids()
 
     # Calculate a number of  radiances from each reflectance, save them on disc as toml, and return the data vectors
-    summed_test, separate_test = rad.calculate_radiances(test_reflectances, test=True, samples_per_temperature=int(len(test_reflectances)/5), emissivity_type='random')
-    summed_training, separate_training = rad.calculate_radiances(train_reflectances, test=False, samples_per_temperature=int(len(train_reflectances)/5), emissivity_type='random')
+    radiances_test, parameters_test = rad.calculate_radiances(test_reflectances, test=True, samples_per_temperature=int(len(test_reflectances)/5), emissivity_type='random')
+    radiances_training, parameters_training = rad.calculate_radiances(train_reflectances, test=False, samples_per_temperature=int(len(train_reflectances)/5), emissivity_type='random')
 
     # Create a "bunch" from training and testing radiances and save both in their own files. This is orders of
     # magnitude faster than reading each radiance from its own toml
-    def bunch_rads(summed, separate, filepath: Path):
+    def bunch_rads(radiances, parameters, filepath: Path):
         rad_bunch = {}
-        rad_bunch['summed'] = summed
-        rad_bunch['separate'] = separate
+        rad_bunch['radiances'] = radiances
+        rad_bunch['parameters'] = parameters
 
         FH.save_pickle(rad_bunch, filepath)
 
-    # summed_test, separate_test = rad.read_radiances(test=True)
-    bunch_rads(summed_test, separate_test, C.rad_bunch_test_path)
+    # summed_test, separate_test = rad.read_radiances(test=True)  # TODO read_radiances is deprecated
+    bunch_rads(radiances_test, parameters_test, C.rad_bunch_test_path)
     # summed_training, separate_training = rad.read_radiances(test=False)
-    bunch_rads(summed_training, separate_training, C.rad_bunch_training_path)
+    bunch_rads(radiances_training, parameters_training, C.rad_bunch_training_path)
 
 
 def tune_model(epochs: int, max_trials: int, executions_per_trial: int):
@@ -136,23 +136,23 @@ def create_hypermodel(hp):
     return model
 
 
-def create_model(conv_filters: int, conv_kernel: int, encdec_start: int, encdec_node_relation: float, waist_size: int, lr: float):
+def create_model(conv_filters: int, conv_kernel: int, encoder_start: int, encoder_node_relation: float, encoder_stop: int, lr: float):
     """
-    Create and compile an autoencoder with 1D convolution before and after using Keras.
+    Create and compile a dense encoder model with 1D convolution at start, using Keras.
 
     Network structure:
-    dense input --> conv1d --> dense autoencoder --> conv1d --> dense output --> concatenate
+    dense input --> conv1d --> dense encoder --> dense output
 
     :param conv_filters: int
-        Number of filters in each convolutional layer
+        Number of filters in convolutional layer
     :param conv_kernel: int
         Kernel width in the convolution
-    :param encdec_start: int
-        Node count at the start of the encoder / at the end of the decoder
-    :param encdec_node_relation:
+    :param encoder_start: int
+        Node count at the start of the encoder
+    :param encoder_node_relation:
         Relation between node counts of subsequent encoder layers: (layer N nodes) / (layer N-1 nodes)
-    :param waist_size: int
-        Node count of autoencoder waist layer
+    :param encoder_stop: int
+        Node count of last autoencoder layer before output
     :param lr: float
         Learning rate in training the network
 
@@ -167,34 +167,19 @@ def create_model(conv_filters: int, conv_kernel: int, encdec_start: int, encdec_
     # Convolution layer
     conv1 = Conv1D(filters=conv_filters, kernel_size=conv_kernel, padding='same', activation=C.activation)(input_data)
     conv1 = Flatten()(conv1)
+    # TODO add max-pooling to convolution?
 
     # Create encoder based on start, relation, and waist
-    node_count = encdec_start
+    node_count = encoder_start
     encoder = Dense(node_count, activation=C.activation)(conv1)
     counts = [node_count]  # Save node counts of all layers into a list
-    while node_count * encdec_node_relation > waist_size:
-        node_count = int(node_count * encdec_node_relation)
+    while node_count * encoder_node_relation >= encoder_stop:
+        node_count = int(node_count * encoder_node_relation)
         encoder = Dense(node_count, activation=C.activation)(encoder)
         counts.append(node_count)
 
-    waist = Dense(units=waist_size, activation=C.activation)(encoder)
-
-    # Create a decoder identical to the encoder
-    i = 0
-    for node_count in reversed(counts):
-        if i == 0:
-            decoder = Dense(node_count, activation=C.activation)(waist)
-            i = i + 1
-        else:
-            decoder = Dense(node_count, activation=C.activation)(decoder)
-
-    # Convolutional layer to match the encoder side
-    decoder = Reshape(target_shape=(int(node_count), 1))(decoder)
-    decoder = Conv1D(filters=conv_filters, kernel_size=conv_kernel, padding='same', activation=C.activation)(decoder)
-    decoder = Flatten()(decoder)
-
-    # Output with shape similar to input
-    output = Dense(input_length, activation='linear')(decoder)
+    # Output with 2 neurons: one for temperature, one for emissivity
+    output = Dense(2, activation='linear')(encoder)
 
     # Create a model object
     model = Model(inputs=[input_data], outputs=[output])
@@ -204,7 +189,8 @@ def create_model(conv_filters: int, conv_kernel: int, encdec_start: int, encdec_
     opt = tf.keras.optimizers.Adam(learning_rate=lr)
 
     # Compile model
-    model.compile(optimizer=opt, loss=loss_fn)  # loss=tf.keras.losses.MeanSquaredLogarithmicError())
+    model.compile(optimizer=opt, loss=tf.keras.losses.MeanAbsolutePercentageError())
+    # model.compile(optimizer=opt, loss=loss_fn)  # Using a home-made loss function
 
     return model
 
@@ -294,14 +280,14 @@ def load_training_validation_data():
 
     # Load training radiances from one file as dicts
     rad_bunch_training = FH.load_pickle(C.rad_bunch_training_path)
-    x_train = rad_bunch_training['summed']
-    y_train = rad_bunch_training['separate']
+    x_train = rad_bunch_training['radiances']
+    y_train = rad_bunch_training['parameters']
     x_train, y_train = sklearn.utils.shuffle(x_train, y_train, random_state=0)
 
     # Load validation radiances from one file as dicts
     rad_bunch_test = FH.load_pickle(C.rad_bunch_test_path)
-    x_val = rad_bunch_test['summed']
-    y_val = rad_bunch_test['separate']
+    x_val = rad_bunch_test['radiances']
+    y_val = rad_bunch_test['parameters']
     x_val, y_val = sklearn.utils.shuffle(x_val, y_val, random_state=0)
 
     return x_train, y_train, x_val, y_val
