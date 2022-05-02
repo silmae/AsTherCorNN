@@ -22,29 +22,32 @@ step = 0.01  # µm
 wavelengths = np.arange(0.46, 2.45 + step, step=step)  # TODO Should run from 0.45 to 2.45, why doesn't it?
 
 # Paths
-Maturilli_path = Path('./spectral_data/reflectances/asteroid_analogues/refle/MIR')  # Reflectance spectra of asteroid analogues
-Gaffey_path = Path('./spectral_data/reflectances/Gaffey_meteorite_spectra/data/spectra')  # Reflectance spectra of meteorites
-Penttila_orig_path = Path('./spectral_data/reflectances/Penttila_asteroid_spectra/MyVISNIR-final-sampled-collection.dat')   # Reflectances of asteroids
-Penttila_aug_path = Path('./spectral_data/reflectances/Penttila_asteroid_spectra/MyVISNIR-simulated-simplified-taxonomy.dat')  # Reflectance spectra of asteroids, augmented
+
+spectral_path = Path('./spectral_data')
+Penttila_orig_path = Path('./spectral_data/reflectances/Penttila_asteroid_spectra/MyVISNIR-final-sampled-collection.dat')
+'''Reflectances of asteroids'''
+Penttila_aug_path = Path('./spectral_data/reflectances/Penttila_asteroid_spectra/MyVISNIR-simulated-simplified-taxonomy.dat')
+'''Reflectance spectra of asteroids, augmented'''
 albedo_path = Path('./spectral_data/reflectances/Penttila_asteroid_spectra/class-mean-albedos.tab')
+'''Mean albedos of asteroid spectral classes'''
+solar_path = Path('./spectral_data/solar_spectrum.txt')
+'''Solar irradiance spectrum'''
+rad_bunch_test_path = Path('./spectral_data/rad_bunch_test_bennu_random')
+'''All synthetic test radiances, saved as a pickle'''
+rad_bunch_training_path = Path('./spectral_data/rad_bunch_training_bennu_random')
+'''All training data, saved as a pickle'''
+radiance_path = Path('./spectral_data/radiances')
+radiance_training_path = Path(radiance_path, 'training')
+radiance_test_path = Path(radiance_path, 'test')
+
 figfolder = Path('./figs')
 refl_plots_path = Path(figfolder, 'asteroid-reflectance-plots')
 rad_plots_path = Path(figfolder, 'radiance_plots')
 max_temp_plots_path = Path(figfolder, 'max_temp_plots')
-spectral_path = Path('./spectral_data')
-solar_path = Path('./spectral_data/solar_spectrum.txt')  # Solar irradiance spectrum
-augmented_path = Path('./spectral_data/reflectances/augmented')  # A folder of augmented spectra
-augmented_training_path = Path(augmented_path, 'training')
-augmented_test_path = Path(augmented_path, 'test')
-radiance_path = Path('./spectral_data/radiances')
-radiance_training_path = Path(radiance_path, 'training')
-radiance_test_path = Path(radiance_path, 'test')
-training_path = Path('./training')
-spectral_path = Path('./spectral_data')
-rad_bunch_test_path = Path('./spectral_data/rad_bunch_test_bennu_random')  # All radiances, saved as a dict
-rad_bunch_training_path = Path('./spectral_data/rad_bunch_training_bennu_random')
 bennu_plots_path = Path(figfolder, 'Bennu-plots')
 val_and_test_path = Path('./validation_and_testing')
+
+training_path = Path('./training')
 
 # Keys for variables
 wl_key = 'wavelength'
@@ -70,16 +73,8 @@ p_min, p_max = 0.01, 0.40  # Geometrical albedo, ratio of light reflected from a
 refl_test_partition = 0.1  # Part of reflectances to be used for test data
 activation = 'relu'
 batches = 32
-epochs = 510
-# Best configuration from latest run, trial summary
-# Hyperparameters:
-# filters: 50
-# kernel_size: 60
-# encdec_start: 1150
-# waist_size: 190
-# encdec_node_relation: 0.6812388944493599
-# lr: 1.5571627657283562e-06
-# Score: 0.17982378602027893
+epochs = 520
+
 conv_filters = 60
 conv_kernel = 40
 encdec_start = 800
@@ -101,5 +96,9 @@ patience = 50
 
 # Paths for saving results of hyperparameter tuning
 hyperparameter_path = 'hyperparameter_tuning'  # KerasTuner wants the path as a string
+
+# Plot parameters, default pyplot colors: '#1f77b4', '#ff7f0e', '#2ca02c'
+uncor_plot_color = '#1f77b4'  # Blue
+NNcor_plot_color = '#ff7f0e'  # Orange
 
 

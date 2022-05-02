@@ -11,19 +11,23 @@ import csv
 import constants as C
 
 
-def save_pickle(data_dict, path):
+def save_pickle(data_dict: dict, path):
+    """Save dictionary as a pickle file"""
+
     with open(path, 'wb') as file_pi:
         pickle.dump(data_dict, file_pi)
     print(f'Saved a pickle into {path}')
 
 
 def load_pickle(path):
+    """Load dictionary from pickle file and return it"""
     with open(path, 'rb') as file_pi:
         data = pickle.load(file_pi)
     return data
 
 
 def load_csv(filepath):
+    """Load csv from file, return a list"""
     with open(filepath, newline='') as csvfile:
         reader = csv.reader(csvfile)
         data = []
@@ -33,12 +37,14 @@ def load_csv(filepath):
 
 
 def save_toml(dictionary: dict, savepath):
+    """Save a dictionary into a .toml file"""
     with open(savepath, 'w+') as file:
         toml.dump(dictionary, file, encoder=toml.encoder.TomlNumpyEncoder())
     print(f'Saved a dictionary into {savepath}')
 
 
 def load_toml(filepath):
+    """Load a dictionary from a .toml file"""
     with open(filepath, 'r') as file:
         data = toml.load(file)
     return data

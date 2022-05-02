@@ -20,8 +20,7 @@ import file_handling as FH
 
 def fit_Planck(radiance: np.ndarray):
     """
-    Fit Planck's law to thermal radiance vector, to evaluate the temperature of the radiation source. Approximates
-    emittance as constant 0.9.
+    Fit Planck's law to thermal radiance vector, to evaluate the temperature and emissivity of the radiation source.
 
     :param radiance: np.ndarray
         Thermally emitted spectral radiance
@@ -34,6 +33,7 @@ def fit_Planck(radiance: np.ndarray):
     # c = speed of light in vacuum, m / s
     # kB = Boltzmann constant, m² kg / s² / K (= J / K)
     # h = Planck constant, m² kg / s (= J s)
+
     # Planck originally: L_th = eps * (2 * h * c ** 2) / ((wl ** 5) * (exp((h * c) / (wl * k_B * T)) - 1))
     # Lump constants together: a = 2hc² = 1.191e-16 kg m⁴/s³, and b = hc / k_B = 0.01439 m K
     # Re-parametrized version: L_th = eps * a / ((wl ** 5) * (exp(b / (wl * T)) - 1))
@@ -44,13 +44,15 @@ def fit_Planck(radiance: np.ndarray):
     a = a * 1e24  # Convert to kg µm⁴/s³
     b = 0.01439  # m K
     b = b * 1e6  # Convert to µm K
-    eps = C.emissivity  # Emittance
+    # eps = C.emissivity  # Emittance
 
     # Temperature and emissivity as fitting parameters, wavelength as variable
-    init_guess = (C.T_max + C.T_min) / 2
-    T = symfit.Parameter('T', value=init_guess, min=C.T_min, max=C.T_max)
-    # eps = symfit.Parameter('eps', value=C.emittance, min=0.5, max=0.99)
+    init_guess_T = (C.T_max + C.T_min) / 2
+    T = symfit.Parameter('T', value=init_guess_T, min=C.T_min, max=C.T_max)
+    init_guess_eps = (C.emissivity_max + C.emissivity_min) / 2
+    eps = symfit.Parameter('eps', value=init_guess_eps, min=C.emissivity_min, max=C.emissivity_max)
     wl = symfit.Variable('wl')
+    C.emissivity_min
 
     model = eps * a / ((wl ** 5) * (sympy.exp(b / (wl * T)) - 1))  # Apply re-parametrized Planck's law
 
@@ -58,15 +60,15 @@ def fit_Planck(radiance: np.ndarray):
     fit_result = fit.execute()
     # print(f'Emissivity: {fit_result.value(eps)}')
 
-    # Plot of fit result together with original radiance data
-    fig = plt.figure()
-    y = model(wl=C.wavelengths, T=fit_result.value(T))#, eps=fit_result.value(eps))
-    plt.plot(C.wavelengths, y)
-    plt.plot(C.wavelengths, radiance)
-    plt.xlabel('Wavelength [µm]')
-    plt.ylabel('Radiance [W / m² / sr / µm]')
+    # # Plot of fit result together with original radiance data
+    # fig = plt.figure()
+    # y = model(wl=C.wavelengths, T=fit_result.value(T), eps=fit_result.value(eps))
+    # plt.plot(C.wavelengths, y)
+    # plt.plot(C.wavelengths, radiance)
+    # plt.xlabel('Wavelength [µm]')
+    # plt.ylabel('Radiance [W / m² / sr / µm]')
     # plt.show()
-    plt.close(fig)
+    # plt.close(fig)
 
     temperature = fit_result.value(T)
 
@@ -92,6 +94,12 @@ def test_model(X_test, y_test, model, temperatures, savefolder):
     # Mean absolute error between two vectors
     def MAE(s1, s2):
         return sum(abs(s1 - s2)) / len(s1)
+
+    def tail_MAE(s1, s2):
+        s1 = s1[-int(len(s1)/4):]
+        s2 = s2[-int(len(s2)/4):]
+        error = MAE(s1, s2)
+        return error
 
     # Lists for storing the errors
     reflrad_mae_corrected = []
@@ -138,9 +146,12 @@ def test_model(X_test, y_test, model, temperatures, savefolder):
         temperature_pred.append(pred_temp)
 
         # Mean absolute errors from radiance
-        mae1_corrected = MAE(pred_refl, ground_refl)  #sum(abs(pred_refl - ground_refl)) / len(pred_refl)
-        mae1_uncorrected = MAE(uncorrected_refl, ground_refl) #sum(abs(uncorrected_refl - ground_refl)) / len(uncorrected_refl)
-        mae2 = MAE(pred_therm, ground_therm) #sum(abs(pred_therm - ground_therm)) / len(pred_therm)
+        # mae1_corrected = MAE(pred_refl, ground_refl)
+        # mae1_uncorrected = MAE(uncorrected_refl, ground_refl)
+        # mae2 = MAE(pred_therm, ground_therm)
+        mae1_corrected = tail_MAE(pred_refl, ground_refl)
+        mae1_uncorrected = tail_MAE(uncorrected_refl, ground_refl)
+        mae2 = tail_MAE(pred_therm, ground_therm)
         reflrad_mae_corrected.append(mae1_corrected)
         reflrad_mae_uncorrected.append(mae1_uncorrected)
         thermrad_mae.append(mae2)
@@ -154,8 +165,10 @@ def test_model(X_test, y_test, model, temperatures, savefolder):
         thermrad_cos.append(cosang2)
 
         # Mean absolute errors and cosine distance from reflectances
-        R_MAE_corrected = MAE(reflectance_corrected, reflectance_ground)
-        R_MAE_uncorrected = MAE(reflectance_uncorrected, reflectance_ground)
+        # R_MAE_corrected = MAE(reflectance_corrected, reflectance_ground)
+        # R_MAE_uncorrected = MAE(reflectance_uncorrected, reflectance_ground)
+        R_MAE_corrected = tail_MAE(reflectance_corrected, reflectance_ground)
+        R_MAE_uncorrected = tail_MAE(reflectance_uncorrected, reflectance_ground)
         reflectance_mae_corrected.append(R_MAE_corrected)
         reflectance_mae_uncorrected.append(R_MAE_uncorrected)
 
@@ -332,7 +345,17 @@ def plot_val_test_results(test_sample, ground1, ground2, pred1, pred2, savefolde
     plt.close(fig)
 
 
-def validate_synthetic(model, validation_run_folder):
+def validate_synthetic(model, validation_run_folder: Path):
+    """
+    Run tests for trained model with synthetic data similar to training data. Calculates temperatures for all data
+    points by fitting their ground truth thermal tails to the Planck function.
+
+    :param model:
+        Trained model
+    :param validation_run_folder:
+        Path to folder where results will be saved. Method will create a sub-folder inside for results from synthetic.
+    """
+
     # Load test radiances from one file as dicts, separate ground truth and test samples
     rad_bunch_test = FH.load_pickle(C.rad_bunch_test_path)
     X_test = rad_bunch_test['summed']
@@ -341,7 +364,7 @@ def validate_synthetic(model, validation_run_folder):
     # Shuffle to get samples from all temperatures when using part of the data
     X_test, y_test = sklearn.utils.shuffle(X_test, y_test, random_state=0)
 
-    indices = range(int(len(X_test[:, 0]) * 0.1))  # 10 percent of samples used for error calculation, takes less time
+    indices = range(int(len(X_test[:, 0]) * 0.01))  # 1 percent of samples used for error calculation, takes less time
     X_test = X_test[indices]
     y_test = y_test[indices]
 
@@ -650,10 +673,10 @@ def validate_bennu(model, validation_run_folder):
         plt.savefig(Path(savefolder, f'{corrected_name}_{uncorrected_name}.png'))
         plt.close(fig)
 
-    Bennu_comparison_plots('reflected_MAE', 'reflected_MAE_uncorrected', 'Reflected radiance MAE', lim=(0, 0.005))
-    Bennu_comparison_plots('reflected_SAM', 'reflected_SAM_uncorrected', 'Reflected radiance cosine distance', lim=(0.9999, 1.0))
-    Bennu_comparison_plots('reflectance_MAE', 'reflectance_MAE_uncorrected', 'Reflectance MAE', lim=(0, 0.01))
-    Bennu_comparison_plots('reflectance_SAM', 'reflectance_SAM_uncorrected', 'Reflectance cosine distance', lim=(0.999, 1.0))
+    Bennu_comparison_plots('reflected_MAE', 'reflected_MAE_uncorrected', 'Reflected radiance MAE')#, lim=(0, 0.005))
+    Bennu_comparison_plots('reflected_SAM', 'reflected_SAM_uncorrected', 'Reflected radiance cosine distance')#, lim=(0.9999, 1.0))
+    Bennu_comparison_plots('reflectance_MAE', 'reflectance_MAE_uncorrected', 'Reflectance MAE')#, lim=(0, 0.01))
+    Bennu_comparison_plots('reflectance_SAM', 'reflectance_SAM_uncorrected', 'Reflectance cosine distance')#, lim=(0.999, 1.0))
 
 
 def validate_and_test(model):
@@ -724,7 +747,6 @@ def error_plots(folderpath):
     plot_and_save(np.asarray(refl_SAM_uncor) - np.asarray(refl_SAM), r'SAM($L_{th}$) improvement', 'refl-SAM-improvement_groundtemp.png')
     plot_and_save(np.asarray(R_SAM_uncor) - np.asarray(R_SAM), r'SAM($R$) improvement', 'R-SAM-improvement_groundtemp.png')
     plot_and_save()
-
 
     # fig = plt.figure()
     # plt.figure()
@@ -869,8 +891,8 @@ def plot_Bennu_errors(folderpath):
         plt.savefig(Path(folderpath, f'{corrected_name}_improvement.png'))
         plt.close(fig)
 
-    Bennu_comparison_plots('reflected_MAE', 'reflected_MAE_uncorrected', r'MAE($L_{refl}$) improvement)', lim=(-0.002, 0.004))
-    Bennu_comparison_plots('reflected_SAM', 'reflected_SAM_uncorrected', r'$L_{refl}$ cosine distance improvement', lim=(0, 0))
-    Bennu_comparison_plots('reflectance_MAE', 'reflectance_MAE_uncorrected', r'MAE($R$) improvement', lim=(-0.007, 0.009))
-    Bennu_comparison_plots('reflectance_SAM', 'reflectance_SAM_uncorrected', r'$R$ cosine distance improvement', lim=(0, 0))
+    Bennu_comparison_plots('reflected_MAE', 'reflected_MAE_uncorrected', r'MAE($L_{refl}$) improvement)')#, lim=(-0.002, 0.004))
+    Bennu_comparison_plots('reflected_SAM', 'reflected_SAM_uncorrected', r'$L_{refl}$ cosine distance improvement')#, lim=(0, 0))
+    Bennu_comparison_plots('reflectance_MAE', 'reflectance_MAE_uncorrected', r'MAE($R$) improvement')#, lim=(-0.007, 0.009))
+    Bennu_comparison_plots('reflectance_SAM', 'reflectance_SAM_uncorrected', r'$R$ cosine distance improvement')#, lim=(0, 0))
 

@@ -180,7 +180,8 @@ def thermal_error_from_hc_distance(distance_min: float, distance_max: float, sam
 def solar_irradiance(distance, wavelengths, plot=False):
     """
     Calculate solar spectral irradiance at a specified heliocentric distance, interpolated to match wl-vector.
-    Solar spectral irradiance data at 1 AU from NREL: https://www.nrel.gov/grid/solar-resource/spectra-astm-e490.html
+    Solar spectral irradiance data at 1 AU outside the atmosphere was taken from from NREL:
+    https://www.nrel.gov/grid/solar-resource/spectra-astm-e490.html
 
     :param distance: float
         Heliocentric distance in astronomical units
@@ -195,7 +196,7 @@ def solar_irradiance(distance, wavelengths, plot=False):
     sol_path = C.solar_path  # A collection of channels from 0.45 to 2.50 µm saved into a txt file
     solar = pd.read_table(sol_path).values
 
-    # Convert from µm to nm, and 1/µm to 1/nm. Comment these away if working with IR wavelengths
+    # # Convert from µm to nm, and 1/µm to 1/nm. Comment these away if working with IR wavelengths
     # solar[:, 0] = solar[:, 0] * 1000
     # solar[:, 1] = solar[:, 1] / 1000
 
@@ -222,7 +223,8 @@ def plot_example_radiance_reflectance(num: int = 22):
     comparison. Calculate normalized reflectance from both and also plot them.
 
     :param num: int
-    Which radiance to plot, between 0 and 6599. Default is 22, where thermal error can be seen clearly.
+    Which radiance to plot, between 0 and 6599. Default is 22, where thermal error could be seen clearly for one data
+    generation cycle (possibly not the case anymore).
     """
     rads = FH.load_toml(Path(C.radiance_test_path, f'rads_{num}.toml'))
     refrad = rads['reflected_radiance']

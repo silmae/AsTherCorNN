@@ -227,10 +227,10 @@ def loss_fn(ground, prediction):
 
     # Scaling the ground and prediction values: if not scaled, higher radiances will dominate, and lower will not
     # be seen as errors. Should not affect network output units when done inside loss function
-    ground_max = tf.math.reduce_max(ground)
-    # To prevent division by (near) zero, add small constant value to maxima
-    ground_max = ground_max + 0.0000001
-    scaling_factor = ground_max
+    # ground_max = tf.math.reduce_max(ground)
+    # # To prevent division by (near) zero, add small constant value to maxima
+    # ground_max = ground_max + 0.0000001
+    # scaling_factor = ground_max
     # prediction_max = tf.math.reduce_max(prediction)
     # prediction_max = prediction_max + 0.0000001
     # scalars = tf.stack([ground_max, prediction_max], axis=0)
@@ -247,8 +247,8 @@ def loss_fn(ground, prediction):
     # tf.compat.v1.control_dependencies([tf.print(scaling_factor)])
 
     # Scale both ground truth and predictions by dividing with maximum
-    ground = tf.math.divide(ground, scaling_factor)
-    prediction = tf.math.divide(prediction, scaling_factor)
+    # ground = tf.math.divide(ground, scaling_factor)
+    # prediction = tf.math.divide(prediction, scaling_factor)
 
     # ground_sum = tf.math.reduce_sum(ground)
     # prediction_sum = tf.math.reduce_sum(tf.math.abs(prediction))  # Absolute because this fucker will try to compensate with negative values
@@ -280,7 +280,6 @@ def loss_fn(ground, prediction):
     # tf.compat.v1.control_dependencies([tf.print(cos_dist)])
     # tf.compat.v1.control_dependencies([tf.print(loss)])
 
-
     return loss
 
 
@@ -308,7 +307,24 @@ def load_training_validation_data():
     return x_train, y_train, x_val, y_val
 
 
-def train_autoencoder(model, early_stop=True, checkpoints=True, save_history=True, create_new_data=False):
+def train_autoencoder(model, early_stop: bool = True, checkpoints: bool = True, save_history: bool = True,
+                      create_new_data: bool = False):
+    """
+    Train deep learning model according to arguments and some parameters given in constants.py.
+
+    :param model:
+        Compiled Keras Model that will be trained
+    :param early_stop:
+        Whether early stop will be used or not. Patience and minimum chance are set in constants.py
+    :param checkpoints:
+        Whether checkpoint weights are saved every time val. loss improves
+    :param save_history:
+        Whether loss history will be saved in a file after training is complete
+    :param create_new_data:
+        Whether new data will be created or old data will be loaded from disc
+    :return:
+        Trained model
+    """
 
     # Early stop callback
     early_stop_callback = tf.keras.callbacks.EarlyStopping(

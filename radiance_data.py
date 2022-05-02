@@ -37,13 +37,13 @@ def thermal_radiance(T: float, eps: np.ndarray, wavelength: np.ndarray):
     kB = C.kB  # Boltzmann constant, m² kg / s² / K (= J / K)
     h = C.h  # Planck constant, m² kg / s (= J s)
 
-    L_th = np.zeros((len(wavelength),2))
+    L_th = np.zeros((len(wavelength), 2))
     L_th[:, 0] = wavelength
 
     for i in range(len(wavelength)):
         wl = wavelength[i] / 1e6  # Convert wavelength from micrometers to meters
         L_th[i, 1] = eps[i] * (2 * h * c**2) / ((wl**5) * (np.exp((h * c)/(wl * kB * T)) - 1))  # Apply Planck's law
-        L_th[i, 1] = L_th[i,1] / 1e6  # Convert radiance from (W / m² / sr / m) to (W / m² / sr / µm)
+        L_th[i, 1] = L_th[i, 1] / 1e6  # Convert radiance from (W / m² / sr / m) to (W / m² / sr / µm)
 
     return L_th
 
@@ -106,20 +106,24 @@ def radiance2norm_reflectance(radiance):
     return norm_reflectance
 
 
-def noising(rad_data):
+def noising(rad_data, mu, sigma):
     """
     Apply Gaussian noise to spectral data
 
     :param rad_data: ndarray
         Radiance data to which the noise will be applied: first column is wavelength, second is spectral radiance
+    :param mu:
+        Mean value of Gaussian distribution from which the noise is generated
+    :param sigma:
+        Standard deviation of Gaussian distribution from which the noise is generated
     :return:
         Noisified radiance data
     """
-    mu = C.mu  # mean and standard deviation, defined with other constants
-    sigma = C.sigma
 
+    # Generate noise
     s = np.random.default_rng().normal(mu, sigma, len(rad_data))
 
+    # Add noise to data
     rad_data[:, 1] = rad_data[:, 1] + s
 
     return rad_data
@@ -190,7 +194,7 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
     sumrad[:, 1] = reflrad[:, 1] + thermrad[:, 1]
 
     # Applying noise to the summed data
-    sumrad = noising(sumrad)
+    sumrad = noising(sumrad, C.mu, C.sigma)
 
     # Collect the data into a dict
     rad_dict = {}
@@ -217,8 +221,9 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
         plt.ylabel('Reflectance')
         figpath = figfolder.joinpath(filename + '_reflectance.png')
         plt.savefig(figpath)
+        plt.close(fig)
 
-        plt.figure()
+        fig = plt.figure()
         plt.title(f'Radiances: d_S = {d_S}, i = {incidence_ang}, e = {emission_ang}, T = {T}')
         plt.plot(reflrad[:, 0], reflrad[:,1])  # Reflected radiance
         plt.plot(thermrad[:, 0], thermrad[:, 1])  # Thermally emitted radiance
@@ -233,7 +238,7 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
 
     return rad_dict
 
-def calculate_radiances(reflectance_list: list, test: bool, samples_per_temperature: int = 2, emissivity_type: str = 'constant'):
+def calculate_radiances(reflectance_list: list, test: bool, samples_per_temperature: int = 200, emissivity_type: str = 'constant'):
     """
     Generate vector of temperature values based on minimum given in constants and maximum calculated from minimum
     heliocentric distance. For each temperature simulate a number of observed radiances with reflectance vector
@@ -246,17 +251,21 @@ def calculate_radiances(reflectance_list: list, test: bool, samples_per_temperat
     :param reflectance_list: list
         Spectral reflectances from which the radiances will be created.
     :param test: boolean
-        Whether the data will be used for testing or training, affects only the save location.
+        Whether the data will be used for testing or training. Affects only the save location, calculation is identical.
     :param samples_per_temperature: int
         How many spectra will be generated per temperature value. Default is 200.
     :param emissivity_type: string
-        Must be "constant", "kirchhoff", or "random". Fist is 0.9 for all samples, second is spectral emissivity
+        Must be "constant", "kirchhoff", or "random". First is 0.9 for all samples, second is spectral emissivity
         calculated from spectral reflectance with Kirchhoff's law, third is random value between min and max given
         in constants.py (stays constant over wavelengths)
 
     :return: summed, separate: ndarrays
         Arrays containing summed spectra and separate reflected and thermal spectra
+
+    *:raises: ValueError
+        If emissivity_type does not correspond to allowed values.
     """
+
     waves = C.wavelengths
 
     # Minimum temperature pulled from constants
@@ -276,7 +285,7 @@ def calculate_radiances(reflectance_list: list, test: bool, samples_per_temperat
 
     j = 0
 
-    # For each temperature
+    # Calculate radiances for each temperature
     for temperature in temperature_vector:
         for i in range(samples_per_temperature):
             # Create random variables from min-max ranges given in constants
@@ -296,9 +305,7 @@ def calculate_radiances(reflectance_list: list, test: bool, samples_per_temperat
             elif emissivity_type == 'random':
                 emissivity = random.uniform(C.emissivity_min, C.emissivity_max)
             else:
-                print("Emissivity type did not correspond to any known value, stopping execution. Next time try "
-                      "constant, kirchhoff, or random.")
-                quit()
+                raise ValueError(f"Parameter 'emissivity_type' value not valid: {emissivity_type}. Try 'constant', 'kirchhoff', or 'random'.")
 
             if j % 10000 == 0:
                 # Calculate radiances with the given parameters and
@@ -323,6 +330,14 @@ def calculate_radiances(reflectance_list: list, test: bool, samples_per_temperat
 
 
 def read_radiances(test: bool):
+    """
+    Read .toml files in folders for test and training data, place radiances in ndarrays and discard metadata.
+
+    :param test:
+        Whether data should be read from test or training folder
+    :return:
+        Array of summed radiances, array of separate radiances
+    """
     if test == True:
         folder_path = C.radiance_test_path
     else:
