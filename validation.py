@@ -74,10 +74,10 @@ def fit_Planck(radiance: np.ndarray):
 
     return temperature
 
-def test_model(X_test, y_test, model, temperatures, savefolder):
+def test_model(X_test, y_test, model, thermal_radiances, savefolder):
 
     time_start = time.perf_counter_ns()
-    test_result = model.evaluate(X_test, y_test, verbose=0)  # (X_test, y_test[:, :, 1], verbose=0)
+    test_result = model.evaluate(X_test, y_test, verbose=0)
     time_stop = time.perf_counter_ns()
     elapsed_time_s = (time_stop - time_start) / 1e9
     print(f'Elapsed prediction time for {len(X_test[:, 0])} samples was {elapsed_time_s} seconds')
@@ -114,19 +114,31 @@ def test_model(X_test, y_test, model, temperatures, savefolder):
     thermrad_cos = []
     temperature_ground = []
     temperature_pred = []
+
     indices = range(len(X_test[:, 0]))  # Full error calculation, takes some time
     plot_indices = np.random.randint(0, len(X_test[:, 0]), 20)
+
+    # TODO def radiance_prediction(model, sample_radiance)?
 
     for i in indices:
         test_sample = np.expand_dims(X_test[i, :], axis=0)
         prediction = model.predict(test_sample).squeeze()  # model.predict(np.array([summed.T])).squeeze()
-        pred_refl = test_sample.squeeze() - prediction
-        uncorrected_refl = test_sample.squeeze()
-        pred_therm = prediction
 
-        # ground_refl = y_test[i, :, 0]
-        ground_therm = y_test[i, :, 1]
-        ground_refl = test_sample.squeeze() - ground_therm  # Alternative ground truth to which the alternative reflected is compared
+        pred_temperature = prediction[0]
+        ground_temperature = y_test[i, 0]
+
+        pred_emissivity = prediction[1]
+        ground_emissivity = y_test[i, 1]
+
+        # Calculate thermal spectral radiance from predicted temperature and emissivity using Planck's law
+        pred_radiance = rad.thermal_radiance(pred_temperature, pred_emissivity, C.wavelengths)
+
+        pred_therm = pred_radiance[:, 1]
+        ground_therm = thermal_radiances[i, :]
+
+        pred_refl = test_sample.squeeze() - pred_therm
+        ground_refl = test_sample.squeeze() - ground_therm
+        uncorrected_refl = test_sample.squeeze()
 
         # Plot some results for closer inspection from 25 random test spectra
         if i in plot_indices:
@@ -138,12 +150,10 @@ def test_model(X_test, y_test, model, temperatures, savefolder):
         reflectance_corrected = rad.radiance2norm_reflectance(pred_refl)
 
         # Calculate temperature of prediction by fitting to Planck function, compare to ground truth gotten as argument
-        ground_temp = temperatures[i]
-        print(f'Ground temperature: {ground_temp}')
-        temperature_ground.append(ground_temp)
-        pred_temp = fit_Planck(pred_therm)
-        print(f'Prediction temperature: {pred_temp}')
-        temperature_pred.append(pred_temp)
+        print(f'Ground temperature: {ground_temperature}')
+        temperature_ground.append(ground_temperature)
+        print(f'Prediction temperature: {pred_temperature}')
+        temperature_pred.append(pred_temperature)
 
         # Mean absolute errors from radiance
         # mae1_corrected = MAE(pred_refl, ground_refl)
@@ -358,33 +368,31 @@ def validate_synthetic(model, validation_run_folder: Path):
 
     # Load test radiances from one file as dicts, separate ground truth and test samples
     rad_bunch_test = FH.load_pickle(C.rad_bunch_test_path)
-    X_test = rad_bunch_test['summed']
-    y_test = rad_bunch_test['separate']
+    X_test = rad_bunch_test['radiances']
+    y_test = rad_bunch_test['parameters']
 
     # Shuffle to get samples from all temperatures when using part of the data
     X_test, y_test = sklearn.utils.shuffle(X_test, y_test, random_state=0)
 
-    indices = range(int(len(X_test[:, 0]) * 0.01))  # 1 percent of samples used for error calculation, takes less time
+    sample_percentage = 10  # percentage of validation data samples used for error calculation, takes less time
+    indices = range(int(len(X_test[:, 0]) * (sample_percentage * 0.01)))
     X_test = X_test[indices]
     y_test = y_test[indices]
+
+    # Calculate thermal spectral radiance for each parameter pair
+    thermal_radiances = np.zeros((len(y_test), len(C.wavelengths)))
+    for i in range(len(y_test)):
+        temperature = y_test[i, 0]
+        emissivity = y_test[i, 1]
+
+        thermal_radiance = rad.thermal_radiance(temperature, emissivity, C.wavelengths)
+        thermal_radiances[i, :] = thermal_radiance[:, 1]
 
     validation_plots_synthetic_path = Path(validation_run_folder, 'synthetic_validation')
     if os.path.isdir(validation_plots_synthetic_path) == False:
         os.mkdir(validation_plots_synthetic_path)
 
-    # Calculate ground truth temperatures by fitting all thermal tails to the Planck function
-    temperatures = []
-    for i in range(len(y_test[:, 0, 1])):
-        ground2 = y_test[i, :, 1]
-
-        # Calculate temperatures of ground and prediction by fitting to Planck function
-        temp = fit_Planck(ground2)
-        temperatures.append(temp)
-        print(f'Calculated temperature {i+1} out of {len(y_test[:, 0, 1])}')
-
-    temperatures = np.asarray(temperatures)
-
-    error_dict = test_model(X_test, y_test, model, temperatures, validation_plots_synthetic_path)
+    error_dict = test_model(X_test, y_test, model, thermal_radiances, validation_plots_synthetic_path)
     FH.save_toml(error_dict, Path(validation_plots_synthetic_path, 'error_dict.toml'))
 
 
@@ -705,7 +713,7 @@ def validate_and_test(model):
     validate_synthetic(model, validation_run_folder)
 
     # Testing with real asteroid data: do not look at this until the network works properly with synthetic data
-    validate_bennu(model, validation_run_folder)
+    # validate_bennu(model, validation_run_folder)
 
 
 def error_plots(folderpath):

@@ -73,16 +73,16 @@ p_min, p_max = 0.01, 0.40  # Geometrical albedo, ratio of light reflected from a
 refl_test_partition = 0.1  # Part of reflectances to be used for test data
 activation = 'relu'
 batches = 32
-epochs = 520
+epochs = 1000
 
 conv_filters = 60
 conv_kernel = 40
 encoder_start = 1024  # 800
 encoder_node_relation = 0.50
 encoder_stop = 4  # Autoencoder middle layer node count
-learning_rate = 5e-8
+learning_rate = 1e-6
 
-training_run_name = f'{epochs}epochs_{encoder_stop}waist_{learning_rate}lr'
+training_run_name = f'{epochs}epochs_{encoder_start}start_{encoder_stop}stop_{learning_rate}lr'
 training_run_path = Path(training_path, training_run_name)
 if os.path.isdir(training_run_path) == False:
     os.mkdir(training_run_path)  # Create directory for saving all the thing related to a training run

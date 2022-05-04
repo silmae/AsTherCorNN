@@ -15,17 +15,17 @@ import file_handling as FH
 import utils
 
 
-def thermal_radiance(T: float, eps: np.ndarray, wavelength: np.ndarray):
+def thermal_radiance(T: float, emissivity: float or list or np.ndarray, wavelength: np.ndarray):
     """
     Calculate and return approximate thermal emission (blackbody, bb) radiance spectrum using Planck's law. Angle
     dependence of emitted radiance is approximated as Lambertian. TODO If this does not work with OREX, change Lambert?
 
-    :param T: float
+    :param T:
         Surface temperature, in Kelvins
-    :param eps: np.ndarray
-        Emissivity = sample emission spectrum divided by ideal blackbody spectrum of same temperature. A vector with
-        same number of elements as reflectance.
-    :param wavelength: np.ndarray
+    :param emissivity:
+        Emissivity = sample emission spectrum divided by ideal blackbody spectrum of same temperature. Float or
+        vector/list with same number of elements as reflectance.
+    :param wavelength:
         vector of floats. Wavelengths where the emission is to be calculated, in micrometers
 
     :return L_th:
@@ -37,12 +37,32 @@ def thermal_radiance(T: float, eps: np.ndarray, wavelength: np.ndarray):
     kB = C.kB  # Boltzmann constant, m² kg / s² / K (= J / K)
     h = C.h  # Planck constant, m² kg / s (= J s)
 
+    if type(emissivity) == float or type(emissivity) == np.float64 or type(emissivity) == np.float32 or len(emissivity) == 1:
+        # If a single float, make it into a vector where each element is that number
+        eps = np.empty((len(wavelength), 1))
+        eps.fill(emissivity)
+    elif type(emissivity) == list:
+        # If emissivity is a list with correct length, convert to ndarray
+        if len(emissivity) == len(C.wavelengths):
+            eps = np.asarray(emissivity)
+        else:
+            print('Emissivity list was not same length as wavelength vector. Stopping execution...')
+            quit()
+    elif type(emissivity) == np.ndarray:
+        # If emissivity array is of correct shape, rename it to emittance and proceed
+        if emissivity.shape == C.wavelengths.shape or emissivity.shape == (
+        C.wavelengths.shape, 1) or emissivity.shape == (1, C.wavelengths.shape):
+            eps = emissivity
+        else:
+            print('Emissivity array was not same shape as wavelength vector. Stopping execution...')
+            quit()
+
     L_th = np.zeros((len(wavelength), 2))
     L_th[:, 0] = wavelength
 
     for i in range(len(wavelength)):
         wl = wavelength[i] / 1e6  # Convert wavelength from micrometers to meters
-        L_th[i, 1] = eps[i] * (2 * h * c**2) / ((wl**5) * (np.exp((h * c)/(wl * kB * T)) - 1))  # Apply Planck's law
+        L_th[i, 1] = eps[i] * (2 * h * c ** 2) / ((wl ** 5) * (np.exp((h * c) / (wl * kB * T)) - 1))  # Apply Planck's law
         L_th[i, 1] = L_th[i, 1] / 1e6  # Convert radiance from (W / m² / sr / m) to (W / m² / sr / µm)
 
     return L_th
