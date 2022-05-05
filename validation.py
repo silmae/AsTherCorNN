@@ -114,6 +114,8 @@ def test_model(X_test, y_test, model, thermal_radiances, savefolder):
     thermrad_cos = []
     temperature_ground = []
     temperature_pred = []
+    emissivity_ground = []
+    emissivity_pred = []
 
     indices = range(len(X_test[:, 0]))  # Full error calculation, takes some time
     plot_indices = np.random.randint(0, len(X_test[:, 0]), 20)
@@ -125,10 +127,17 @@ def test_model(X_test, y_test, model, thermal_radiances, savefolder):
         prediction = model.predict(test_sample).squeeze()  # model.predict(np.array([summed.T])).squeeze()
 
         pred_temperature = prediction[0]
+        temperature_pred.append(pred_temperature)
         ground_temperature = y_test[i, 0]
+        temperature_ground.append(ground_temperature)
+
+        print(f'Ground temperature: {ground_temperature}')
+        print(f'Prediction temperature: {pred_temperature}')
 
         pred_emissivity = prediction[1]
+        emissivity_pred.append(pred_emissivity)
         ground_emissivity = y_test[i, 1]
+        emissivity_ground.append(ground_emissivity)
 
         # Calculate thermal spectral radiance from predicted temperature and emissivity using Planck's law
         pred_radiance = rad.thermal_radiance(pred_temperature, pred_emissivity, C.wavelengths)
@@ -148,12 +157,6 @@ def test_model(X_test, y_test, model, thermal_radiances, savefolder):
         reflectance_ground = rad.radiance2norm_reflectance(ground_refl)
         reflectance_uncorrected = rad.radiance2norm_reflectance(uncorrected_refl)
         reflectance_corrected = rad.radiance2norm_reflectance(pred_refl)
-
-        # Calculate temperature of prediction by fitting to Planck function, compare to ground truth gotten as argument
-        print(f'Ground temperature: {ground_temperature}')
-        temperature_ground.append(ground_temperature)
-        print(f'Prediction temperature: {pred_temperature}')
-        temperature_pred.append(pred_temperature)
 
         # Mean absolute errors from radiance
         # mae1_corrected = MAE(pred_refl, ground_refl)
@@ -231,6 +234,14 @@ def test_model(X_test, y_test, model, thermal_radiances, savefolder):
     plt.ylabel('Predicted temperature [K]')
     plt.plot(range(C.T_min, C.T_max), range(C.T_min, C.T_max), 'r')  # Plot a reference line with slope 1: ideal result
     plt.savefig(Path(savefolder, 'predtemp-groundtemp.png'))
+    plt.close(fig)
+
+    fig = plt.figure()
+    plt.scatter(emissivity_ground, emissivity_pred, alpha=0.1)
+    plt.xlabel('Ground truth emissivity')
+    plt.ylabel('Predicted emissivity')
+    plt.plot(np.linspace(C.emissivity_min, C.emissivity_max), np.linspace(C.emissivity_min, C.emissivity_max), 'r')  # Plot a reference line with slope 1: ideal result
+    plt.savefig(Path(savefolder, 'predeps-groundeps.png'))
     plt.close(fig)
 
     fig = plt.figure()
@@ -374,7 +385,7 @@ def validate_synthetic(model, validation_run_folder: Path):
     # Shuffle to get samples from all temperatures when using part of the data
     X_test, y_test = sklearn.utils.shuffle(X_test, y_test, random_state=0)
 
-    sample_percentage = 10  # percentage of validation data samples used for error calculation, takes less time
+    sample_percentage = 5  # percentage of validation data samples used for error calculation, takes less time
     indices = range(int(len(X_test[:, 0]) * (sample_percentage * 0.01)))
     X_test = X_test[indices]
     y_test = y_test[indices]
@@ -434,7 +445,7 @@ def bennu_refine(fitslist: list, time: int, discard_indices, plots=False):
     cor_sum_rad = np.sum(corrected_rad, 1)
 
     # Data is from several scans over Bennu's surface, each scan beginning and ending off-asteroid. See this plot of
-    # radiances summed over wl:s:
+    # radiances summed over wl:s to illustrate:
     # plt.figure()
     # plt.plot(range(len(uncor_sum_rad)), uncor_sum_rad)
     # plt.xlabel('Measurement number')
@@ -483,16 +494,8 @@ def bennu_refine(fitslist: list, time: int, discard_indices, plots=False):
     # Fetch NASA's temperature prediction from FITS file
     temperature = corrected_fits[3].data[:, 0]
     temperature = temperature[Bennu_indices]
-    # emissivity = corrected_fits[4].data
-    # emissivity = emissivity[Bennu_indices]
-
-    # # Alternative temperature prediction by fitting thermal tail to Planck function with constant 0.9 emissivity:
-    # # results will not be as truthful, but more in line with how the network thinks
-    # temperature = []
-    # for thermal_radiance in thermal_tail_Bennu:
-    #     temp = fit_Planck(thermal_radiance)
-    #     temperature.append(temp)
-    # temperature = np.asarray(temperature)
+    emissivity = corrected_fits[4].data
+    emissivity = emissivity[Bennu_indices]
 
     if plots==True:
         plotpath = Path(C.bennu_plots_path, str(time))
@@ -511,7 +514,7 @@ def bennu_refine(fitslist: list, time: int, discard_indices, plots=False):
             plt.show()
             plt.close(fig)
 
-    return uncorrected_Bennu, corrected_Bennu, thermal_tail_Bennu, temperature
+    return uncorrected_Bennu, corrected_Bennu, thermal_tail_Bennu, temperature, emissivity
 
 
 def validate_bennu(model, validation_run_folder):
@@ -549,34 +552,37 @@ def validate_bennu(model, validation_run_folder):
     discard_1500 = FH.load_csv(Path(Bennu_path, '1500_discard_indices'))
 
     # Interpolate to match the wl vector used for training data, convert the readings to another radiance unit
-    uncorrected_1500, corrected_1500, thermal_tail_1500, temperatures_1500 = bennu_refine(Bennu_1500, 1500, discard_1500, plots=False)
-    uncorrected_1230, corrected_1230, thermal_tail_1230, temperatures_1230 = bennu_refine(Bennu_1230, 1230, discard_1230, plots=False)
-    uncorrected_1000, corrected_1000, thermal_tail_1000, temperatures_1000 = bennu_refine(Bennu_1000, 1000, discard_1000, plots=False)
+    uncorrected_1500, corrected_1500, thermal_tail_1500, temperatures_1500, emissivities_1500 = bennu_refine(Bennu_1500, 1500, discard_1500, plots=False)
+    uncorrected_1230, corrected_1230, thermal_tail_1230, temperatures_1230, emissivities_1230 = bennu_refine(Bennu_1230, 1230, discard_1230, plots=False)
+    uncorrected_1000, corrected_1000, thermal_tail_1000, temperatures_1000, emissivities_1000 = bennu_refine(Bennu_1000, 1000, discard_1000, plots=False)
 
-    def test_model_Bennu(X_Bennu, reflected, thermal, temps, time: str, validation_plots_Bennu_path):
-        # Organize data to match what the ML model expects
-        y_Bennu = np.zeros((len(X_Bennu[:,0]), len(C.wavelengths), 2))
-        y_Bennu[:, :, 0] = reflected
-        y_Bennu[:, :, 1] = thermal
+    def test_model_Bennu(X_Bennu, temperatures, emissivities, thermal, time: str, validation_plots_Bennu_path):
+        # Organize ground truth data to match what the ML model expects
+        y_Bennu = np.zeros((len(X_Bennu[:,0]), 2))
+        y_Bennu[:, 0] = temperatures
+        y_Bennu[:, 1] = emissivities
 
         savepath = Path(validation_plots_Bennu_path, time)
-        os.mkdir(savepath)
+        if os.path.isdir(savepath) == False:
+            os.mkdir(savepath)
 
-        error_dict = test_model(X_Bennu, y_Bennu, model, temps, savepath)
+        error_dict = test_model(X_Bennu, y_Bennu, model, thermal, savepath)
 
         return error_dict
 
-    validation_plots_Bennu_path = Path(validation_run_folder,
-                                       'bennu_validation')  # Save location of plots from validating with Bennu data
+    # Save location of plots from validating with Bennu data
+    validation_plots_Bennu_path = Path(validation_run_folder, 'bennu_validation')
     if os.path.isdir(validation_plots_Bennu_path) == False:
         os.mkdir(validation_plots_Bennu_path)
-    #
+
     print('Testing with Bennu data, local time 15:00')
-    errors_1500 = test_model_Bennu(uncorrected_1500, corrected_1500, thermal_tail_1500, temperatures_1500, str(1500), validation_plots_Bennu_path)
+    errors_1500 = test_model_Bennu(uncorrected_1500, temperatures_1500, emissivities_1500, thermal_tail_1500, str(1500), validation_plots_Bennu_path)
+
     print('Testing with Bennu data, local time 12:30')
-    errors_1230 = test_model_Bennu(uncorrected_1230, corrected_1230, thermal_tail_1230, temperatures_1230, str(1230), validation_plots_Bennu_path)
+    errors_1230 = test_model_Bennu(uncorrected_1230, temperatures_1230, emissivities_1230, thermal_tail_1230, str(1230), validation_plots_Bennu_path)
+
     print('Testing with Bennu data, local time 10:00')
-    errors_1000 = test_model_Bennu(uncorrected_1000, corrected_1000, thermal_tail_1000, temperatures_1000, str(1000), validation_plots_Bennu_path)
+    errors_1000 = test_model_Bennu(uncorrected_1000, temperatures_1000, emissivities_1000, thermal_tail_1000, str(1000), validation_plots_Bennu_path)
 
     # Collecting calculated results into one dictionary and saving it as toml
     errors_Bennu = {}
@@ -713,7 +719,7 @@ def validate_and_test(model):
     validate_synthetic(model, validation_run_folder)
 
     # Testing with real asteroid data: do not look at this until the network works properly with synthetic data
-    # validate_bennu(model, validation_run_folder)
+    validate_bennu(model, validation_run_folder)
 
 
 def error_plots(folderpath):
@@ -885,7 +891,6 @@ def plot_Bennu_errors(folderpath):
                                      alpha=0.1)  # , color='#1f77b4')
         uncor_scatter3 = plt.scatter(ground_temps_1500, np.asarray(uncorrected_1500) - np.asarray(corrected_1500),
                                      alpha=0.1)  # , color='#1f77b4')
-
 
         if lim != (0, 0):
             plt.ylim(lim)

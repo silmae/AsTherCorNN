@@ -62,10 +62,13 @@ if __name__ == '__main__':
     #     lr=C.learning_rate
     # )
     #
-    # # # Load weights to continue training where you left off:
-    # # last_epoch = 520
-    # # weight_path = Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5')
-    # # untrained.load_weights(weight_path)
+    # # TODO Vary the noise in generated data: calculate some values for noise from OREX data, like SNR?
+    # # TODO Convert most of the network to convolutional
+    #
+    # # Load weights to continue training where you left off:
+    # last_epoch = 950
+    # weight_path = Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5')
+    # untrained.load_weights(weight_path)
     #
     # # Train the model
     # model = NN.train_autoencoder(untrained, early_stop=False, checkpoints=True, save_history=True, create_new_data=False)
@@ -84,7 +87,7 @@ if __name__ == '__main__':
         lr=C.learning_rate
     )
 
-    last_epoch = 950
+    last_epoch = 555
     weight_path = Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5')
     # weight_path = Path('/home/leevi/PycharmProjects/asteroid-thermal-modeling/training/300epochs_160waist_1e-05lr/weights/weights_297.hdf5')
     model.load_weights(weight_path)
@@ -92,8 +95,8 @@ if __name__ == '__main__':
     # Run validation with synthetic data and test with real data
     val.validate_and_test(model)
 
-    val.error_plots(Path('/home/leevi/PycharmProjects/asteroid-thermal-modeling/validation_and_testing/validation-run_20220330-162708/synthetic_validation'))
-    val.plot_Bennu_errors('//home/leevi/PycharmProjects/asteroid-thermal-modeling/validation_and_testing/validation-run_20220421-103518/bennu_validation')
+    # val.error_plots(Path('/home/leevi/PycharmProjects/asteroid-thermal-modeling/validation_and_testing/validation-run_20220330-162708/synthetic_validation'))
+    # val.plot_Bennu_errors('//home/leevi/PycharmProjects/asteroid-thermal-modeling/validation_and_testing/validation-run_20220421-103518/bennu_validation')
     ############################
     #
     # # Loading errors from Bennu testing, plotting results
