@@ -50,35 +50,10 @@ if __name__ == '__main__':
     # NN.tune_model(300, 20, 1)
 
     ############################
-    # # # # TRAINING
-    # # NN.prepare_training_data()
-    # # Create a neural network model
-    # untrained = NN.create_model(
-    #     conv_filters=C.conv_filters,
-    #     conv_kernel=C.conv_kernel,
-    #     encoder_start=C.encoder_start,
-    #     encoder_node_relation=C.encoder_node_relation,
-    #     encoder_stop=C.encoder_stop,
-    #     lr=C.learning_rate
-    # )
-    #
-    # # TODO Vary the noise in generated data: calculate some values for noise from OREX data, like SNR?
-    # # TODO Convert most of the network to convolutional
-    #
-    # # Load weights to continue training where you left off:
-    # last_epoch = 950
-    # weight_path = Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5')
-    # untrained.load_weights(weight_path)
-    #
-    # # Train the model
-    # model = NN.train_autoencoder(untrained, early_stop=False, checkpoints=True, save_history=True, create_new_data=False)
-
-    ##############################
-    # VALIDATION
-    import validation as val  # TODO This uses symfit, which I have not installed on my thingfish conda env
-
-    # Build a model and load pre-trained weights
-    model = NN.create_model(
+    # # TRAINING
+    # NN.prepare_training_data()
+    # Create a neural network model
+    untrained = NN.create_model(
         conv_filters=C.conv_filters,
         conv_kernel=C.conv_kernel,
         encoder_start=C.encoder_start,
@@ -87,13 +62,38 @@ if __name__ == '__main__':
         lr=C.learning_rate
     )
 
-    last_epoch = 555
-    weight_path = Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5')
-    # weight_path = Path('/home/leevi/PycharmProjects/asteroid-thermal-modeling/training/300epochs_160waist_1e-05lr/weights/weights_297.hdf5')
-    model.load_weights(weight_path)
+    # TODO Vary the noise in generated data: calculate some values for noise from OREX data, like SNR?
+    # TODO Convert most of the network to convolutional
 
-    # Run validation with synthetic data and test with real data
-    val.validate_and_test(model)
+    # # Load weights to continue training where you left off:
+    # last_epoch = 950
+    # weight_path = Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5')
+    # untrained.load_weights(weight_path)
+
+    # Train the model
+    model = NN.train_autoencoder(untrained, early_stop=False, checkpoints=True, save_history=True, create_new_data=False)
+
+    ##############################
+    # # VALIDATION
+    # import validation as val  # TODO This uses symfit, which I have not installed on my thingfish conda env
+    #
+    # # Build a model and load pre-trained weights
+    # model = NN.create_model(
+    #     conv_filters=C.conv_filters,
+    #     conv_kernel=C.conv_kernel,
+    #     encoder_start=C.encoder_start,
+    #     encoder_node_relation=C.encoder_node_relation,
+    #     encoder_stop=C.encoder_stop,
+    #     lr=C.learning_rate
+    # )
+    #
+    # last_epoch = 282
+    # weight_path = Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5')
+    # # weight_path = Path('/home/leevi/PycharmProjects/asteroid-thermal-modeling/training/300epochs_160waist_1e-05lr/weights/weights_297.hdf5')
+    # model.load_weights(weight_path)
+    #
+    # # Run validation with synthetic data and test with real data
+    # val.validate_and_test(model)
 
     # val.error_plots(Path('/home/leevi/PycharmProjects/asteroid-thermal-modeling/validation_and_testing/validation-run_20220330-162708/synthetic_validation'))
     # val.plot_Bennu_errors('//home/leevi/PycharmProjects/asteroid-thermal-modeling/validation_and_testing/validation-run_20220421-103518/bennu_validation')

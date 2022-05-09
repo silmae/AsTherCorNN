@@ -55,7 +55,7 @@ R_key = 'reflectance'
 
 # Gaussian distribution for noising
 mu = 0  # mean
-sigma = 0.005  # 0.01  # standard deviation
+sigma = 0.02  # standard deviation
 
 # Constraints for modeled radiances
 # d_S_min, d_S_max = 0.7, 2.8  # Heliocentric distance for asteroids where the problem is relevant, in AU
@@ -66,21 +66,21 @@ e_min, e_max = 0, 89  # Emission angle, angle between surface normal and observe
 # IN TRUTH both emission and incidence angles can go up to 90... but if both hit 90, we get division by zero when
 # calculating reflected radiance, and everything explodes
 
-emissivity_min, emissivity_max = 0.6, 0.99  # Emissivity, ratio between thermal emission from body and from ideal bb
+emissivity_min, emissivity_max = 0.2, 0.99  # Emissivity, ratio between thermal emission from body and from ideal bb. NB: Can also represent some beaming effects and such!
 p_min, p_max = 0.01, 0.40  # Geometrical albedo, ratio of light reflected from asteroid and from Lambertian disc
 
 # Neural network parameters
 refl_test_partition = 0.1  # Part of reflectances to be used for test data
 activation = 'relu'
 batches = 32
-epochs = 1000
+epochs = 200
 
-conv_filters = 60
-conv_kernel = 40
+conv_filters = 256
+conv_kernel = 4
 encoder_start = 1024  # 800
 encoder_node_relation = 0.50
 encoder_stop = 4  # Autoencoder middle layer node count
-learning_rate = 1e-6
+learning_rate = 5e-5
 
 training_run_name = f'{epochs}epochs_{encoder_start}start_{encoder_stop}stop_{learning_rate}lr'
 training_run_path = Path(training_path, training_run_name)

@@ -140,7 +140,7 @@ def noising(rad_data, mu, sigma):
         Noisified radiance data
     """
 
-    # Generate noise
+    # Generate noise: pull a random value from Gaussian distribution for every element of the radiance vector
     s = np.random.default_rng().normal(mu, sigma, len(rad_data))
 
     # Add noise to data
@@ -186,27 +186,8 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
     # Calculate theoretical radiance reflected from an asteroid toward observer
     reflrad = reflected_radiance(reflectance, insolation, incidence_ang, emission_ang)
 
-    if type(emissivity) == float or len(emissivity) == 1:
-        # If a single float, make it into a vector where each element is that number
-        emittance = np.empty((len(waves), 1))
-        emittance.fill(emissivity)
-    elif type(emissivity) == list:
-        # If emissivity is a list with correct length, convert to ndarray
-        if len(emissivity) == len(C.wavelengths):
-            emittance = np.asarray(emissivity)
-        else:
-            print('Emissivity list was not same length as wavelength vector. Stopping execution...')
-            quit()
-    elif type(emissivity) == np.ndarray:
-        # If emissivity array is of correct shape, rename it to emittance and proceed
-        if emissivity.shape == C.wavelengths.shape or emissivity.shape == (C.wavelengths.shape, 1) or emissivity.shape == (1, C.wavelengths.shape):
-            emittance = emissivity
-        else:
-            print('Emissivity array was not same shape as wavelength vector. Stopping execution...')
-            quit()
-
     # Calculate theoretical thermal emission from an asteroid's surface
-    thermrad = thermal_radiance(T, emittance, waves)
+    thermrad = thermal_radiance(T, emissivity, waves)
 
     # Sum the two calculated spectral radiances
     sumrad = np.zeros((len(waves), 2))
@@ -219,7 +200,7 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
     # Collect the data into a dict
     rad_dict = {}
     meta = {'heliocentric_distance': d_S, 'incidence_angle': incidence_ang, 'emission_angle': emission_ang, 'surface_temperature': T,
-            'emissivity': emittance}
+            'emissivity': emissivity}
     rad_dict['metadata'] = meta
     rad_dict['wavelength'] = waves
     rad_dict['reflected_radiance'] = reflrad[:, 1]
