@@ -166,10 +166,10 @@ def create_model(conv_filters: int, conv_kernel: int, encoder_start: int, encode
 
     # 1D convolution layer(s)
     conv1 = Conv1D(filters=conv_filters, kernel_size=conv_kernel, padding='same', strides=1, activation=C.activation)(input_data)
-    conv1 = Conv1D(filters=int(conv_filters/2), kernel_size=conv_kernel*2, padding='same', strides=1, activation=C.activation)(conv1)
-    conv1 = Conv1D(filters=int(conv_filters/4), kernel_size=conv_kernel*4, padding='same', strides=1, activation=C.activation)(conv1)
-    conv1 = Conv1D(filters=int(conv_filters/8), kernel_size=conv_kernel*8, padding='same', strides=1, activation=C.activation)(conv1)
-    # TODO add max-pooling to convolution?
+    conv1 = Conv1D(filters=int(conv_filters/2), kernel_size=conv_kernel, padding='same', strides=1, activation=C.activation)(conv1)
+    conv1 = Conv1D(filters=int(conv_filters/4), kernel_size=conv_kernel, padding='same', strides=1, activation=C.activation)(conv1)
+    conv1 = Conv1D(filters=int(conv_filters/8), kernel_size=conv_kernel, padding='same', strides=1, activation=C.activation)(conv1)
+    # Flatted to make conv output compatible with following dense layer
     conv1 = Flatten()(conv1)
 
     # Create encoder based on start, relation, and end

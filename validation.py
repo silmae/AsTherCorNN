@@ -385,7 +385,7 @@ def validate_synthetic(model, validation_run_folder: Path):
     # Shuffle to get samples from all temperatures when using part of the data
     X_test, y_test = sklearn.utils.shuffle(X_test, y_test, random_state=0)
 
-    sample_percentage = 5  # percentage of validation data samples used for error calculation, takes less time
+    sample_percentage = 1  # percentage of validation data samples used for error calculation, takes less time
     indices = range(int(len(X_test[:, 0]) * (sample_percentage * 0.01)))
     X_test = X_test[indices]
     y_test = y_test[indices]

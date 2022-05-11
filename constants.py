@@ -32,9 +32,9 @@ albedo_path = Path('./spectral_data/reflectances/Penttila_asteroid_spectra/class
 '''Mean albedos of asteroid spectral classes'''
 solar_path = Path('./spectral_data/solar-spectral-irradiance/solar_spectrum.txt')
 '''Solar irradiance spectrum'''
-rad_bunch_test_path = Path('./spectral_data/rad_bunch_test_bennu_random')
+rad_bunch_test_path = Path('./spectral_data/rad_bunch_test_bennu_random_no-noise_min-150K')
 '''All synthetic test radiances, saved as a pickle'''
-rad_bunch_training_path = Path('./spectral_data/rad_bunch_training_bennu_random')
+rad_bunch_training_path = Path('./spectral_data/rad_bunch_training_bennu_random_no-noise_min-150K')
 '''All training data, saved as a pickle'''
 radiance_path = Path('./spectral_data/radiances')
 radiance_training_path = Path(radiance_path, 'training')
@@ -55,12 +55,12 @@ R_key = 'reflectance'
 
 # Gaussian distribution for noising
 mu = 0  # mean
-sigma = 0.02  # standard deviation
+sigma = 0.0001 #0.02  # standard deviation
 
 # Constraints for modeled radiances
 # d_S_min, d_S_max = 0.7, 2.8  # Heliocentric distance for asteroids where the problem is relevant, in AU
 d_S_min, d_S_max = 0.8968944004459729 - 0.1, 1.355887651343651 + 0.1  # Heliocentric distances for Bennu, in AU
-T_min, T_max = 200, 430  # Asteroid surface temperature, in Kelvins
+T_min, T_max = 150, 430  # Asteroid surface temperature, in Kelvins
 i_min, i_max = 0, 89  # Incidence angle, angle between surface normal and incident light, in degrees
 e_min, e_max = 0, 89  # Emission angle, angle between surface normal and observer direction, in degrees
 # IN TRUTH both emission and incidence angles can go up to 90... but if both hit 90, we get division by zero when
@@ -73,13 +73,13 @@ p_min, p_max = 0.01, 0.40  # Geometrical albedo, ratio of light reflected from a
 refl_test_partition = 0.1  # Part of reflectances to be used for test data
 activation = 'relu'
 batches = 32
-epochs = 200
+epochs = 500
 
-conv_filters = 256
+conv_filters = 128
 conv_kernel = 4
 encoder_start = 1024  # 800
 encoder_node_relation = 0.50
-encoder_stop = 4  # Autoencoder middle layer node count
+encoder_stop = 4
 learning_rate = 5e-5
 
 training_run_name = f'{epochs}epochs_{encoder_start}start_{encoder_stop}stop_{learning_rate}lr'
