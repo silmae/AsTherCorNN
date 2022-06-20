@@ -114,8 +114,6 @@ def test_model(X_test, y_test, model, thermal_radiances, savefolder):
     thermrad_cos = []
     temperature_ground = []
     temperature_pred = []
-    emissivity_ground = []
-    emissivity_pred = []
 
     indices = range(len(X_test[:, 0]))  # Full error calculation, takes some time
     plot_indices = np.random.randint(0, len(X_test[:, 0]), 20)
@@ -126,7 +124,7 @@ def test_model(X_test, y_test, model, thermal_radiances, savefolder):
         test_sample = np.expand_dims(X_test[i, :], axis=0)
         prediction = model.predict(test_sample).squeeze()  # model.predict(np.array([summed.T])).squeeze()
 
-        pred_temperature = prediction[0]
+        pred_temperature = prediction
         temperature_pred.append(pred_temperature)
         ground_temperature = y_test[i, 0]
         temperature_ground.append(ground_temperature)
@@ -134,17 +132,13 @@ def test_model(X_test, y_test, model, thermal_radiances, savefolder):
         print(f'Ground temperature: {ground_temperature}')
         print(f'Prediction temperature: {pred_temperature}')
 
-        pred_emissivity = prediction[1]
-        emissivity_pred.append(pred_emissivity)
-        ground_emissivity = y_test[i, 1]
-        emissivity_ground.append(ground_emissivity)
-
-        # Calculate thermal spectral radiance from predicted temperature and emissivity using Planck's law
-        pred_radiance = rad.thermal_radiance(pred_temperature, pred_emissivity, C.wavelengths)
+        # Calculate thermal spectral radiance from predicted temperature and constant 0.9 emissivity using Planck's law
+        pred_radiance = rad.thermal_radiance(pred_temperature, 0.9, C.wavelengths)
 
         pred_therm = pred_radiance[:, 1]
         ground_therm = thermal_radiances[i, :]
 
+        # Reflected radiance = sum radiance (input) - thermal radiance (from temperature)
         pred_refl = test_sample.squeeze() - pred_therm
         ground_refl = test_sample.squeeze() - ground_therm
         uncorrected_refl = test_sample.squeeze()
@@ -204,6 +198,7 @@ def test_model(X_test, y_test, model, thermal_radiances, savefolder):
     temperature_dict = {}
     temperature_dict['ground_temperature'] = temperature_ground
     temperature_dict['predicted_temperature'] = temperature_pred
+    # TODO Calculate NRMSE from temperatures and include it in dict
 
     MAE_dict = {}
     MAE_dict['reflected_MAE'] = reflrad_mae_corrected
@@ -234,14 +229,6 @@ def test_model(X_test, y_test, model, thermal_radiances, savefolder):
     plt.ylabel('Predicted temperature [K]')
     plt.plot(range(C.T_min, C.T_max), range(C.T_min, C.T_max), 'r')  # Plot a reference line with slope 1: ideal result
     plt.savefig(Path(savefolder, 'predtemp-groundtemp.png'))
-    plt.close(fig)
-
-    fig = plt.figure()
-    plt.scatter(emissivity_ground, emissivity_pred, alpha=0.1)
-    plt.xlabel('Ground truth emissivity')
-    plt.ylabel('Predicted emissivity')
-    plt.plot(np.linspace(C.emissivity_min, C.emissivity_max), np.linspace(C.emissivity_min, C.emissivity_max), 'r')  # Plot a reference line with slope 1: ideal result
-    plt.savefig(Path(savefolder, 'predeps-groundeps.png'))
     plt.close(fig)
 
     fig = plt.figure()

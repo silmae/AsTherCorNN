@@ -181,8 +181,8 @@ def create_model(conv_filters: int, conv_kernel: int, encoder_start: int, encode
         encoder = Dense(node_count, activation=C.activation)(encoder)
         counts.append(node_count)
 
-    # Output with 2 neurons: one for temperature, one for emissivity
-    output = Dense(2, activation='linear')(encoder)
+    # Output with one neuron, the predicted temperature
+    output = Dense(1, activation='linear')(encoder)
 
     # Create a model object
     model = Model(inputs=[input_data], outputs=[output])
@@ -285,12 +285,14 @@ def load_training_validation_data():
     rad_bunch_training = FH.load_pickle(C.rad_bunch_training_path)
     x_train = rad_bunch_training['radiances']
     y_train = rad_bunch_training['parameters']
+    y_train = y_train[:, 0]  # Both temperature and emissivity are saved here, pick only temperature
     x_train, y_train = sklearn.utils.shuffle(x_train, y_train, random_state=0)
 
     # Load validation radiances from one file as dicts
     rad_bunch_test = FH.load_pickle(C.rad_bunch_test_path)
     x_val = rad_bunch_test['radiances']
     y_val = rad_bunch_test['parameters']
+    y_val = y_val[:, 0]  # Both temperature and emissivity are saved here, pick only temperature
     x_val, y_val = sklearn.utils.shuffle(x_val, y_val, random_state=0)
 
     return x_train, y_train, x_val, y_val
@@ -346,12 +348,12 @@ def train_autoencoder(model, early_stop: bool = True, checkpoints: bool = True, 
     if create_new_data == True:
         prepare_training_data()
 
-    data, ground, X_val, y_val = load_training_validation_data()
+    x_train, y_train, x_val, y_val = load_training_validation_data()
     # ground = ground[:, :, 1]  # For native Keras losses
     # y_val = y_val[:, :, 1]
 
     # Train model and save history
-    history = model.fit([data], [ground], batch_size=C.batches, epochs=C.epochs, validation_data=(X_val, y_val),
+    history = model.fit([x_train], [y_train], batch_size=C.batches, epochs=C.epochs, validation_data=(x_val, y_val),
                         callbacks=model_callbacks)
 
     # Save training history
