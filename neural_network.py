@@ -26,13 +26,19 @@ def prepare_training_data():
     """
     Creating training and validation data. Takes reflectance spectra of asteroids, and divides them into a larger set
     for training and a smaller set for validation. From each reflectance creates a number of simulated radiances with
-    random values for heliocentric distance, incidence and emission angles, and surface temperature. For training the
-    separate reflected and thermal radiances are the ground truth, and the sum of these is the input. Function
+    random values for heliocentric distance, incidence and emission angles, and surface temperature.
+
+    For training the sum of reflected and thermal radiances is the input, and temperature is the ground truth. Function
     creates dictionaries for all simulated observations, writing into them the three spectra, and metadata
     related to parameters used in their creation. Each dictionary is saved into its own .toml file.
     """
 
-    # #############################  # TODO Take meteorite reflectances also into account?
+    '''
+    Meteorite reflectances (Gaffey, for example) can be used for simulating reflected radiances, but they are likely 
+    not good stand-ins for asteroid reflectance: no space weathering, and possible changes from atmospheric shock.
+    They could simulate fresh regolith.
+    '''
+    # #############################
     # # Load meteorite reflectances from files and create more from them through augmentation
     # train_reflectances, test_reflectances = refl.read_meteorites(waves)
     # refl.augmented_reflectances(train_reflectances, waves, test=False)
@@ -75,7 +81,7 @@ def tune_model(epochs: int, max_trials: int, executions_per_trial: int):
         random values)
     """
 
-    # Hyperparameter optimization with KerasTuner
+    # Hyperparameter optimization with KerasTuner's Bayesian optimizer
     savefolder_name = f'optimization-run_{time.strftime("%Y%m%d-%H%M%S")}'
     tuner = kt.BayesianOptimization(
         hypermodel=create_hypermodel,
@@ -86,6 +92,7 @@ def tune_model(epochs: int, max_trials: int, executions_per_trial: int):
         directory=C.hyperparameter_path,
         project_name=savefolder_name,
     )
+
     tuner.search_space_summary()
     x_train, y_train, x_val, y_val = load_training_validation_data()
     tuner.search(x_train, y_train, epochs=epochs, validation_data=(x_val, y_val))
@@ -200,73 +207,21 @@ def create_model(conv_filters: int, conv_kernel: int, encoder_start: int, encode
 
 def loss_fn(ground, prediction):
     """
-    Calculate loss from predicted thermal radiance spectrum and corresponding ground truth.
+    Calculate loss from predicted value and corresponding ground truth.
 
     :param ground: tf.Tensor
-        Ground truth, two vectors for every item in batch (reflected and thermal)
+        Ground truth, temperature value for every item in batch
     :param prediction: tf.Tensor
-        Prediction, one vector for every item in batch: thermal radiance
+        Prediction, temperature value for every item in batch
 
     :return:
         Calculated loss
     """
 
-    # Take only the thermal vector from ground truth
-    ground = ground[:, :, 1]
-
-    # Scaling the ground and prediction values: if not scaled, higher radiances will dominate, and lower will not
-    # be seen as errors. Should not affect network output units when done inside loss function
-    # ground_max = tf.math.reduce_max(ground)
-    # # To prevent division by (near) zero, add small constant value to maxima
-    # ground_max = ground_max + 0.0000001
-    # scaling_factor = ground_max
-    # prediction_max = tf.math.reduce_max(prediction)
-    # prediction_max = prediction_max + 0.0000001
-    # scalars = tf.stack([ground_max, prediction_max], axis=0)
-
-    # # Calculate L1 norm from both prediction and ground, scale both with the larger of the two
-    # prediction_norm = tf.norm(prediction, axis=1, keepdims=True, ord=1)
-    # ground_norm = tf.norm(ground, axis=1, keepdims=True, ord=1)
-    # scalars = tf.stack([ground_norm, prediction_norm], axis=0)
-
-    # scaling_factor = tf.math.reduce_max(scalars)
-
-    # tf.compat.v1.control_dependencies([tf.print(ground_norm)])
-    # tf.compat.v1.control_dependencies([tf.print(prediction_norm)])
-    # tf.compat.v1.control_dependencies([tf.print(scaling_factor)])
-
-    # Scale both ground truth and predictions by dividing with maximum
-    # ground = tf.math.divide(ground, scaling_factor)
-    # prediction = tf.math.divide(prediction, scaling_factor)
-
-    # ground_sum = tf.math.reduce_sum(ground)
-    # prediction_sum = tf.math.reduce_sum(tf.math.abs(prediction))  # Absolute because this fucker will try to compensate with negative values
-    #
-    # sum_error = tf.math.abs(ground_sum - prediction_sum)  # TODO Maybe use a scaling factor? This can get pretty big
-
-    L2_dist = tf.norm(ground - prediction, axis=1, keepdims=True)
-
-    # # Keras mean absolute error
-    # mae = tf.keras.losses.mean_absolute_error(ground, prediction)
-
-    # Cosine distance: only thermal, since those are always similar to each other in shape
-    cosine_loss = tf.keras.losses.CosineSimilarity(axis=1)
-    cos_dist = cosine_loss(ground, prediction) + 1  # According to Keras documentation, -1 means similar and 1 means dissimilar: add 1 to stay positive!
-
-    # # Calculate total variation in prediction: if this is high, the produced spectrum is noisy
-    # shp = tf.shape(prediction)
-    # x1 = tf.slice(prediction, [0, 0], [shp[0], shp[1] - 1])
-    # x2 = tf.slice(prediction, [0, 1], [shp[0], shp[1] - 1])
-    # total_variation = tf.reduce_sum(tf.abs(tf.subtract(x1, x2)))
-
-    # tf.compat.v1.control_dependencies([tf.print(total_variation)])
-
-    # Calculate loss as sum of L2 distance and cos distance
-    loss = L2_dist + cos_dist #+ total_variation * 1e-5
+    # Calculate loss from ground truth and prediction
+    loss = tf.math.abs(ground - prediction)
 
     # Printing loss into console (since debugger will not show tensor values)
-    # tf.compat.v1.control_dependencies([tf.print(L2_dist)])
-    # tf.compat.v1.control_dependencies([tf.print(cos_dist)])
     # tf.compat.v1.control_dependencies([tf.print(loss)])
 
     return loss
@@ -298,8 +253,8 @@ def load_training_validation_data():
     return x_train, y_train, x_val, y_val
 
 
-def train_autoencoder(model, early_stop: bool = True, checkpoints: bool = True, save_history: bool = True,
-                      create_new_data: bool = False):
+def train_network(model, early_stop: bool = True, checkpoints: bool = True, save_history: bool = True,
+                  create_new_data: bool = False):
     """
     Train deep learning model according to arguments and some parameters given in constants.py.
 
@@ -326,10 +281,9 @@ def train_autoencoder(model, early_stop: bool = True, checkpoints: bool = True, 
         restore_best_weights=True
     )
 
-    # Save the weights callback
+    # Save the weights callback, only saves when validation loss has improved
     extract_destination = C.weights_path
     checkpoint_filepath = os.path.join(extract_destination, 'weights_{epoch}.hdf5')
-    # parameters for saving a model everytime we finish training for 1 epoch
     model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
         filepath=checkpoint_filepath,
         save_weights_only=True,
@@ -348,11 +302,10 @@ def train_autoencoder(model, early_stop: bool = True, checkpoints: bool = True, 
     if create_new_data == True:
         prepare_training_data()
 
+    # Load training data from disc
     x_train, y_train, x_val, y_val = load_training_validation_data()
-    # ground = ground[:, :, 1]  # For native Keras losses
-    # y_val = y_val[:, :, 1]
 
-    # Train model and save history
+    # Train model
     history = model.fit([x_train], [y_train], batch_size=C.batches, epochs=C.epochs, validation_data=(x_val, y_val),
                         callbacks=model_callbacks)
 
@@ -365,10 +318,9 @@ def train_autoencoder(model, early_stop: bool = True, checkpoints: bool = True, 
     plt.plot(history.history['loss'])
     plt.plot(history.history['val_loss'])
     plt.yscale('log')
-    plt.title('Model loss history')
     plt.ylabel('loss')
     plt.xlabel('epoch')
-    plt.legend(['train', 'test'], loc='upper left')
+    plt.legend(['Training', 'Validation'], loc='upper left')
     filename = C.training_run_name + '_history.png'
     plt.savefig(Path(C.training_run_path, filename), dpi=600)
 

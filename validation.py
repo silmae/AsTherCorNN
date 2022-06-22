@@ -1,3 +1,7 @@
+"""
+Methods for testing neural network performance, using both synthetic data and real data OVIRS data of Bennu.
+"""
+
 import time
 from pathlib import Path
 import os
@@ -74,6 +78,7 @@ def fit_Planck(radiance: np.ndarray):
 
     return temperature
 
+
 def test_model(X_test, y_test, model, thermal_radiances, savefolder):
 
     time_start = time.perf_counter_ns()
@@ -124,7 +129,7 @@ def test_model(X_test, y_test, model, thermal_radiances, savefolder):
         test_sample = np.expand_dims(X_test[i, :], axis=0)
         prediction = model.predict(test_sample).squeeze()  # model.predict(np.array([summed.T])).squeeze()
 
-        pred_temperature = prediction
+        pred_temperature = np.asscalar(prediction)
         temperature_pred.append(pred_temperature)
         ground_temperature = y_test[i, 0]
         temperature_ground.append(ground_temperature)
@@ -224,7 +229,7 @@ def test_model(X_test, y_test, model, thermal_radiances, savefolder):
 
     # Plot scatters of several errors vs ground truth temperature
     fig = plt.figure()
-    plt.scatter(temperature_ground, temperature_pred, alpha=0.1)
+    plt.scatter(temperature_ground, temperature_pred, alpha=0.1, color=C.NNcor_plot_color)
     plt.xlabel('Ground truth temperature [K]')
     plt.ylabel('Predicted temperature [K]')
     plt.plot(range(C.T_min, C.T_max), range(C.T_min, C.T_max), 'r')  # Plot a reference line with slope 1: ideal result
@@ -233,8 +238,8 @@ def test_model(X_test, y_test, model, thermal_radiances, savefolder):
 
     fig = plt.figure()
     plt.figure()
-    plt.scatter(temperature_ground, reflrad_cos_uncorrected, alpha=0.1)
-    plt.scatter(temperature_ground, reflrad_cos_corrected, alpha=0.1)
+    plt.scatter(temperature_ground, reflrad_cos_uncorrected, alpha=0.1, color=C.uncor_plot_color)
+    plt.scatter(temperature_ground, reflrad_cos_corrected, alpha=0.1, color=C.NNcor_plot_color)
     plt.xlabel('Ground truth temperature [K]')
     plt.ylabel('Reflected cosine distance')
     leg = plt.legend(('Uncorrected', 'NN-corrected'))
@@ -245,8 +250,8 @@ def test_model(X_test, y_test, model, thermal_radiances, savefolder):
 
     fig = plt.figure()
     plt.figure()
-    plt.scatter(temperature_ground, reflectance_cos_uncorrected, alpha=0.1)
-    plt.scatter(temperature_ground, reflectance_cos_corrected, alpha=0.1)
+    plt.scatter(temperature_ground, reflectance_cos_uncorrected, alpha=0.1, color=C.uncor_plot_color)
+    plt.scatter(temperature_ground, reflectance_cos_corrected, alpha=0.1, color=C.NNcor_plot_color)
     plt.xlabel('Ground truth temperature [K]')
     plt.ylabel('Reflectance cosine distance')
     leg = plt.legend(('Uncorrected', 'NN-corrected'))
@@ -257,8 +262,8 @@ def test_model(X_test, y_test, model, thermal_radiances, savefolder):
 
     fig = plt.figure()
     plt.figure()
-    plt.scatter(temperature_ground, reflectance_mae_uncorrected, alpha=0.1)
-    plt.scatter(temperature_ground, reflectance_mae_corrected, alpha=0.1)
+    plt.scatter(temperature_ground, reflectance_mae_uncorrected, alpha=0.1, color=C.uncor_plot_color)
+    plt.scatter(temperature_ground, reflectance_mae_corrected, alpha=0.1, color=C.NNcor_plot_color)
     plt.xlabel('Ground truth temperature [K]')
     plt.ylabel('Reflectance MAE')
     leg = plt.legend(('Uncorrected', 'NN-corrected'))
@@ -269,7 +274,7 @@ def test_model(X_test, y_test, model, thermal_radiances, savefolder):
 
     fig = plt.figure()
     plt.figure()
-    plt.scatter(temperature_ground, thermrad_cos, alpha=0.1)
+    plt.scatter(temperature_ground, thermrad_cos, alpha=0.1, color=C.NNcor_plot_color)
     plt.xlabel('Ground truth temperature [K]')
     plt.ylabel('Thermal cosine distance')
     plt.savefig(Path(savefolder, 'thermSAM_groundtemp.png'))
@@ -277,7 +282,7 @@ def test_model(X_test, y_test, model, thermal_radiances, savefolder):
 
     fig = plt.figure()
     plt.figure()
-    plt.scatter(temperature_ground, thermrad_mae, alpha=0.1)
+    plt.scatter(temperature_ground, thermrad_mae, alpha=0.1, color=C.NNcor_plot_color)
     plt.xlabel('Ground truth temperature [K]')
     plt.ylabel('Thermal MAE')
     plt.savefig(Path(savefolder, 'thermMAE_groundtemp.png'))
@@ -285,8 +290,8 @@ def test_model(X_test, y_test, model, thermal_radiances, savefolder):
 
     fig = plt.figure()
     plt.figure()
-    plt.scatter(temperature_ground, reflrad_mae_uncorrected, alpha=0.1)
-    plt.scatter(temperature_ground, reflrad_mae_corrected, alpha=0.1)
+    plt.scatter(temperature_ground, reflrad_mae_uncorrected, alpha=0.1, color=C.uncor_plot_color)
+    plt.scatter(temperature_ground, reflrad_mae_corrected, alpha=0.1, color=C.NNcor_plot_color)
     plt.xlabel('Ground truth temperature [K]')
     plt.ylabel('Reflected MAE')
     leg = plt.legend(('Uncorrected', 'NN-corrected'))
@@ -323,9 +328,9 @@ def plot_val_test_results(test_sample, ground1, ground2, pred1, pred2, savefolde
 
     fig = plt.figure()
     x = C.wavelengths
-    plt.plot(x, uncorrected)
-    plt.plot(x, ground)
-    plt.plot(x, NN_corrected)
+    plt.plot(x, uncorrected, color=C.uncor_plot_color)
+    plt.plot(x, ground, color=C.ground_plot_color)
+    plt.plot(x, NN_corrected, color=C.NNcor_plot_color)
     plt.xlabel('Wavelength [µm]')
     plt.ylabel('Normalized reflectance')
     plt.legend(('Uncorrected', 'Ground truth', 'NN-corrected'))
@@ -341,8 +346,8 @@ def plot_val_test_results(test_sample, ground1, ground2, pred1, pred2, savefolde
 
     fig = plt.figure()
     x = C.wavelengths
-    plt.plot(x, ground)
-    plt.plot(x, NN_corrected)
+    plt.plot(x, ground, color=C.ground_plot_color)
+    plt.plot(x, NN_corrected, color=C.NNcor_plot_color)
     plt.xlabel('Wavelength [µm]')
     plt.ylabel('Thermal radiance [W / m² / sr / µm]')
     plt.legend(('Ground truth', 'NN-corrected'))
@@ -656,13 +661,13 @@ def validate_bennu(model, validation_run_folder):
 
         fig = plt.figure()
         # Default pyplot colors: '#1f77b4', '#ff7f0e', '#2ca02c'
-        uncor_scatter1 = plt.scatter(ground_temps_1000, uncorrected_1000, alpha=0.1, color='#1f77b4')
-        uncor_scatter2 = plt.scatter(ground_temps_1230, uncorrected_1230, alpha=0.1, color='#1f77b4')
-        uncor_scatter3 = plt.scatter(ground_temps_1500, uncorrected_1500, alpha=0.1, color='#1f77b4')
+        uncor_scatter1 = plt.scatter(ground_temps_1000, uncorrected_1000, alpha=0.1, color=C.uncor_plot_color)
+        uncor_scatter2 = plt.scatter(ground_temps_1230, uncorrected_1230, alpha=0.1, color=C.uncor_plot_color)
+        uncor_scatter3 = plt.scatter(ground_temps_1500, uncorrected_1500, alpha=0.1, color=C.uncor_plot_color)
 
-        cor_scatter1 = plt.scatter(ground_temps_1000, corrected_1000, alpha=0.1, color='#ff7f0e')
-        cor_scatter2 = plt.scatter(ground_temps_1230, corrected_1230, alpha=0.1, color='#ff7f0e')
-        cor_scatter3 = plt.scatter(ground_temps_1500, corrected_1500, alpha=0.1, color='#ff7f0e')
+        cor_scatter1 = plt.scatter(ground_temps_1000, corrected_1000, alpha=0.1, color=C.NNcor_plot_color)
+        cor_scatter2 = plt.scatter(ground_temps_1230, corrected_1230, alpha=0.1, color=C.NNcor_plot_color)
+        cor_scatter3 = plt.scatter(ground_temps_1500, corrected_1500, alpha=0.1, color=C.NNcor_plot_color)
 
         if lim != (0, 0):
             plt.ylim(lim)
@@ -690,7 +695,7 @@ def validate_and_test(model):
 
     # Generate a unique folder name for results of test based on time the test was run
     timestr = time.strftime("%Y%m%d-%H%M%S")
-    # timestr = 'test'  # folder name for test runs, otherwise a new folder is always created
+    # timestr = 'test'  # Folder name for test runs, otherwise a new folder is always created
 
     # Create folder for results
     validation_run_folder = Path(C.val_and_test_path, f'validation-run_{timestr}')
@@ -840,6 +845,7 @@ def plot_Bennu_errors(folderpath):
     # Bennuplot(errors_1000, errors_1230, errors_1500, 'reflected_SAM', 'Reflected SAM')
     # Bennuplot(errors_1000, errors_1230, errors_1500, 'thermal_SAM', 'Thermal SAM')
     print('test')
+
 
     def Bennu_comparison_plots(corrected_name, uncorrected_name, label, lim=(0,0)):
         temp_dict_1000 = errors_1000['temperature']

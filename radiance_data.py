@@ -239,6 +239,7 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
 
     return rad_dict
 
+
 def calculate_radiances(reflectance_list: list, test: bool, samples_per_temperature: int = 200, emissivity_type: str = 'constant'):
     """
     Generate vector of temperature values based on minimum given in constants and maximum calculated from minimum
