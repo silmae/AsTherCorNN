@@ -197,6 +197,7 @@ def create_model(conv_filters: int, conv_kernel: int, encoder_start: int, encode
 
     # Define optimizer, set learning rate of the model
     opt = tf.keras.optimizers.Adam(learning_rate=lr)
+    # opt = tf.keras.optimizers.Adadelta(learning_rate=lr)
 
     # Compile model
     model.compile(optimizer=opt, loss=tf.keras.losses.MeanAbsolutePercentageError())

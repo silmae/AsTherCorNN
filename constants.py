@@ -72,15 +72,15 @@ p_min, p_max = 0.01, 0.40  # Geometrical albedo, ratio of light reflected from a
 # Neural network parameters
 refl_test_partition = 0.1  # Part of reflectances to be used for test data
 activation = 'relu'
-batches = 16
-epochs = 550
+batches = 32
+epochs = 512
 
 conv_filters = 128
 conv_kernel = 4
 encoder_start = 1024  # 800
 encoder_node_relation = 0.50
 encoder_stop = 4
-learning_rate = 2e-5
+learning_rate = 5e-6
 
 training_run_name = f'{epochs}epochs_{encoder_start}start_{encoder_stop}stop_{learning_rate}lr'
 training_run_path = Path(training_path, training_run_name)

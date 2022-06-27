@@ -96,6 +96,7 @@ def test_model(X_test, y_test, model, thermal_radiances, savefolder):
         sum_s1_s2 = np.dot(s1, s2)
         cosangle = (sum_s1_s2 / (s1_norm * s2_norm))
         return cosangle
+
     # Mean absolute error between two vectors
     def MAE(s1, s2):
         return sum(abs(s1 - s2)) / len(s1)
@@ -127,7 +128,7 @@ def test_model(X_test, y_test, model, thermal_radiances, savefolder):
 
     for i in indices:
         test_sample = np.expand_dims(X_test[i, :], axis=0)
-        prediction = model.predict(test_sample).squeeze()  # model.predict(np.array([summed.T])).squeeze()
+        prediction = model.predict(test_sample).squeeze()
 
         pred_temperature = np.asscalar(prediction)
         temperature_pred.append(pred_temperature)
@@ -191,14 +192,20 @@ def test_model(X_test, y_test, model, thermal_radiances, savefolder):
 
         print(f'Calculated MAE and cosine angle for sample {i} out of {len(indices)}')
 
+    # Normalized Root Mean Square Error (NRMSE) from temperature predictions
+    temperature_errors = np.asarray(temperature_ground) - np.asarray(temperature_pred)
+    temperature_NRMSE = np.sqrt((sum(temperature_errors ** 2)) / len(temperature_ground)) / np.mean(temperature_ground)
+
     # Gather all calculated errors in a single dictionary and save that as toml
     mean_dict = {}
+    mean_dict['samples'] = i+1
+    mean_dict['NN_test_result'] = test_result
+    mean_dict['elapsed_prediction_time_s'] = elapsed_time_s
+    mean_dict['temperature_NRMSE'] = temperature_NRMSE
     mean_dict['mean_reflected_MAE'] = np.mean(reflrad_mae_corrected)
     mean_dict['mean_thermal_MAE'] = np.mean(thermrad_mae)
     mean_dict['mean_reflected_SAM'] = np.mean(reflrad_cos_corrected)
     mean_dict['mean_thermal_SAM'] = np.mean(thermrad_cos)
-    mean_dict['samples'] = i+1
-    mean_dict['elapsed_prediction_time_s'] = elapsed_time_s
 
     temperature_dict = {}
     temperature_dict['ground_temperature'] = temperature_ground
@@ -227,12 +234,15 @@ def test_model(X_test, y_test, model, thermal_radiances, savefolder):
 
     FH.save_toml(error_dict, Path(savefolder, 'errors.toml'))
 
+    min_temperature = int(min(temperature_ground))
+    max_temperature = int(max(temperature_ground))
+
     # Plot scatters of several errors vs ground truth temperature
     fig = plt.figure()
     plt.scatter(temperature_ground, temperature_pred, alpha=0.1, color=C.NNcor_plot_color)
     plt.xlabel('Ground truth temperature [K]')
     plt.ylabel('Predicted temperature [K]')
-    plt.plot(range(C.T_min, C.T_max), range(C.T_min, C.T_max), 'r')  # Plot a reference line with slope 1: ideal result
+    plt.plot(range(min_temperature, max_temperature), range(min_temperature, max_temperature), 'r')  # Plot a reference line with slope 1: ideal result
     plt.savefig(Path(savefolder, 'predtemp-groundtemp.png'))
     plt.close(fig)
 
@@ -374,10 +384,23 @@ def validate_synthetic(model, validation_run_folder: Path):
     X_test = rad_bunch_test['radiances']
     y_test = rad_bunch_test['parameters']
 
+    # Limiting test sample temperatures to stay between the min and max temperatures of Bennu, to get comparable errors
+    min_temperature = 303
+    max_temperature = 351
+
+    min_indices = np.where(y_test[:, 0] == min_temperature)
+    min_index = min_indices[0][0]
+
+    max_indices = np.where(y_test[:, 0] == max_temperature)
+    max_index = max_indices[0][-1]
+
+    X_test = X_test[min_index:max_index, :]
+    y_test = y_test[min_index:max_index, :]
+
     # Shuffle to get samples from all temperatures when using part of the data
     X_test, y_test = sklearn.utils.shuffle(X_test, y_test, random_state=0)
 
-    sample_percentage = 1  # percentage of validation data samples used for error calculation, takes less time
+    sample_percentage = 15  # percentage of validation data samples used for error calculation, takes less time
     indices = range(int(len(X_test[:, 0]) * (sample_percentage * 0.01)))
     X_test = X_test[indices]
     y_test = y_test[indices]
@@ -396,7 +419,6 @@ def validate_synthetic(model, validation_run_folder: Path):
         os.mkdir(validation_plots_synthetic_path)
 
     error_dict = test_model(X_test, y_test, model, thermal_radiances, validation_plots_synthetic_path)
-    FH.save_toml(error_dict, Path(validation_plots_synthetic_path, 'error_dict.toml'))
 
 
 def bennu_refine(fitslist: list, time: int, discard_indices, plots=False):
@@ -483,7 +505,7 @@ def bennu_refine(fitslist: list, time: int, discard_indices, plots=False):
     corrected_Bennu = rad_unit_conversion(corrected_Bennu)
     thermal_tail_Bennu = rad_unit_conversion(thermal_tail_Bennu)
 
-    # Fetch NASA's temperature prediction from FITS file
+    # Fetch NASA's temperature and emissivity predictions from FITS file
     temperature = corrected_fits[3].data[:, 0]
     temperature = temperature[Bennu_indices]
     emissivity = corrected_fits[4].data
@@ -548,6 +570,9 @@ def validate_bennu(model, validation_run_folder):
     uncorrected_1230, corrected_1230, thermal_tail_1230, temperatures_1230, emissivities_1230 = bennu_refine(Bennu_1230, 1230, discard_1230, plots=False)
     uncorrected_1000, corrected_1000, thermal_tail_1000, temperatures_1000, emissivities_1000 = bennu_refine(Bennu_1000, 1000, discard_1000, plots=False)
 
+    # Bennu_min_temperature = min(temperatures_1000)
+    # Bennu_max_temperature = max(temperatures_1230)
+
     def test_model_Bennu(X_Bennu, temperatures, emissivities, thermal, time: str, validation_plots_Bennu_path):
         # Organize ground truth data to match what the ML model expects
         y_Bennu = np.zeros((len(X_Bennu[:,0]), 2))
@@ -582,11 +607,6 @@ def validate_bennu(model, validation_run_folder):
     errors_Bennu['errors_1230'] = errors_1230
     errors_Bennu['errors_1500'] = errors_1500
     FH.save_toml(errors_Bennu, Path(validation_plots_Bennu_path, 'errors_Bennu.toml'))
-
-    # errordict = FH.load_toml(Path('validation_and_testing/validation-run_20220330-130206/bennu_validation/errors_Bennu.toml'))
-    # errors_1000 = errordict['errors_1000']
-    # errors_1230 = errordict['errors_1230']
-    # errors_1500 = errordict['errors_1500']
 
     # Plotting and saving results for all three datasets
     def Bennuplot(errors_1000, errors_1230, errors_1500, data_name, label, savefolder):
@@ -627,7 +647,6 @@ def validate_bennu(model, validation_run_folder):
         plt.savefig(Path(savefolder, f'{data_name}.png'))
         # plt.show()
         plt.close(fig)
-
 
     savefolder = validation_plots_Bennu_path
     Bennuplot(errors_1000, errors_1230, errors_1500, 'predicted_temperature', 'Predicted temperature [K]', savefolder)
@@ -671,7 +690,7 @@ def validate_bennu(model, validation_run_folder):
 
         if lim != (0, 0):
             plt.ylim(lim)
-        leg = plt.legend([cor_scatter1, uncor_scatter1], ['NN-corrected', 'Uncorrected'])  #plt.legend(('NN-corrected', 'Uncorrected'), title='Local time on Bennu')
+        leg = plt.legend([cor_scatter1, uncor_scatter1], ['NN-corrected', 'Uncorrected'])
         for lh in leg.legendHandles:
             lh.set_alpha(1)
         plt.xlabel('Ground truth temperature [K]')
@@ -685,7 +704,7 @@ def validate_bennu(model, validation_run_folder):
     Bennu_comparison_plots('reflectance_SAM', 'reflectance_SAM_uncorrected', 'Reflectance cosine distance')#, lim=(0.999, 1.0))
 
 
-def validate_and_test(model):
+def validate_and_test(last_epoch):
     """
     Run validation with synthetic data and testing with real data, for a trained model given as argument.
 
@@ -698,9 +717,23 @@ def validate_and_test(model):
     # timestr = 'test'  # Folder name for test runs, otherwise a new folder is always created
 
     # Create folder for results
-    validation_run_folder = Path(C.val_and_test_path, f'validation-run_{timestr}')
+    validation_run_folder = Path(C.val_and_test_path, f'validation-run_epoch-{last_epoch}_time-{timestr}')
     if os.path.isdir(validation_run_folder) == False:
         os.mkdir(validation_run_folder)
+
+    # Build a model and load pre-trained weights
+    model = NN.create_model(
+        conv_filters=C.conv_filters,
+        conv_kernel=C.conv_kernel,
+        encoder_start=C.encoder_start,
+        encoder_node_relation=C.encoder_node_relation,
+        encoder_stop=C.encoder_stop,
+        lr=C.learning_rate
+    )
+
+    weight_path = Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5')
+    # weight_path = Path('/home/leevi/PycharmProjects/asteroid-thermal-modeling/training/300epochs_160waist_1e-05lr/weights/weights_297.hdf5')
+    model.load_weights(weight_path)
 
     # Print summary of model architecture into file
     with open(Path(validation_run_folder, 'modelsummary.txt'), 'w') as f:
@@ -716,6 +749,7 @@ def validate_and_test(model):
 
 def error_plots(folderpath):
     errordict = FH.load_toml(Path(folderpath, 'errors.toml'))
+
     # Plot scatters of ground temperature vs temperature error, thermal MAE and SAM vs height of thermal tail
     temperature_dict = errordict['temperature']
     temperature_ground = np.asarray(temperature_dict['ground_temperature'])
@@ -739,8 +773,6 @@ def error_plots(folderpath):
     def plot_and_save(data, label, filename):
         fig = plt.figure()
         plt.scatter(temperature_ground, data, alpha=0.1)
-        # plt.scatter(temperature_ground, R_MAE, alpha=0.1)
-        # plt.scatter(temperature_ground, R_MAE_uncor, alpha=0.1)
         plt.xlabel('Ground truth temperature')
         # plt.ylim(0,0.02)
         plt.ylabel(label)
@@ -844,8 +876,6 @@ def plot_Bennu_errors(folderpath):
     # Bennuplot(errors_1000, errors_1230, errors_1500, 'thermal_MAE', 'Thermal MAE')
     # Bennuplot(errors_1000, errors_1230, errors_1500, 'reflected_SAM', 'Reflected SAM')
     # Bennuplot(errors_1000, errors_1230, errors_1500, 'thermal_SAM', 'Thermal SAM')
-    print('test')
-
 
     def Bennu_comparison_plots(corrected_name, uncorrected_name, label, lim=(0,0)):
         temp_dict_1000 = errors_1000['temperature']
