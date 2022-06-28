@@ -98,8 +98,8 @@ patience = 50
 hyperparameter_path = 'hyperparameter_tuning'  # KerasTuner wants the path as a string
 
 # Plot parameters, using default pyplot colors: '#1f77b4', '#ff7f0e', '#2ca02c'
-uncor_plot_color = '#1f77b4'  # Blue
-NNcor_plot_color = '#ff7f0e'  # Orange
-ground_plot_color = '#2ca02c' # Green
+uncor_plot_color = '#1f77b4'   # Blue
+NNcor_plot_color = '#ff7f0e'   # Orange
+ground_plot_color = '#2ca02c'  # Green
 
 

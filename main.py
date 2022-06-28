@@ -63,7 +63,7 @@ if __name__ == '__main__':
     # )
     #
     # # Load weights to continue training where you left off:
-    # last_epoch = 500
+    # last_epoch = 445
     # weight_path = Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5')
     # untrained.load_weights(weight_path)
     #
@@ -75,8 +75,10 @@ if __name__ == '__main__':
     import validation as val  # TODO This uses symfit, which I have not installed on my thingfish conda env
 
     # Run validation with synthetic data and test with real data
-    last_epoch = 204
+    last_epoch = 751
     val.validate_and_test(last_epoch)
+    # val.validate_and_test(850)
+    # val.validate_and_test(945)
 
     ############################
     # val.error_plots(Path('/home/leevi/PycharmProjects/asteroid-thermal-modeling/validation_and_testing/validation-run_20220330-162708/synthetic_validation'))

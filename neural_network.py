@@ -35,7 +35,7 @@ def prepare_training_data():
 
     '''
     Meteorite reflectances (Gaffey, for example) can be used for simulating reflected radiances, but they are likely 
-    not good stand-ins for asteroid reflectance: no space weathering, and possible changes from atmospheric shock.
+    not very good stand-ins for asteroid reflectance: no space weathering, and possible changes from atmospheric shock.
     They could simulate fresh regolith.
     '''
     # #############################
