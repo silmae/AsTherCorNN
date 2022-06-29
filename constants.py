@@ -34,7 +34,7 @@ solar_path = Path('./spectral_data/solar-spectral-irradiance/solar_spectrum.txt'
 '''Solar irradiance spectrum'''
 rad_bunch_test_path = Path('./spectral_data/rad_bunch_test_bennu_random_no-noise_min-150K')
 '''All synthetic test radiances, saved as a pickle'''
-rad_bunch_training_path = Path('./spectral_data/rad_bunch_training_bennu_random_no-noise_min-150K')
+rad_bunch_training_path = Path('./spectral_data/rad_bunch_training_bennu_random_no-noise_min-150K_reflectances')
 '''All training data, saved as a pickle'''
 radiance_path = Path('./spectral_data/radiances')
 radiance_training_path = Path(radiance_path, 'training')
@@ -53,12 +53,12 @@ training_path = Path('./training')
 wl_key = 'wavelength'
 R_key = 'reflectance'
 
-# Gaussian distribution for noising
+# Gaussian distribution for noising generated data
 mu = 0  # mean
 sigma = 0.0001 #0.02  # standard deviation
 
 # Constraints for modeled radiances
-# d_S_min, d_S_max = 0.7, 2.8  # Heliocentric distance for asteroids where the problem is relevant, in AU
+# d_S_min, d_S_max = 0.7, 2.8  # Approximate heliocentric distance for asteroids where the problem is relevant, in AU
 d_S_min, d_S_max = 0.8968944004459729 - 0.1, 1.355887651343651 + 0.1  # Heliocentric distances for Bennu, in AU
 T_min, T_max = 150, 430  # Asteroid surface temperature, in Kelvins
 i_min, i_max = 0, 89  # Incidence angle, angle between surface normal and incident light, in degrees
@@ -72,9 +72,13 @@ p_min, p_max = 0.01, 0.40  # Geometrical albedo, ratio of light reflected from a
 # Neural network parameters
 refl_test_partition = 0.1  # Part of reflectances to be used for test data
 activation = 'relu'
-batches = 32
+batch_size = 32  # Size of minibatch in training
 epochs = 512
+# Early stop:
+min_delta = 0.0001
+patience = 50
 
+# Parameters for neural network architecture
 conv_filters = 128
 conv_kernel = 4
 encoder_start = 1024  # 800
@@ -90,9 +94,6 @@ weights_path = Path(training_run_path, 'weights')
 if os.path.isdir(weights_path) == False:
     os.mkdir(weights_path)
 training_history_path = Path(training_run_path, f'{training_run_name}_trainHistory')
-# Early stop:
-min_delta = 0.0001
-patience = 50
 
 # Paths for saving results of hyperparameter tuning
 hyperparameter_path = 'hyperparameter_tuning'  # KerasTuner wants the path as a string

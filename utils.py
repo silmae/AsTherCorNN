@@ -1,5 +1,8 @@
+"""
+Methods that didn't fit right in other modules
+"""
+
 from pathlib import Path
-from scipy import io
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -58,13 +61,14 @@ def maximum_temperatures(distance_min: float = 0.5, distance_max: float = 4.0, n
         temperature_max = calculate_subsolar_temperature(distance)
         ss_temps_max.append(temperature_max)
 
-    plt.figure()
+    fig = plt.figure()
     plt.plot(d_S, ss_temps_max)
     plt.xlabel('Heliocentric distance [AU]')
     plt.ylabel('Subsolar temperature [K]')
     plt.grid()
     plt.savefig(Path(C.max_temp_plots_path, 'ss-temp_hc-dist.png'))
     # plt.show()
+    plt.close(fig)
 
     return ss_temps_max
 
@@ -120,7 +124,6 @@ def thermal_error_from_hc_distance(distance_min: float, distance_max: float, sam
 
     i = 0
     for distance in distances:
-        insolation = solar_irradiance(distance, C.wavelengths)
         radiance_dict = rad.observed_radiance(d_S=distance,
                                               incidence_ang=0,
                                               emission_ang=0,
@@ -167,32 +170,33 @@ def thermal_error_from_hc_distance(distance_min: float, distance_max: float, sam
         i = i + 1
 
     # Plot error as function of heliocentric distance
-    plt.figure()
+    fig = plt.figure()
     plt.plot(distances, errors)
     plt.xlabel('Heliocentric distance [AU]')
-    plt.ylabel('Reflectance error at 2.5 µm [%]')
+    plt.ylabel('Reflectance error at 2.45 µm [%]')
     plt.yscale('log')
     plt.grid()
     plt.savefig(Path(C.max_temp_plots_path, f'{i}_error_hc-distance.png'))
-    plt.show()
+    plt.close(fig)
 
 
-def solar_irradiance(distance, wavelengths, plot=False):
+def solar_irradiance(distance: float, wavelengths, plot=False):
     """
     Calculate solar spectral irradiance at a specified heliocentric distance, interpolated to match wl-vector.
-    Solar spectral irradiance data at 1 AU outside the atmosphere was taken from from NREL:
+    Solar spectral irradiance data at 1 AU outside the atmosphere was taken from NREL:
     https://www.nrel.gov/grid/solar-resource/spectra-astm-e490.html
 
-    :param distance: float
+    :param distance:
         Heliocentric distance in astronomical units
     :param wavelengths: vector of floats
         Wavelength vector (in µm), to which the insolation will be interpolated
-    :param plot: boolean
+    :param plot:
         Whether a plot will be shown of the calculated spectral irradiance
 
     :return: ndarray
         wavelength vector (in nanometers) and spectral irradiance in one ndarray
     """
+
     sol_path = C.solar_path  # A collection of channels from 0.45 to 2.50 µm saved into a txt file
     solar = pd.read_table(sol_path).values
 
@@ -217,15 +221,15 @@ def solar_irradiance(distance, wavelengths, plot=False):
     return interp_insolation
 
 
-def plot_example_radiance_reflectance(num: int = 22):
+def plot_example_radiance_reflectance(num: int):
     """
     Load a set of test radiances from a toml file, plot reflected radiance and sum of reflected and thermal for
     comparison. Calculate normalized reflectance from both and also plot them.
 
     :param num: int
-    Which radiance to plot, between 0 and 6599. Default is 22, where thermal error could be seen clearly for one data
-    generation cycle (possibly not the case anymore).
+    Which radiance to plot, between 0 and the total number of generated test radiances.
     """
+
     rads = FH.load_toml(Path(C.radiance_test_path, f'rads_{num}.toml'))
     refrad = rads['reflected_radiance']
     sumrad = rads['sum_radiance']

@@ -546,7 +546,7 @@ def validate_and_test(last_epoch):
 
     # Generate a unique folder name for results of test based on time the test was run
     timestr = time.strftime("%Y%m%d-%H%M%S")
-    timestr = 'test'  # Folder name for test runs, otherwise a new folder is always created
+    # timestr = 'test'  # Folder name for test runs, otherwise a new folder is always created
 
     # Create folder for results
     validation_run_folder = Path(C.val_and_test_path, f'validation-run_epoch-{last_epoch}_time-{timestr}')
@@ -573,7 +573,7 @@ def validate_and_test(last_epoch):
             model.summary()
 
     # Validation with synthetic data similar to training data
-    # validate_synthetic(model, validation_run_folder)
+    validate_synthetic(model, validation_run_folder)
 
     # Testing with real asteroid data: do not look at this until the network works properly with synthetic data
     validate_bennu(model, validation_run_folder)

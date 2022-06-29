@@ -1,5 +1,5 @@
 """
-Methods for working with (spectral) radiances: calculating thermal radiance and reflected radiance, and simulating
+Methods for working with spectral radiances: calculating thermal radiance and reflected radiance, and simulating
 observed radiance as their sum. Calculating normalized reflectance from radiance. Wrapper for calculating a dataset of
 several radiances from reflectances.
 """

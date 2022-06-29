@@ -307,7 +307,7 @@ def train_network(model, early_stop: bool = True, checkpoints: bool = True, save
     x_train, y_train, x_val, y_val = load_training_validation_data()
 
     # Train model
-    history = model.fit([x_train], [y_train], batch_size=C.batches, epochs=C.epochs, validation_data=(x_val, y_val),
+    history = model.fit([x_train], [y_train], batch_size=C.batch_size, epochs=C.epochs, validation_data=(x_val, y_val),
                         callbacks=model_callbacks)
 
     # Save training history

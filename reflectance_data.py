@@ -3,29 +3,62 @@ Methods for working with reflectance data: loading and augmenting meteorite refl
 and scaling them with appropriate albedo estimates.
 """
 
-import os
 import random
 from pathlib import Path
-import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
 import constants as C
-import file_handling as FH
 
 
-def scale_asteroid_reflectances(normalized_frame: pd.DataFrame, albedos_per_reflectance: int, albedo_frame: pd.DataFrame):
+def read_asteroids():
+    """
+    Read asteroid reflectances from a file, and normalize them using random albedo values. The
+    asteroid reflectance data was provided by A. Penttilä, and the dataset is described in
+    DOI: 10.1051/0004-6361/202038545
+
+    :return: training reflectance list, test reflectance list
+    Scaled reflectance spectra, partitioned according to split given in constants.py
+
+    """
+
+    aug_path = C.Penttila_aug_path  # Spectra augmented by Penttilä
+
+    aug_frame = pd.read_csv(aug_path, sep='\t', header=None, engine='python')  # Read reflectance from file
+
+    # # Extract wl vector from the original: the same as in augmented, but that one does not have it
+    # orig_path = C.Penttila_orig_path  # Un-augmented, original spectra from MITHNEOS and Bus-Demeo
+    # orig_frame = pd.read_csv(orig_path, sep='\t', header=None, engine='python')
+    # wavelengths = orig_frame.values[0, 2:]
+
+    # Shuffling the order of rows, so all spectra of the same type won't occur one after another
+    aug_frame = aug_frame.sample(frac=1)
+
+    # Partition the data into train and test reflectances, according to split parameter given in constants
+    sample_count = len(aug_frame.index)
+    test_part = int(sample_count * C.refl_test_partition)
+
+    # Dividing data into test and training sets
+    test_frame = aug_frame.iloc[:test_part, :]
+    train_frame = aug_frame.iloc[test_part:, :]
+
+    # Scale normalized spectra using random albedos
+    test_reflectances = _scale_asteroid_reflectances(test_frame, 5)
+    train_reflectances = _scale_asteroid_reflectances(train_frame, 5)
+
+    return train_reflectances, test_reflectances
+
+
+def _scale_asteroid_reflectances(normalized_frame: pd.DataFrame, albedos_per_reflectance: int):
     """
     Scale normalized asteroid reflectance spectra to absolute reflectances using typical albedo values for each
     asteroid class.
 
-    :param normalized_frame: 
+    :param normalized_frame:
         Pandas dataframe of normalized asteroid reflectances, with class of each asteroid included
     :param albedos_per_reflectance:
         How many versions of each reflectance, scaled with different random albedo values
-    :param albedo_frame:
-        Pandas dataframe of typical albedos for asteroid classes, including a range of variation for each
-    
+
     :return: list
         Scaled spectra reflectances in a list
     """
@@ -48,11 +81,6 @@ def scale_asteroid_reflectances(normalized_frame: pd.DataFrame, albedos_per_refl
             # Convert reflectance to single-scattering albedo, using Lommel-Seeliger
             spectral_single_scattering_albedo = 8 * spectral_reflectance
 
-            # Print if the physical limits of min and max reflectance are exceeded. And they will be, since L-S is not
-            # really suitable for bodies with geom. albedo > 0.125
-            if np.max(spectral_single_scattering_albedo) > 1 or np.min(spectral_single_scattering_albedo) < 0:
-                print(f'Unphysical reflectance detected! Max {np.max(spectral_single_scattering_albedo)}, min {np.min(spectral_single_scattering_albedo)}')
-
             spectral_reflectances.append(spectral_single_scattering_albedo)
 
         # Plot every hundreth set of three reflectances, save plots to disc
@@ -69,42 +97,3 @@ def scale_asteroid_reflectances(normalized_frame: pd.DataFrame, albedos_per_refl
         plot_index = plot_index + 1
 
     return spectral_reflectances
-
-
-def read_asteroids():
-    """
-    Read asteroid reflectances from a file, and normalize them using typical albedos of each asteroid type. The
-    asteroid reflectance data was provided by A. Penttilä, and the dataset is described in
-    DOI: 10.1051/0004-6361/202038545
-
-    :return: training reflectance list, test reflectance list
-    Scaled reflectance spectra, partitioned according to split given in constants.py
-
-    """
-    aug_path = C.Penttila_aug_path  # Spectra augmented by Penttilä
-    orig_path = C.Penttila_orig_path  # Un-augmented, original spectra from MITHNEOS and Bus-Demeo
-
-    aug_frame = pd.read_csv(aug_path, sep='\t', header=None, engine='python')  # Read wl and reflectance from file
-    orig_frame = pd.read_csv(orig_path, sep='\t', header=None, engine='python')
-    albedo_frame = pd.read_csv(C.albedo_path, sep='\t', header=None, engine='python', index_col=0)  # Read mean albedos for classes
-
-    # Extract wl vector from the original: the same as in augmented, but that one does not have it
-    wavelengths = orig_frame.values[0, 2:]
-
-    # Shuffling the order of rows, so all spectra of the same type won't occur one after another
-    aug_frame = aug_frame.sample(frac=1)
-
-    # Partition the data into train and test reflectances, according to split parameter given in constants
-    sample_count = len(aug_frame.index)
-    test_part = int(sample_count * C.refl_test_partition)
-
-    test_frame = aug_frame.iloc[:test_part, :]
-    train_frame = aug_frame.iloc[test_part:, :]
-
-    # Scale normalized spectra using class mean albedos
-    test_reflectances = scale_asteroid_reflectances(test_frame, 5, albedo_frame)
-    train_reflectances = scale_asteroid_reflectances(train_frame, 5, albedo_frame)
-
-    return train_reflectances, test_reflectances
-
-
