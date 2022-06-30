@@ -34,7 +34,7 @@ solar_path = Path('./spectral_data/solar-spectral-irradiance/solar_spectrum.txt'
 '''Solar irradiance spectrum'''
 rad_bunch_test_path = Path('./spectral_data/rad_bunch_test_bennu_random_no-noise_min-150K')
 '''All synthetic test radiances, saved as a pickle'''
-rad_bunch_training_path = Path('./spectral_data/rad_bunch_training_bennu_random_no-noise_min-150K_reflectances')
+rad_bunch_training_path = Path('./spectral_data/rad_bunch_training_bennu_random_no-noise_min-150K')
 '''All training data, saved as a pickle'''
 radiance_path = Path('./spectral_data/radiances')
 radiance_training_path = Path(radiance_path, 'training')
@@ -73,7 +73,7 @@ p_min, p_max = 0.01, 0.40  # Geometrical albedo, ratio of light reflected from a
 refl_test_partition = 0.1  # Part of reflectances to be used for test data
 activation = 'relu'
 batch_size = 32  # Size of minibatch in training
-epochs = 512
+epochs = 2048
 # Early stop:
 min_delta = 0.0001
 patience = 50
@@ -84,7 +84,7 @@ conv_kernel = 4
 encoder_start = 1024  # 800
 encoder_node_relation = 0.50
 encoder_stop = 4
-learning_rate = 5e-6
+learning_rate = 1e-5
 
 training_run_name = f'{epochs}epochs_{encoder_start}start_{encoder_stop}stop_{learning_rate}lr'
 training_run_path = Path(training_path, training_run_name)

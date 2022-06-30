@@ -38,7 +38,7 @@ def calculate_subsolar_temperature(heliocentric_distance: float, albedo=0, emiss
     return T_ss
 
 
-def maximum_temperatures(distance_min: float = 0.5, distance_max: float = 4.0, num: int = 50):
+def _maximum_temperatures(distance_min: float = 0.5, distance_max: float = 4.0, num: int = 50):
     """
     Calculate and plot maximum temperatures of ideal blackbody radiators warmed by the Sun, placed at different
     heliocentric distances.
@@ -117,13 +117,14 @@ def thermal_error_from_hc_distance(distance_min: float, distance_max: float, sam
 
     # A list of heliocentric distances
     distances = np.linspace(distance_min, distance_max, samples)
-    # A list of temperatures
-    temperatures = maximum_temperatures(distance_min, distance_max, samples)
+    # A list of maximum subsolar temperatures at the heliocentric distances
+    temperatures = _maximum_temperatures(distance_min, distance_max, samples)
     # Empty list for storing errors
     errors = []
 
     i = 0
     for distance in distances:
+        # Simulate observed spectral radiance as sum of thermally emitted and reflected radiances
         radiance_dict = rad.observed_radiance(d_S=distance,
                                               incidence_ang=0,
                                               emission_ang=0,
@@ -135,10 +136,9 @@ def thermal_error_from_hc_distance(distance_min: float, distance_max: float, sam
                                               test=True,
                                               save_file=False)
         reflected_radiance = radiance_dict['reflected_radiance']
-        # thermal_radiance = radiance_dict['emitted_radiance']
         sum_radiance = radiance_dict['sum_radiance']
 
-        # Calculate normalized reflectance from sum radiance and reflected radiance
+        # Calculate normalized reflectance from both sum radiance and reflected radiance
         reference_reflectance = rad.radiance2norm_reflectance(reflected_radiance)
         test_reflectance = rad.radiance2norm_reflectance(sum_radiance)
 
