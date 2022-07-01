@@ -21,13 +21,15 @@ def save_pickle(data_dict: dict, path):
 
 def load_pickle(path):
     """Load dictionary from pickle file and return it"""
+
     with open(path, 'rb') as file_pi:
         data = pickle.load(file_pi)
     return data
 
 
 def load_csv(filepath):
-    """Load csv from file, return a list"""
+    """Load csv from file, return a list first element in every row. Used in loading Bennu discard indices. """
+
     with open(filepath, newline='') as csvfile:
         reader = csv.reader(csvfile)
         data = []
@@ -38,6 +40,11 @@ def load_csv(filepath):
 
 def save_toml(dictionary: dict, savepath):
     """Save a dictionary into a .toml file"""
+
+    # Add file extension if not present
+    if not(savepath.endswith('.toml')):
+        savepath = savepath + '.toml'
+
     with open(savepath, 'w+') as file:
         toml.dump(dictionary, file, encoder=toml.encoder.TomlNumpyEncoder())
     print(f'Saved a dictionary into {savepath}')
@@ -45,63 +52,19 @@ def save_toml(dictionary: dict, savepath):
 
 def load_toml(filepath):
     """Load a dictionary from a .toml file"""
+
+    # Add file extension if not present
+    if not(filepath.endswith('.toml')):
+        filepath = filepath + '.toml'
+
     with open(filepath, 'r') as file:
         data = toml.load(file)
     return data
 
 
-def save_aug_reflectance(reflectance: np.ndarray, filename: str, test: bool):
-    """
-    Save augmented reflectance to a predetermined folder with the filename given as parameter
-
-    :param reflectance: ndarray
-        Reflectance to be saved, with wavelengths in the first column and reflectances in the second
-
-    :param filename: str
-        Filename the data will be saved as. The extension (.toml) will be added during saving
-    :param test: bool
-        is the calculated spectrum for training or testing, affects saving location
-    """
-
-    # Create a dict of the reflectance data
-    d = {}
-    d[C.wl_key] = reflectance[:, 0]
-    d[C.R_key] = reflectance[:, 1]
-
-    # Combine given filename with predetermined folder path and save as .toml
-    if test == True:
-        p = C.augmented_test_path.joinpath(filename + '.toml')
-    else:
-        p = C.augmented_training_path.joinpath(filename + '.toml')
-
-    with open(p, 'w+') as file:
-        toml.dump(d, file, encoder=toml.encoder.TomlNumpyEncoder())
-    print(f'Saved a spectrum into {p}')
-
-
-def read_aug_reflectance(filepath: Path):
-    """
-    Read a reflectance spectrum from a .toml -file and return it as an ndarray
-
-    :param filepath: Path
-        Path to the .toml -file to be read
-
-    :return: ndarray
-        Array containing wavelength vector in the first column and reflectance vector in the second
-    """
-
-    with open(filepath, 'r') as file:
-        reflectance_dict = toml.load(file)
-
-    # Extract wavelength and reflectance vectors from the dict and place into ndarray
-    reflectance = np.zeros((len(reflectance_dict[C.wl_key]), 2))
-    reflectance[:, 0] = reflectance_dict[C.wl_key]
-    reflectance[:, 1] = reflectance_dict[C.R_key]
-
-    return reflectance
-
-
 def save_radiances(rad_dict: dict, filename: str, test: bool):
+    """Saves a dictionary of radiances on disc. Save path determined by filename and parameter test: if test is true,
+    saved into a folder of test radiances. If false, into folder of training radiances. """
 
     if test == True:
         rad_path = C.radiance_test_path
@@ -110,43 +73,20 @@ def save_radiances(rad_dict: dict, filename: str, test: bool):
 
     p = rad_path.joinpath(filename + '.toml')
 
-    with open(p, 'w+') as file:
-        toml.dump(rad_dict, file, encoder=toml.encoder.TomlNumpyEncoder())
-    print(f'Saved a spectrum into {p}')
+    save_toml(rad_dict, p)
 
 
 def read_radiance(filename: str, test: bool):
+    """Reads a radiance dict from disc. Path of read file determined by filename, and test -parameter. If test is true,
+    read from a folder of test radiances. If false, from a folder of training radiances."""
+
     if test == True:
         rad_path = C.radiance_test_path
     else:
         rad_path = C.radiance_training_path
 
-    p = rad_path.joinpath(filename)# + '.toml')
+    p = rad_path.joinpath(filename + '.toml')
 
-    with open(p, 'r') as file:
-        radiance_dict = toml.load(file)
+    radiance_dict = load_toml(p)
 
     return radiance_dict
-
-
-def save_rad_bunch(dict):
-
-    # Combine given filename with predetermined folder path and save as .toml
-    p = C.rad_bunch_path
-    with open(p, 'w+') as file:
-        toml.dump(dict, file, encoder=toml.encoder.TomlNumpyEncoder())
-    print(f'Saved radiances into {p}')
-
-
-def load_rad_bunch():
-    p = C.rad_bunch_path
-    with open(p, 'r') as file:
-        rad_bunch_dict = toml.load(file)
-
-    return rad_bunch_dict
-
-
-
-
-
-
