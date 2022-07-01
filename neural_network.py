@@ -38,18 +38,12 @@ def prepare_training_data():
     not very good stand-ins for asteroid reflectance: no space weathering, and possible changes from atmospheric shock.
     They could simulate fresh regolith.
     '''
-    # #############################
-    # # Load meteorite reflectances from files and create more from them through augmentation
-    # train_reflectances, test_reflectances = refl.read_meteorites(waves)
-    # refl.augmented_reflectances(train_reflectances, waves, test=False)
-    # refl.augmented_reflectances(test_reflectances, waves, test=True)
-    # #############################
 
-    #############################
-    # Load asteroid reflectances, they are already augmented
+    # Load asteroid reflectances
     train_reflectances, test_reflectances = refl.read_asteroids()
 
-    # Calculate a number of  radiances from each reflectance, save them on disc as toml, and return the data vectors
+    # Calculate a number of radiances from each reflectance, save them on disc as toml, and return the radiances
+    # and their temperature and emissivity
     radiances_test, parameters_test = rad.calculate_radiances(test_reflectances, test=True, samples_per_temperature=int(len(test_reflectances)/5), emissivity_type='random')
     radiances_training, parameters_training = rad.calculate_radiances(train_reflectances, test=False, samples_per_temperature=int(len(train_reflectances)/5), emissivity_type='random')
 
@@ -62,9 +56,7 @@ def prepare_training_data():
 
         FH.save_pickle(rad_bunch, filepath)
 
-    # summed_test, separate_test = rad.read_radiances(test=True)  # TODO read_radiances is deprecated
     bunch_rads(radiances_test, parameters_test, C.rad_bunch_test_path)
-    # summed_training, separate_training = rad.read_radiances(test=False)
     bunch_rads(radiances_training, parameters_training, C.rad_bunch_training_path)
 
 
@@ -95,9 +87,11 @@ def tune_model(epochs: int, max_trials: int, executions_per_trial: int):
 
     tuner.search_space_summary()
     x_train, y_train, x_val, y_val = load_training_validation_data()
+
     tuner.search(x_train, y_train, epochs=epochs, validation_data=(x_val, y_val))
 
     tuner.results_summary()
+
     # Save summary of results into a text file
     tuning_results_path = Path(C.hyperparameter_path, savefolder_name)
     with open(Path(tuning_results_path, 'trial_summary.txt'), 'w') as f:
@@ -107,12 +101,12 @@ def tune_model(epochs: int, max_trials: int, executions_per_trial: int):
 
 def create_hypermodel(hp):
     """
-    Create and compile a neural network model for hyperparameter optimization. Structure is similar to unadjustable
-    network: dense input, conv1d, dense autoencoder, conv1d, dense output, concatenate. This function calls the
-    create_model -function using the hyperparameters as arguments.
+    Create and compile a neural network model for hyperparameter optimization. Model structure is similar to unadjustable
+    network: dense input, conv1d, dense autoencoder, conv1d, dense output, concatenate. This method calls the
+    create_model -method using the hyperparameters as arguments.
 
     Adjustable hyperparameters are:
-    - convolution filter count and kernel width,
+    - convolution filter count (of first conv layer, reduces in subsequent) and kernel width (same for all conv layers),
     - encoder start layer node count, relation of subsequent autoencoder layer node counts, waist layer node count,
     - learning rate
 
@@ -127,18 +121,18 @@ def create_hypermodel(hp):
     filters = hp.Int("filters", min_value=10, max_value=80, step=10)
     kernel_size = hp.Int("kernel_size", min_value=5, max_value=60, step=5)
 
-    # Tune encoder/decoder start layer node count
-    encdec_start = hp.Int('encdec_start', min_value=200, max_value=1200, step=50)
-    # Tune number of nodes in waist layer
-    waist_size = hp.Int('waist_size', min_value=20, max_value=300, step=10)
+    # Tune encoder start layer node count
+    encoder_start = hp.Int('encdec_start', min_value=200, max_value=1200, step=50)
+    # Tune number of nodes in last encoder layer
+    encoder_end = hp.Int('waist_size', min_value=20, max_value=300, step=10)
     # Tune the relation between node counts of subsequent encoder layers: (layer N nodes) / (layer N-1 nodes)
-    encdec_node_relation = hp.Float("encdec_node_relation", min_value=0.1, max_value=0.9, sampling="linear")
+    encoder_node_relation = hp.Float("encdec_node_relation", min_value=0.1, max_value=0.9, sampling="linear")
 
     # Tune learning rate of the model
     lr = hp.Float('lr', min_value=1e-8, max_value=1e-4, sampling='log')
 
     # Create model in separate function with adjustable hyperparameters as inputs
-    model = create_model(filters, kernel_size, encdec_start, encdec_node_relation, waist_size, lr)
+    model = create_model(filters, kernel_size, encoder_start, encoder_node_relation, encoder_end, lr)
 
     return model
 
@@ -148,7 +142,7 @@ def create_model(conv_filters: int, conv_kernel: int, encoder_start: int, encode
     Create and compile a dense encoder model with 1D convolution at start, using Keras.
 
     Network structure:
-    dense input --> conv1d --> dense encoder --> dense output
+    dense input --> conv1d layers --> dense encoder --> dense output
 
     :param conv_filters: int
         Number of filters in convolutional layer
@@ -176,10 +170,12 @@ def create_model(conv_filters: int, conv_kernel: int, encoder_start: int, encode
     conv1 = Conv1D(filters=int(conv_filters/2), kernel_size=conv_kernel, padding='same', strides=1, activation=C.activation)(conv1)
     conv1 = Conv1D(filters=int(conv_filters/4), kernel_size=conv_kernel, padding='same', strides=1, activation=C.activation)(conv1)
     conv1 = Conv1D(filters=int(conv_filters/8), kernel_size=conv_kernel, padding='same', strides=1, activation=C.activation)(conv1)
+
     # Flatted to make conv output compatible with following dense layer
     conv1 = Flatten()(conv1)
 
-    # Create encoder based on start, relation, and end
+    # Create dense encoder based on start, relation, and end. See docstring of this method for description of node
+    # relation parameter
     node_count = encoder_start
     encoder = Dense(node_count, activation=C.activation)(conv1)
     counts = [node_count]  # Save node counts of all layers into a list
@@ -191,16 +187,15 @@ def create_model(conv_filters: int, conv_kernel: int, encoder_start: int, encode
     # Output with one neuron, the predicted temperature
     output = Dense(1, activation='linear')(encoder)
 
-    # Create a model object
+    # Create a model object and print summary
     model = Model(inputs=[input_data], outputs=[output])
     model.summary()
 
     # Define optimizer, set learning rate of the model
     opt = tf.keras.optimizers.Adam(learning_rate=lr)
-    # opt = tf.keras.optimizers.Adadelta(learning_rate=lr)
 
     # Compile model
-    model.compile(optimizer=opt, loss=tf.keras.losses.MeanAbsolutePercentageError())
+    model.compile(optimizer=opt, loss=tf.keras.losses.MeanAbsolutePercentageError())  # Native Keras MAPE as loss
     # model.compile(optimizer=opt, loss=loss_fn)  # Using a home-made loss function
 
     return model
@@ -242,6 +237,8 @@ def load_training_validation_data():
     x_train = rad_bunch_training['radiances']
     y_train = rad_bunch_training['parameters']
     y_train = y_train[:, 0]  # Both temperature and emissivity are saved here, pick only temperature
+
+    # Shuffle the data, otherwise the network will learn its order
     x_train, y_train = sklearn.utils.shuffle(x_train, y_train, random_state=0)
 
     # Load validation radiances from one file as dicts
@@ -254,21 +251,21 @@ def load_training_validation_data():
     return x_train, y_train, x_val, y_val
 
 
-def train_network(model, early_stop: bool = True, checkpoints: bool = True, save_history: bool = True,
-                  create_new_data: bool = False):
+def train_network(model, early_stop=True, checkpoints=True, save_history=True, create_new_data=False):
     """
-    Train deep learning model according to arguments and some parameters given in constants.py.
+    Train deep learning model according to arguments and other parameters set in constants.py.
 
     :param model:
         Compiled Keras Model that will be trained
     :param early_stop:
-        Whether early stop will be used or not. Patience and minimum chance are set in constants.py
+        Whether early stop will be used or not. Patience and minimum change are set in constants.py
     :param checkpoints:
         Whether checkpoint weights are saved every time val. loss improves
     :param save_history:
         Whether loss history will be saved in a file after training is complete
     :param create_new_data:
         Whether new data will be created or old data will be loaded from disc
+
     :return:
         Trained model
     """
@@ -299,11 +296,11 @@ def train_network(model, early_stop: bool = True, checkpoints: bool = True, save
     if checkpoints == True:
         model_callbacks.append(model_checkpoint_callback)
 
-    # Create training data from scratch, if specified in the arguments
+    # Create training and validation data from scratch, if specified in the arguments
     if create_new_data == True:
         prepare_training_data()
 
-    # Load training data from disc
+    # Load training and validation data from disc
     x_train, y_train, x_val, y_val = load_training_validation_data()
 
     # Train model
