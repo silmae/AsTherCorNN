@@ -15,31 +15,31 @@ import file_handling as FH
 import utils
 
 
-def thermal_radiance(T: float, emissivity: float or list or np.ndarray, wavelength: np.ndarray):
+def thermal_radiance(T: float, emissivity: float or list or np.ndarray, wavelengths: np.ndarray):
     """
     Calculate and return approximate thermal emission (blackbody, bb) radiance spectrum using Planck's law. Angle
-    dependence of emitted radiance is approximated as Lambertian. TODO If this does not work with OREX, change Lambert?
+    dependence of emitted radiance is approximated as Lambertian.
 
     :param T:
         Surface temperature, in Kelvins
     :param emissivity:
         Emissivity = sample emission spectrum divided by ideal blackbody spectrum of same temperature. Float or
         vector/list with same number of elements as reflectance.
-    :param wavelength:
-        vector of floats. Wavelengths where the emission is to be calculated, in micrometers
+    :param wavelengths:
+        Wavelengths where the emission is to be calculated, in micrometers
 
     :return L_th:
-        vector of floats. Spectral radiance emitted by the surface.
+        Spectral radiance emitted by the surface.
     """
 
-    # Define constants
+    # Fetch values for natural constants
     c = C.c  # speed of light in vacuum, m / s
     kB = C.kB  # Boltzmann constant, m² kg / s² / K (= J / K)
     h = C.h  # Planck constant, m² kg / s (= J s)
 
     if type(emissivity) == float or type(emissivity) == np.float64 or type(emissivity) == np.float32 or len(emissivity) == 1:
         # If a single float, make it into a vector where each element is that number
-        eps = np.empty((len(wavelength), 1))
+        eps = np.empty((len(wavelengths), 1))
         eps.fill(emissivity)
     elif type(emissivity) == list:
         # If emissivity is a list with correct length, convert to ndarray
@@ -57,12 +57,12 @@ def thermal_radiance(T: float, emissivity: float or list or np.ndarray, waveleng
             print('Emissivity array was not same shape as wavelength vector. Stopping execution...')
             quit()
 
-    L_th = np.zeros((len(wavelength), 2))
-    L_th[:, 0] = wavelength
+    L_th = np.zeros((len(wavelengths), 2))
+    L_th[:, 0] = wavelengths
 
-    for i in range(len(wavelength)):
-        wl = wavelength[i] / 1e6  # Convert wavelength from micrometers to meters
-        L_th[i, 1] = eps[i] * (2 * h * c ** 2) / ((wl ** 5) * (np.exp((h * c) / (wl * kB * T)) - 1))  # Apply Planck's law
+    for i in range(len(wavelengths)):
+        wl = wavelengths[i] / 1e6  # Convert wavelength from micrometers to meters
+        L_th[i, 1] = eps[i] * (2 * h * c ** 2) / ((wl ** 5) * (np.exp((h * c) / (wl * kB * T)) - 1))  # Planck's law
         L_th[i, 1] = L_th[i, 1] / 1e6  # Convert radiance from (W / m² / sr / m) to (W / m² / sr / µm)
 
     return L_th
@@ -73,16 +73,16 @@ def reflected_radiance(reflectance: np.ndarray, irradiance: np.ndarray, incidenc
     Calculate spectral radiance reflected from a surface, based on the surface reflectance, irradiance incident on it,
     and the phase angle of the measurement. Angle dependence (BRDF) is calculated using the Lommel-Seeliger model.
 
-    :param reflectance: vector of floats
+    :param reflectance:
         Spectral reflectance, calculated using estimation for single-scattering albedo
-    :param irradiance: vector of floats
+    :param irradiance:
         Spectral irradiance incident on the surface.
-    :param incidence_angle: float
+    :param incidence_angle:
         Incidence angle of light in degrees, measured from surface normal
-    :param emission_angle: float
+    :param emission_angle:
         Angle between surface normal and observer direction, in degrees
 
-    :return: vector of floats.
+    :return:
         Spectral radiance reflected toward the observer.
     """
 
@@ -106,9 +106,9 @@ def radiance2norm_reflectance(radiance):
     spectrum so that reflectance is 1 at the wavelength of 0.55 micrometers (a common convention with asteroid
     reflectance spectra).
 
-    :param radiance: ndarray
+    :param radiance:
         Spectral radiance
-    :return: norm_reflectance: ndarray
+    :return: norm_reflectance:
         Normalized reflectance
     """
 
@@ -126,7 +126,7 @@ def radiance2norm_reflectance(radiance):
     return norm_reflectance
 
 
-def noising(rad_data, mu, sigma):
+def noising(rad_data, mu: float, sigma: float):
     """
     Apply Gaussian noise to spectral data
 
@@ -144,9 +144,10 @@ def noising(rad_data, mu, sigma):
     s = np.random.default_rng().normal(mu, sigma, len(rad_data))
 
     # Add noise to data
-    rad_data[:, 1] = rad_data[:, 1] + s
+    noised = rad_data.copy()
+    noised[:, 1] = noised[:, 1] + s
 
-    return rad_data
+    return noised
 
 
 def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: float, reflectance: np.ndarray,
@@ -154,32 +155,36 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
                       plots=False, save_file=True):
     """
     Simulate observed radiance with given parameters. Calculates reflected and thermally emitted radiances in separate
-    functions, and sums them to get observed radiance. Adds noise to the summed radiance. Saves separate and summed
+    methods, and sums them to get observed radiance. Adds noise to the summed radiance. Saves separate and summed
     radiances to a .toml file together with observation related metadata provided in function arguments. Also saves
     plots of reflectance and radiances, if specified in arguments.
 
-    :param d_S: float
+    :param d_S:
         Heliocentric distance in astronomical units
-    :param incidence_ang: float
+    :param incidence_ang:
         Incidence angle in degrees
-    :param emission_ang: float
+    :param emission_ang:
         Emission angle in degrees
-    :param T: float
+    :param T:
         Surface temperature in Kelvin
-    :param reflectance: ndarray
+    :param reflectance:
         Spectral reflectance
-    :param waves: ndarray
+    :param waves:
         Wavelength vector in micrometers
     :param emissivity: float, list, or ndarray
         If float, assumed to be constant over wavelengths. If ndarray, assumed to have same wavelength vector as defined
         in constants.py
-    :param filename: string
+    :param filename:
         Name which will be included in files related to the radiances (plots and .toml), without extension
-    :param test: boolean
+    :param test:
         Whether the simulated measurement will be used for testing or training, only affects save location on disc
-    :param plots: boolean
+    :param plots:
         Whether plots will be made for this simulated measurement
+    :param save_file:
+        Whether the radiances and metadata will be saved as toml
+
     """
+
     # Calculate insolation at heliocentric distance of d_S
     insolation = utils.solar_irradiance(d_S, waves)
 
@@ -235,12 +240,11 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
         figpath = Path(C.rad_plots_path, f'{filename}_radiances.png')
         plt.savefig(figpath)
         plt.close(fig)
-        # plt.show()
 
     return rad_dict
 
 
-def calculate_radiances(reflectance_list: list, test: bool, samples_per_temperature: int = 200, emissivity_type: str = 'constant'):
+def calculate_radiances(reflectance_list: list, test: bool, samples_per_temperature=200, emissivity_type='constant'):
     """
     Generate vector of temperature values based on minimum given in constants and maximum calculated from minimum
     heliocentric distance. For each temperature simulate a number of observed radiances with reflectance vector
@@ -248,7 +252,7 @@ def calculate_radiances(reflectance_list: list, test: bool, samples_per_temperat
     constraints for their values pulled from constants.py
 
     Each set of observed radiances is saved into its own .toml file, every 10 000th radiance and its reflectance is
-    plotted. Radiances are returned without their metadata, as ndarray.
+    plotted and plots saved to disc. Radiances are returned without their metadata, as ndarray.
 
     :param reflectance_list: list
         Spectral reflectances from which the radiances will be created.
@@ -284,9 +288,6 @@ def calculate_radiances(reflectance_list: list, test: bool, samples_per_temperat
     sum_radiances = np.zeros((samples, length))
     temperatures = np.zeros((samples, 1))
     emissivities = np.zeros((samples, 1))
-    
-    # reflected = np.zeros((samples, length))
-    # therm = np.zeros((samples, length))
 
     j = 0
 
@@ -332,45 +333,3 @@ def calculate_radiances(reflectance_list: list, test: bool, samples_per_temperat
         thermal_parameters[:, 1] = emissivities.flatten()
 
     return sum_radiances, thermal_parameters
-
-
-def read_radiances(test: bool):
-    """
-    Read .toml files in folders for test and training data, place radiances in ndarrays and discard metadata.
-
-    :param test:
-        Whether data should be read from test or training folder
-    :return:
-        Array of summed radiances, array of separate radiances
-    """
-    if test == True:
-        folder_path = C.radiance_test_path
-    else:
-        folder_path = C.radiance_training_path
-
-    file_list = os.listdir(folder_path)
-    # Shuffle the list of files, so they are not read in the order they were created: data next to each other are not
-    # calculated from the same reflectance after shuffling
-    random.shuffle(file_list)
-
-    length = len(C.wavelengths)
-    samples = len(file_list)
-    summed = np.zeros((samples, length))
-    reflected = np.zeros((samples, length))
-    therm = np.zeros((samples, length))
-
-    i = 0
-    for filename in file_list:
-        rad_dict = FH.read_radiance(filename, test)
-        # Extract the radiances, discard the metadata
-        summed[i, :] = rad_dict['sum_radiance']
-        reflected[i, :] = rad_dict['reflected_radiance']
-        therm[i, :] = rad_dict['emitted_radiance']
-        print(f'Read file {i} out of {len(file_list)}')
-        i = i + 1
-
-    separate = np.zeros((samples, length, 2))
-    separate[:, :, 0] = reflected
-    separate[:, :, 1] = therm
-
-    return summed, separate
