@@ -8,25 +8,26 @@ import numpy as np
 import time
 import scipy.constants
 
-# Physical constants
-c = scipy.constants.c  # 2.998e8  # speed of light in vacuum, m / s
-kB = scipy.constants.Boltzmann  # 1.381e-23  # Boltzmann constant, m² kg / s² / K (= J / K)
-h = scipy.constants.h  # 6.626e-34  # Planck constant, m² kg / s (= J s)
+##########################################################################
+# Physical constants, fetched from scipy library
+c = scipy.constants.c  # 2.998e8 m / s, speed of light in vacuum
+kB = scipy.constants.Boltzmann  # 1.381e-23 m² kg / s² / K (= J / K), Boltzmann constant
+h = scipy.constants.h  # 6.626e-34 m² kg / s (= J s), Planck constant
 stefan_boltzmann = scipy.constants.Stefan_Boltzmann  # 5.67e-8 W / m² / K⁴, Stefan-Boltzmann constant
-# emittance = 0.9  # Emittance of an asteroid, an approximation. Use Kirchoff's law (eps = 1-R) to get emittance from reflectance
 
-# Wavelength vector
-# step = 0.002  # µm
-# wavelengths = np.arange(1, 2.5 + step, step=step)
+##########################################################################
+# Wavelength vector, the same as in used asteroid reflectances
 step = 0.01  # µm
-wavelengths = np.arange(0.46, 2.45 + step, step=step)  # TODO Should run from 0.45 to 2.45, why doesn't it?
+wavelengths = np.arange(0.46, 2.45 + step, step=step)
 
+##########################################################################
 # Paths
-
 spectral_path = Path('./spectral_data')
-Penttila_orig_path = Path('./spectral_data/reflectances/Penttila_asteroid_spectra/MyVISNIR-final-sampled-collection.dat')
-'''Reflectances of asteroids'''
-Penttila_aug_path = Path('./spectral_data/reflectances/Penttila_asteroid_spectra/MyVISNIR-simulated-simplified-taxonomy.dat')
+Penttila_orig_path = Path(
+    './spectral_data/reflectances/Penttila_asteroid_spectra/MyVISNIR-final-sampled-collection.dat')
+'''Reflectance spectra of asteroids'''
+Penttila_aug_path = Path(
+    './spectral_data/reflectances/Penttila_asteroid_spectra/MyVISNIR-simulated-simplified-taxonomy.dat')
 '''Reflectance spectra of asteroids, augmented'''
 albedo_path = Path('./spectral_data/reflectances/Penttila_asteroid_spectra/class-mean-albedos.tab')
 '''Mean albedos of asteroid spectral classes'''
@@ -37,39 +38,59 @@ rad_bunch_test_path = Path('./spectral_data/rad_bunch_test_bennu_random_no-noise
 rad_bunch_training_path = Path('./spectral_data/rad_bunch_training_bennu_random_no-noise_min-150K')
 '''All training data, saved as a pickle'''
 radiance_path = Path('./spectral_data/radiances')
+'''All modeled radiances as toml files, separated in subdirectories for training and test'''
 radiance_training_path = Path(radiance_path, 'training')
+'''Training radiances saved as toml files with metadata'''
 radiance_test_path = Path(radiance_path, 'test')
+'''Test radiances saved as toml files with metadata'''
 
 figfolder = Path('./figs')
+'''Folder where most figures are saved (not the ones produced during model validation)'''
 refl_plots_path = Path(figfolder, 'asteroid-reflectance-plots')
+'''Plots of asteroid reflectances after un-normalization'''
 rad_plots_path = Path(figfolder, 'radiance-plots')
+'''Plots of modeled spectral radiances'''
 max_temp_plots_path = Path(figfolder, 'max_temp_plots')
+'''Plots related to maximum surface temperature evaluation'''
 bennu_plots_path = Path(figfolder, 'Bennu-plots')
+'''Plots of Bennu radiances as measured by OVIRS'''
+
 val_and_test_path = Path('./validation_and_testing')
-
+'''Validation results, each validation run saved in its own subdirectory'''
 training_path = Path('./training')
+'''Training results: network weights and loss history. Each training run in its own subdirectory'''
 
-# Keys for variables
-wl_key = 'wavelength'
-R_key = 'reflectance'
-
+##########################################################################
 # Gaussian distribution for noising generated data
-mu = 0  # mean
-sigma = 0.0001 #0.02  # standard deviation
+mu = 0  # mean value for added noise
+sigma = 0.0001  # standard deviation of noise distribution
 
+##########################################################################
 # Constraints for modeled radiances
 # d_S_min, d_S_max = 0.7, 2.8  # Approximate heliocentric distance for asteroids where the problem is relevant, in AU
-d_S_min, d_S_max = 0.8968944004459729 - 0.1, 1.355887651343651 + 0.1  # Heliocentric distances for Bennu, in AU
-T_min, T_max = 150, 430  # Asteroid surface temperature, in Kelvins
+d_S_min, d_S_max = 0.8968944004459729 - 0.1, 1.355887651343651 + 0.1  # Heliocentric distances for Bennu, in AU:
+# values from https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr=bennu, with added margin of 0.1 AU
+T_min, T_max = 150, 430  # Asteroid surface temperature range, in Kelvins
 i_min, i_max = 0, 89  # Incidence angle, angle between surface normal and incident light, in degrees
 e_min, e_max = 0, 89  # Emission angle, angle between surface normal and observer direction, in degrees
 # IN TRUTH both emission and incidence angles can go up to 90... but if both hit 90, we get division by zero when
 # calculating reflected radiance, and everything explodes
 
-emissivity_min, emissivity_max = 0.2, 0.99  # Emissivity, ratio between thermal emission from body and from ideal bb. NB: Can also represent some beaming effects and such!
+emissivity_min, emissivity_max = 0.2, 0.99  # Emissivity, ratio between thermal emission from body and from ideal bb:
+# this can also represent some beaming effects and other angle dependencies!
 p_min, p_max = 0.01, 0.40  # Geometrical albedo, ratio of light reflected from asteroid and from Lambertian disc
 
-# Neural network parameters
+##########################################################################
+# Neural network architecture parameters
+conv_filters = 128
+conv_kernel = 4
+encoder_start = 1024  # 800
+encoder_node_relation = 0.50
+encoder_stop = 4
+learning_rate = 1e-5
+
+##########################################################################
+# Neural network training parameters
 refl_test_partition = 0.1  # Part of reflectances to be used for test data
 activation = 'relu'
 batch_size = 32  # Size of minibatch in training
@@ -78,14 +99,8 @@ epochs = 2048
 min_delta = 0.0001
 patience = 50
 
-# Parameters for neural network architecture
-conv_filters = 128
-conv_kernel = 4
-encoder_start = 1024  # 800
-encoder_node_relation = 0.50
-encoder_stop = 4
-learning_rate = 1e-5
-
+##########################################################################
+# Paths and filenames for saving trained networks
 training_run_name = f'{epochs}epochs_{encoder_start}start_{encoder_stop}stop_{learning_rate}lr'
 training_run_path = Path(training_path, training_run_name)
 if os.path.isdir(training_run_path) == False:
@@ -95,12 +110,12 @@ if os.path.isdir(weights_path) == False:
     os.mkdir(weights_path)
 training_history_path = Path(training_run_path, f'{training_run_name}_trainHistory')
 
-# Paths for saving results of hyperparameter tuning
+##########################################################################
+# Path for saving results of hyperparameter tuning
 hyperparameter_path = 'hyperparameter_tuning'  # KerasTuner wants the path as a string
 
+##########################################################################
 # Plot parameters, using default pyplot colors: '#1f77b4', '#ff7f0e', '#2ca02c'
-uncor_plot_color = '#1f77b4'   # Blue
-NNcor_plot_color = '#ff7f0e'   # Orange
+uncor_plot_color = '#1f77b4'  # Blue
+NNcor_plot_color = '#ff7f0e'  # Orange
 ground_plot_color = '#2ca02c'  # Green
-
-
