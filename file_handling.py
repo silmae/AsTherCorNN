@@ -2,7 +2,7 @@
 Methods used for loading files and writing into files
 """
 
-from pathlib import Path
+from pathlib import Path, PurePath
 import numpy as np
 import toml
 import pickle
@@ -42,8 +42,15 @@ def save_toml(dictionary: dict, savepath):
     """Save a dictionary into a .toml file"""
 
     # Add file extension if not present
-    if not(savepath.endswith('.toml')):
-        savepath = savepath + '.toml'
+    if type(savepath) == str:
+        if not (savepath.endswith('.toml')):
+            savepath = savepath + '.toml'
+    elif isinstance(savepath, PurePath):
+        if not savepath.suffix == '.toml':
+            savepath = Path.with_suffix(savepath, '.toml')
+    else:
+        print('Path given to save_toml was not string or Path -object. Stopping execution...')
+        quit(code=1)
 
     with open(savepath, 'w+') as file:
         toml.dump(dictionary, file, encoder=toml.encoder.TomlNumpyEncoder())
@@ -54,8 +61,15 @@ def load_toml(filepath):
     """Load a dictionary from a .toml file"""
 
     # Add file extension if not present
-    if not(filepath.endswith('.toml')):
-        filepath = filepath + '.toml'
+    if type(filepath) == str:
+        if not(filepath.endswith('.toml')):
+            filepath = filepath + '.toml'
+    elif isinstance(filepath, PurePath):
+        if not filepath.suffix == '.toml':
+            filepath = Path.with_suffix(filepath, '.toml')
+    else:
+        print('Path given to load_toml was not string or Path -object. Stopping execution...')
+        quit(code=1)
 
     with open(filepath, 'r') as file:
         data = toml.load(file)
