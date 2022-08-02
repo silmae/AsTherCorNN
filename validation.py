@@ -11,9 +11,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from astropy.io import fits
 import sklearn.utils
-import pickle
-import symfit
-import sympy
 
 import constants as C
 import file_handling
@@ -22,65 +19,26 @@ import radiance_data as rad
 import file_handling as FH
 
 
-def fit_Planck(radiance: np.ndarray):
-    """
-    Fit Planck's law to thermal radiance vector, to evaluate the temperature and emissivity of the radiation source.
-
-    :param radiance: np.ndarray
-        Thermally emitted spectral radiance
-    :return: float
-        Temperature of the radiance source, in Kelvin
-    """
-
-    # Parametrize Planck's law in simpler terms to make fitting easier
-    # Define constants
-    # c = speed of light in vacuum, m / s
-    # kB = Boltzmann constant, m² kg / s² / K (= J / K)
-    # h = Planck constant, m² kg / s (= J s)
-
-    # Planck originally: L_th = eps * (2 * h * c ** 2) / ((wl ** 5) * (exp((h * c) / (wl * k_B * T)) - 1))
-    # Lump constants together: a = 2hc² = 1.191e-16 kg m⁴/s³, and b = hc / k_B = 0.01439 m K
-    # Re-parametrized version: L_th = eps * a / ((wl ** 5) * (exp(b / (wl * T)) - 1))
-
-    # Values for a and b calculated with Wolfram Alpha
-    # Move from m to µm to make computing easier: values are not so extremely small
-    a = 1.191e-16  # kg m⁴/s³
-    a = a * 1e24  # Convert to kg µm⁴/s³
-    b = 0.01439  # m K
-    b = b * 1e6  # Convert to µm K
-    # eps = C.emissivity  # Emittance
-
-    # Temperature and emissivity as fitting parameters, wavelength as variable
-    init_guess_T = (C.T_max + C.T_min) / 2
-    T = symfit.Parameter('T', value=init_guess_T, min=C.T_min, max=C.T_max)
-    init_guess_eps = (C.emissivity_max + C.emissivity_min) / 2
-    eps = symfit.Parameter('eps', value=init_guess_eps, min=C.emissivity_min, max=C.emissivity_max)
-    wl = symfit.Variable('wl')
-    C.emissivity_min
-
-    model = eps * a / ((wl ** 5) * (sympy.exp(b / (wl * T)) - 1))  # Apply re-parametrized Planck's law
-
-    fit = symfit.Fit(model, C.wavelengths, radiance, minimizer=[symfit.core.minimizers.NelderMead])
-    fit_result = fit.execute()
-    # print(f'Emissivity: {fit_result.value(eps)}')
-
-    # # Plot of fit result together with original radiance data
-    # fig = plt.figure()
-    # y = model(wl=C.wavelengths, T=fit_result.value(T), eps=fit_result.value(eps))
-    # plt.plot(C.wavelengths, y)
-    # plt.plot(C.wavelengths, radiance)
-    # plt.xlabel('Wavelength [µm]')
-    # plt.ylabel('Radiance [W / m² / sr / µm]')
-    # plt.show()
-    # plt.close(fig)
-
-    temperature = fit_result.value(T)
-
-    return temperature
-
-
 def test_model(x_test, y_test, model, thermal_radiances, savefolder):
+    """
+    Testing a trained Keras model with data given as parameters. Saving results of test as a toml and as several plots.
 
+    :param x_test:
+        Test data
+    :param y_test:
+        Ground truth for test data
+    :param model:
+        A trained Keras model with weights loaded
+    :param thermal_radiances:
+        Thermal spectral radiances for all test data
+    :param savefolder:
+        Path to folder where results and plots will be saved
+
+    :return:
+        Dictionary containing the calculated errors
+    """
+
+    # Run test for the model with Keras, take test result and elapsed time into variables to save them later
     time_start = time.perf_counter_ns()
     test_result = model.evaluate(x_test, y_test, verbose=0)
     time_stop = time.perf_counter_ns()
@@ -101,6 +59,7 @@ def test_model(x_test, y_test, model, thermal_radiances, savefolder):
     def MAE(s1, s2):
         return sum(abs(s1 - s2)) / len(s1)
 
+    # Same as MAE above, but using only the last quarter of the vectors: the errors from thermal tail are more visible
     def tail_MAE(s1, s2):
         s1 = s1[-int(len(s1)/4):]
         s2 = s2[-int(len(s2)/4):]
@@ -122,9 +81,7 @@ def test_model(x_test, y_test, model, thermal_radiances, savefolder):
     temperature_pred = []
 
     indices = range(len(x_test[:, 0]))  # Full error calculation, takes some time
-    plot_indices = np.random.randint(0, len(x_test[:, 0]), 10)
-
-    # TODO def radiance_prediction(model, sample_radiance)?
+    plot_indices = np.random.randint(0, len(x_test[:, 0]), 10)  # Choose 10 random data points for plotting
 
     for i in indices:
         test_sample = np.expand_dims(x_test[i, :], axis=0)
@@ -138,8 +95,9 @@ def test_model(x_test, y_test, model, thermal_radiances, savefolder):
         print(f'Ground temperature: {ground_temperature}')
         print(f'Prediction temperature: {pred_temperature}')
 
-        # Calculate thermal spectral radiance from predicted temperature and constant 0.9 emissivity using Planck's law
-        pred_radiance = rad.thermal_radiance(pred_temperature, 0.9, C.wavelengths)
+        # Calculate thermal spectral radiance from predicted temperature and constant emissivity using Planck's law
+        eps = (C.emissivity_max + C.emissivity_min) / 2  # Mean emissivity in training data
+        pred_radiance = rad.thermal_radiance(pred_temperature, eps, C.wavelengths)
 
         pred_therm = pred_radiance[:, 1]
         ground_therm = thermal_radiances[i, :]
@@ -149,7 +107,7 @@ def test_model(x_test, y_test, model, thermal_radiances, savefolder):
         ground_refl = test_sample.squeeze() - ground_therm
         uncorrected_refl = test_sample.squeeze()
 
-        # Plot some results for closer inspection from 25 random test spectra
+        # Plot some results for closer inspection from randomly chosen test spectra
         if i in plot_indices:
             plot_val_test_results(test_sample, ground_refl, ground_therm, pred_refl, pred_therm, savefolder, i+1)
 
@@ -237,7 +195,26 @@ def test_model(x_test, y_test, model, thermal_radiances, savefolder):
     # Return the dictionary containing calculated errors, in addition to saving it on disc
     return error_dict
 
+
 def plot_val_test_results(test_sample, ground1, ground2, pred1, pred2, savefolder, index):
+    """
+    Plotting some results for test with one sample radiance, and saving plots on disc.
+
+    :param test_sample:
+        Uncorrected spectral radiance
+    :param ground1:
+        Ground truth spectrum 1: reflected radiance
+    :param ground2:
+        Ground truth spectrum 2: thermally emitted radiance
+    :param pred1:
+        Prediction 1: reflected radiance
+    :param pred2:
+        Prediction 2: thermally emitted radiance
+    :param savefolder:
+        Path to folder where plots will be saved
+    :param index:
+        Index of the plotted sample, used in filename of plots
+    """
 
     fig = plt.figure()
     x = C.wavelengths
@@ -293,18 +270,17 @@ def plot_val_test_results(test_sample, ground1, ground2, pred1, pred2, savefolde
 
 def validate_synthetic(model, validation_run_folder: Path):
     """
-    Run tests for trained model with synthetic data similar to training data. Calculates temperatures for all data
-    points by fitting their ground truth thermal tails to the Planck function.
+    Run tests for trained model with synthetic data similar to training data.
 
     :param model:
-        Trained model
+        Trained Keras model with weights loaded
     :param validation_run_folder:
         Path to folder where results will be saved. Method will create a sub-folder inside for results from synthetic.
     """
 
     # Load test radiances from one file as dicts, separate ground truth and test samples
     rad_bunch_test = FH.load_pickle(C.rad_bunch_test_path)
-    X_test = rad_bunch_test['radiances']
+    x_test = rad_bunch_test['radiances']
     y_test = rad_bunch_test['parameters']
 
     # Limiting test sample temperatures to stay between the min and max temperatures of Bennu, to get comparable errors
@@ -317,15 +293,15 @@ def validate_synthetic(model, validation_run_folder: Path):
     max_indices = np.where(y_test[:, 0] == max_temperature)
     max_index = max_indices[0][-1]
 
-    X_test = X_test[min_index:max_index, :]
+    x_test = x_test[min_index:max_index, :]
     y_test = y_test[min_index:max_index, :]
 
-    # Shuffle to get samples from all temperatures when using part of the data
-    X_test, y_test = sklearn.utils.shuffle(X_test, y_test, random_state=0)
+    # Shuffle the data
+    x_test, y_test = sklearn.utils.shuffle(x_test, y_test, random_state=0)
 
     sample_percentage = 15  # percentage of validation data samples used for error calculation, takes less time
-    indices = range(int(len(X_test[:, 0]) * (sample_percentage * 0.01)))
-    X_test = X_test[indices]
+    indices = range(int(len(x_test[:, 0]) * (sample_percentage * 0.01)))
+    x_test = x_test[indices]
     y_test = y_test[indices]
 
     # Calculate thermal spectral radiance for each parameter pair
@@ -341,7 +317,7 @@ def validate_synthetic(model, validation_run_folder: Path):
     if os.path.isdir(validation_plots_synthetic_path) == False:
         os.mkdir(validation_plots_synthetic_path)
 
-    error_dict = test_model(X_test, y_test, model, thermal_radiances, validation_plots_synthetic_path)
+    error_dict = test_model(x_test, y_test, model, thermal_radiances, validation_plots_synthetic_path)
 
 
 def bennu_refine(fitslist: list, time: int, discard_indices, plots=False):
@@ -363,7 +339,7 @@ def bennu_refine(fitslist: list, time: int, discard_indices, plots=False):
     :param discard_indices
         Indices of datapoints that will be discarded as erroneous
     :param plots: boolean
-        Whether or not plots will be made and saved
+        Whether plots will be made and saved
     :return: uncorrected_Bennu, corrected_Bennu, thermal_tail_Bennu:
     """
 
@@ -398,6 +374,7 @@ def bennu_refine(fitslist: list, time: int, discard_indices, plots=False):
             Bennu_indices.append(index)
         index = index + 1
 
+    # Some data were marked for discarding due to weird looking spectra with very sharp drops and rises
     # Go through discard indices, remove the listed data from the Bennu_indices
     # Must loop through the list backwards to not modify indices of upcoming elements
     for i in sorted(discard_indices, reverse=True):
@@ -446,15 +423,25 @@ def bennu_refine(fitslist: list, time: int, discard_indices, plots=False):
             plt.ylabel('Radiance [W / m² / sr / µm]')
             plt.xlim((2, 2.45))
             plt.ylim((0, 0.4))
-            # plt.savefig(Path(plotpath, f'bennurads_{time}_{i}.png'))
+            plt.savefig(Path(plotpath, f'bennurads_{time}_{i}.png'))
             print(f'Saved figure as bennurads_{time}_{i}.png')
-            plt.show()
+            # plt.show()
             plt.close(fig)
 
     return uncorrected_Bennu, corrected_Bennu, thermal_tail_Bennu, temperature, emissivity
 
 
 def validate_bennu(model, validation_run_folder):
+    """
+    Test model using OVIRS data of Bennu from three local times. Load data and refine it to match the training and
+    validation data. Saves the results of testing as toml file and some plots drawn from the results.
+
+    :param model:
+        Trained Keras model with weights loaded
+    :param validation_run_folder:
+        Path to the folder where results will be saved
+    """
+
     # Opening OVIRS spectra measured from Bennu
     Bennu_path = Path(C.spectral_path, 'Bennu_OVIRS')
     file_list = os.listdir(Bennu_path)
@@ -497,6 +484,7 @@ def validate_bennu(model, validation_run_folder):
     # Bennu_min_temperature = min(temperatures_1000)
     # Bennu_max_temperature = max(temperatures_1230)
 
+    # Call test function for a dataset from one local time
     def test_model_Bennu(X_Bennu, temperatures, emissivities, thermal, time: str, validation_plots_Bennu_path):
         # Organize ground truth data to match what the ML model expects
         y_Bennu = np.zeros((len(X_Bennu[:,0]), 2))
@@ -532,7 +520,7 @@ def validate_bennu(model, validation_run_folder):
     errors_Bennu['errors_1500'] = errors_1500
     FH.save_toml(errors_Bennu, Path(validation_plots_Bennu_path, 'errors_Bennu.toml'))
 
-    # Plotting errors from all three local times
+    # Plotting errors from all three local times. Plots for individual times are made in the test_model -method
     plot_Bennu_errors(validation_plots_Bennu_path)
 
 
@@ -564,7 +552,6 @@ def validate_and_test(last_epoch):
     )
 
     weight_path = Path(C.weights_path, f'weights_{str(last_epoch)}.hdf5')
-    # weight_path = Path('/home/leevi/PycharmProjects/asteroid-thermal-modeling/training/300epochs_160waist_1e-05lr/weights/weights_297.hdf5')
     model.load_weights(weight_path)
 
     # Print summary of model architecture into file
@@ -575,11 +562,19 @@ def validate_and_test(last_epoch):
     # Validation with synthetic data similar to training data
     validate_synthetic(model, validation_run_folder)
 
-    # Testing with real asteroid data: do not look at this until the network works properly with synthetic data
+    # Testing with real asteroid data
     validate_bennu(model, validation_run_folder)
 
 
 def error_plots(folderpath):
+    """
+    Load a dictionary containing calculated errors from a toml file, make plots of the errors, and save the plots in the
+    folder where the toml file was located.
+
+    :param folderpath:
+        Path the to folder where the toml file of errors is and where the plots will be saved
+    """
+
     # Load dictionary of errors, saved as a toml
     errordict = FH.load_toml(Path(folderpath, 'errors.toml'))
 
@@ -636,13 +631,13 @@ def error_plots(folderpath):
     double_plot(reflrad_cos_uncorrected, reflrad_cos_corrected, 'Reflected radiance cosine distance', 'reflrad_SAM_groundtemp')
 
     # The same as above, but from reflectance instead of reflected radiance
-    double_plot(reflrad_cos_uncorrected, reflrad_cos_corrected, 'Reflectance cosine distance', 'reflectance_SAM_groundtemp')
+    double_plot(reflectance_cos_uncorrected, reflectance_cos_corrected, 'Reflectance cosine distance', 'reflectance_SAM_groundtemp')
 
     # Mean absolute error of reflected radiance from both corrected and uncorrected, as function of ground truth temp
     double_plot(reflrad_mae_uncorrected, reflrad_mae_corrected, 'Reflected radiance MAE', 'reflrad_MAE_groundtemp')
 
     # Same as above, but from reflectance
-    double_plot(reflrad_mae_uncorrected, reflrad_mae_corrected, 'Reflectance MAE', 'reflectance_MAE_groundtemp')
+    double_plot(reflectance_mae_uncorrected, reflectance_mae_corrected, 'Reflectance MAE', 'reflectance_MAE_groundtemp')
 
     # Cosine distance of estimated thermal radiance from ideal result, as function of ground truth temperature
     fig = plt.figure()
@@ -678,6 +673,15 @@ def error_plots(folderpath):
 
 
 def plot_Bennu_errors(folderpath):
+    """
+    Plot errors using test results from all three local times on Bennu. Loads a dictionary of errors from a toml file,
+    and saves the plot in the folder where the toml is located.
+
+    :param folderpath:
+        Path to the folder where the error dictionary is, and where the plots will be saved
+    """
+
+    # Load error dictionary and pick out the three dictionaries of errors for different local times
     errordict = file_handling.load_toml(Path(folderpath, 'errors_Bennu.toml'))
     errors_1000 = errordict['errors_1000']
     errors_1230 = errordict['errors_1230']
@@ -753,7 +757,7 @@ def plot_Bennu_errors(folderpath):
         uncorrected_1500 = dict_1500[uncorrected_name]
 
         fig = plt.figure()
-        # Default pyplot colors: '#1f77b4', '#ff7f0e', '#2ca02c'
+        # Use one color for uncorrected and other for corrected, with their hex codes determined in constants.py
         uncor_scatter1 = plt.scatter(ground_temps_1000, uncorrected_1000, alpha=0.1, color=C.uncor_plot_color)
         uncor_scatter2 = plt.scatter(ground_temps_1230, uncorrected_1230, alpha=0.1, color=C.uncor_plot_color)
         uncor_scatter3 = plt.scatter(ground_temps_1500, uncorrected_1500, alpha=0.1, color=C.uncor_plot_color)
@@ -762,8 +766,10 @@ def plot_Bennu_errors(folderpath):
         cor_scatter2 = plt.scatter(ground_temps_1230, corrected_1230, alpha=0.1, color=C.NNcor_plot_color)
         cor_scatter3 = plt.scatter(ground_temps_1500, corrected_1500, alpha=0.1, color=C.NNcor_plot_color)
 
+        # If a limit other than (0,0) is given in arguments, use it for limiting the shown y-axis values
         if lim != (0, 0):
             plt.ylim(lim)
+
         leg = plt.legend([cor_scatter1, uncor_scatter1], ['NN-corrected', 'Uncorrected'])
         for lh in leg.legendHandles:
             lh.set_alpha(1)
