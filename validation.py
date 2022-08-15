@@ -66,7 +66,7 @@ def test_model(x_test, y_test, model, thermal_radiances, savefolder):
         error = MAE(s1, s2)
         return error
 
-    # Lists for storing the errors
+    # Lists for storing the results of calculations
     reflrad_mae_corrected = []
     reflrad_cos_corrected = []
     reflrad_mae_uncorrected = []
@@ -79,8 +79,11 @@ def test_model(x_test, y_test, model, thermal_radiances, savefolder):
     thermrad_cos = []
     temperature_ground = []
     temperature_pred = []
+    uncorrected_reflectances = []
+    corrected_reflectances = []
+    ground_reflectances = []
 
-    indices = range(len(x_test[:, 0]))  # Full error calculation, takes some time
+    indices = range(len(x_test[:, 0]))
     plot_indices = np.random.randint(0, len(x_test[:, 0]), 10)  # Choose 10 random data points for plotting
 
     for i in indices:
@@ -113,16 +116,19 @@ def test_model(x_test, y_test, model, thermal_radiances, savefolder):
 
         # Calculate normalized reflectance from uncorrected, NN-corrected, and ground truth reflected radiances
         reflectance_ground = rad.radiance2norm_reflectance(ground_refl)
+        ground_reflectances.append(reflectance_ground)
         reflectance_uncorrected = rad.radiance2norm_reflectance(uncorrected_refl)
+        uncorrected_reflectances.append(reflectance_uncorrected)
         reflectance_corrected = rad.radiance2norm_reflectance(pred_refl)
+        corrected_reflectances.append(reflectance_corrected)
 
         # Mean absolute errors from radiance
-        # mae1_corrected = MAE(pred_refl, ground_refl)
-        # mae1_uncorrected = MAE(uncorrected_refl, ground_refl)
-        # mae2 = MAE(pred_therm, ground_therm)
-        mae1_corrected = tail_MAE(pred_refl, ground_refl)
-        mae1_uncorrected = tail_MAE(uncorrected_refl, ground_refl)
-        mae2 = tail_MAE(pred_therm, ground_therm)
+        mae1_corrected = MAE(pred_refl, ground_refl)
+        mae1_uncorrected = MAE(uncorrected_refl, ground_refl)
+        mae2 = MAE(pred_therm, ground_therm)
+        # mae1_corrected = tail_MAE(pred_refl, ground_refl)
+        # mae1_uncorrected = tail_MAE(uncorrected_refl, ground_refl)
+        # mae2 = tail_MAE(pred_therm, ground_therm)
         reflrad_mae_corrected.append(mae1_corrected)
         reflrad_mae_uncorrected.append(mae1_uncorrected)
         thermrad_mae.append(mae2)
@@ -136,10 +142,10 @@ def test_model(x_test, y_test, model, thermal_radiances, savefolder):
         thermrad_cos.append(cosang2)
 
         # Mean absolute errors and cosine distance from reflectances
-        # R_MAE_corrected = MAE(reflectance_corrected, reflectance_ground)
-        # R_MAE_uncorrected = MAE(reflectance_uncorrected, reflectance_ground)
-        R_MAE_corrected = tail_MAE(reflectance_corrected, reflectance_ground)
-        R_MAE_uncorrected = tail_MAE(reflectance_uncorrected, reflectance_ground)
+        R_MAE_corrected = MAE(reflectance_corrected, reflectance_ground)
+        R_MAE_uncorrected = MAE(reflectance_uncorrected, reflectance_ground)
+        # R_MAE_corrected = tail_MAE(reflectance_corrected, reflectance_ground)
+        # R_MAE_uncorrected = tail_MAE(reflectance_uncorrected, reflectance_ground)
         reflectance_mae_corrected.append(R_MAE_corrected)
         reflectance_mae_uncorrected.append(R_MAE_uncorrected)
 
@@ -154,6 +160,14 @@ def test_model(x_test, y_test, model, thermal_radiances, savefolder):
     temperature_errors = np.asarray(temperature_ground) - np.asarray(temperature_pred)
     temperature_NRMSE = np.sqrt((sum(temperature_errors ** 2)) / len(temperature_ground)) / np.mean(temperature_ground)
 
+    # Calculate mean and std of temperature predictions as function of ground temperature
+    temperature_pred_mean_std = _calculate_temperature_pred_mean_and_std(temperature_ground, temperature_pred)
+
+    # Mean reflectance spectra: ground, uncorrected, corrected
+    mean_reflectance_ground = np.mean(np.asarray(ground_reflectances), axis=0)
+    mean_reflectance_uncorrected = np.mean(np.asarray(uncorrected_reflectances), axis=0)
+    mean_reflectance_corrected = np.mean(np.asarray(corrected_reflectances), axis=0)
+
     # Gather all calculated errors in a single dictionary and save that as toml
     mean_dict = {}
     mean_dict['samples'] = i+1
@@ -164,10 +178,14 @@ def test_model(x_test, y_test, model, thermal_radiances, savefolder):
     mean_dict['mean_thermal_MAE'] = np.mean(thermrad_mae)
     mean_dict['mean_reflected_SAM'] = np.mean(reflrad_cos_corrected)
     mean_dict['mean_thermal_SAM'] = np.mean(thermrad_cos)
+    mean_dict['mean_ground_reflectance'] = mean_reflectance_ground
+    mean_dict['mean_uncorrected_reflectance'] = mean_reflectance_uncorrected
+    mean_dict['mean_corrected_reflectance'] = mean_reflectance_corrected
 
     temperature_dict = {}
     temperature_dict['ground_temperature'] = temperature_ground
     temperature_dict['predicted_temperature'] = temperature_pred
+    temperature_dict['predicted_temperature_mean_and_std'] = temperature_pred_mean_std
 
     MAE_dict = {}
     MAE_dict['reflected_MAE'] = reflrad_mae_corrected
@@ -195,6 +213,22 @@ def test_model(x_test, y_test, model, thermal_radiances, savefolder):
     # Return the dictionary containing calculated errors, in addition to saving it on disc
     return error_dict
 
+
+def _calculate_temperature_pred_mean_and_std(temperature_ground, temperature_pred):
+    # Mean predicted temperature and its std for each unique value of ground temperature
+    temperature_ground = np.asarray(temperature_ground)
+    temperature_pred = np.asarray(temperature_pred)
+    unique_ground_temps = np.unique(temperature_ground)
+    temperature_pred_mean_std = np.zeros((3, len(unique_ground_temps)))
+    saveindex = 0
+    for temp in unique_ground_temps:
+        index = np.where(temperature_ground == temp)  # Indices where ground temperature is the one to be calculated
+        mean = np.mean(temperature_pred[index])
+        std = np.std(temperature_pred[index])
+        temperature_pred_mean_std[:, saveindex] = [temp, mean, std]
+        saveindex = saveindex + 1
+
+    return temperature_pred_mean_std
 
 def plot_val_test_results(test_sample, ground1, ground2, pred1, pred2, savefolder, index):
     """
@@ -534,7 +568,7 @@ def validate_and_test(last_epoch):
 
     # Generate a unique folder name for results of test based on time the test was run
     timestr = time.strftime("%Y%m%d-%H%M%S")
-    # timestr = 'test'  # Folder name for test runs, otherwise a new folder is always created
+    timestr = 'test'  # Folder name for test runs, otherwise a new folder is always created
 
     # Create folder for results
     validation_run_folder = Path(C.val_and_test_path, f'validation-run_epoch-{last_epoch}_time-{timestr}')
@@ -565,6 +599,34 @@ def validate_and_test(last_epoch):
     # Testing with real asteroid data
     validate_bennu(model, validation_run_folder)
 
+# TODO add to temperature plot mean and std of predtemp as function of groundtemp, using this:
+
+def _plot_with_shadow(ax_obj, x_data, y_data, y_data_std, color, label, ls='-') -> None:
+    """ Method by K.A. Riihiaho, copied (with permission) from
+    https://github.com/silmae/HyperBlend/blob/master/src/plotter.py
+
+    Plot data with standard deviation as shadow.
+    Data must be sorted to show correctly.
+    :param ax_obj:
+        Pyplot axes object to plot to.
+    :param x_data:
+        Data x values (wavelengths).
+    :param y_data:
+        Data y values as numpy.array.
+    :param y_data_std:
+        Standard deviation as numpy array. The shadow is drawn as +- std/2.
+    :param color:
+        Color of the plot and shadow.
+    :param label:
+        Label of the value.
+    :param ls:
+        Line style. See pyplot linestyle documentation.
+    """
+
+    ax_obj.fill_between(x_data, y_data - (y_data_std / 2), y_data + (y_data_std / 2), alpha=0.1,
+                        color=color)
+    ax_obj.plot(x_data, y_data, color=color, ls=ls, label=label)
+
 
 def error_plots(folderpath):
     """
@@ -582,7 +644,13 @@ def error_plots(folderpath):
     temperature_dict = errordict['temperature']
     temperature_ground = np.asarray(temperature_dict['ground_temperature'])
     temperature_pred = np.asarray(temperature_dict['predicted_temperature'])
+    temperature_pred_mean_std = temperature_dict['predicted_temperature_mean_and_std']
     temperature_error = temperature_pred - temperature_ground
+
+    mean_dict = errordict['mean']
+    mean_ground_reflectance = mean_dict['mean_ground_reflectance']
+    mean_uncorrected_reflectance = mean_dict['mean_uncorrected_reflectance']
+    mean_corrected_reflectance = mean_dict['mean_corrected_reflectance']
 
     MAE_dict = errordict['MAE']
     thermrad_mae = MAE_dict['thermal_MAE']
@@ -598,6 +666,17 @@ def error_plots(folderpath):
     reflectance_cos_corrected = SAM_dict['reflectance_SAM']
     reflectance_cos_uncorrected = SAM_dict['reflectance_SAM_uncorrected']
 
+    # Mean predicted temperature and its std for each unique value of ground temperature
+    unique_ground_temps = np.unique(temperature_ground)
+    temperature_pred_mean_std = np.zeros((3, len(unique_ground_temps)))
+    saveindex = 0
+    for temp in unique_ground_temps:
+        index = np.where(temperature_ground == temp)  # Indices where ground temperature is the one to be calculated
+        mean = np.mean(temperature_pred[index])
+        std = np.std(temperature_pred[index])
+        temperature_pred_mean_std[:, saveindex] = [temp, mean, std]
+        saveindex = saveindex + 1
+
     # Min and max temperatures, used to plot a reference line corresponding to ideal result
     min_temperature = int(min(temperature_ground))
     max_temperature = int(max(temperature_ground))
@@ -607,9 +686,20 @@ def error_plots(folderpath):
     plt.scatter(temperature_ground, temperature_pred, alpha=0.1, color=C.NNcor_plot_color)
     plt.xlabel('Ground truth temperature [K]')
     plt.ylabel('Predicted temperature [K]')
-    plt.plot(range(min_temperature, max_temperature), range(min_temperature, max_temperature),
-             'r')  # Plot a reference line with slope 1: ideal result
+    # Plot a reference line with slope 1: ideal result
+    plt.plot(range(min_temperature, max_temperature), range(min_temperature, max_temperature), color=C.ideal_result_line_color)
+    _plot_with_shadow(plt, temperature_pred_mean_std[0, :], temperature_pred_mean_std[1, :], temperature_pred_mean_std[2, :], color=C.mean_std_temp_color, label='Mean and std')
+    plt.ylim(C.temperature_plot_ylim)
     plt.savefig(Path(folderpath, 'predtemp-groundtemp.png'))
+    plt.close(fig)
+
+    # Mean reflectances of ground truth, uncorrected, and NN corrected
+    fig = plt.figure()
+    plt.plot(C.wavelengths, mean_ground_reflectance, color=C.ground_plot_color, label='Ground')
+    plt.plot(C.wavelengths, mean_uncorrected_reflectance, color=C.uncor_plot_color, label='Uncorrected')
+    plt.plot(C.wavelengths, mean_corrected_reflectance, color=C.NNcor_plot_color, label='NN-corrected')
+    plt.legend()
+    plt.savefig(Path(folderpath, 'mean_reflectances.png'))
     plt.close(fig)
 
     def double_plot(uncorrected, corrected, label, filename, limit=(0,0)):
@@ -722,7 +812,16 @@ def plot_Bennu_errors(folderpath):
         for lh in leg.legendHandles:
             lh.set_alpha(1)
         if data_name == 'predicted_temperature':
-            plt.plot(range(300, 350), range(300, 350), 'r')  # Plot a reference line with slope 1: ideal result
+            plt.plot(range(300, 350), range(300, 350), color=C.ideal_result_line_color)  # Plot a reference line with slope 1: ideal result
+
+            ground_temps = errors_1000['temperature']['ground_temperature'] + errors_1230['temperature']['ground_temperature'] + errors_1500['temperature']['ground_temperature']
+            pred_temps = errors_1000['temperature']['predicted_temperature'] + errors_1230['temperature']['predicted_temperature'] + errors_1500['temperature']['predicted_temperature']
+
+            mean_and_std = _calculate_temperature_pred_mean_and_std(ground_temps, pred_temps)
+
+            _plot_with_shadow(plt, mean_and_std[0, :], mean_and_std[1, :], mean_and_std[2, :], color=C.mean_std_temp_color, label='Prediction mean and std')
+
+            plt.ylim(C.temperature_plot_ylim)
         plt.savefig(Path(savefolder, f'{data_name}.png'))
         plt.close(fig)
 
@@ -784,5 +883,32 @@ def plot_Bennu_errors(folderpath):
     Bennu_comparison_plots('reflectance_MAE', 'reflectance_MAE_uncorrected', 'Reflectance MAE')  # , lim=(0, 0.01))
     Bennu_comparison_plots('reflectance_SAM', 'reflectance_SAM_uncorrected',
                            'Reflectance cosine distance')  # , lim=(0.999, 1.0))
+
+    # Plot of mean reflectances:
+    mean_ground_reflectance_1000 = errors_1000['mean']['mean_ground_reflectance']
+    mean_ground_reflectance_1230 = errors_1230['mean']['mean_ground_reflectance']
+    mean_ground_reflectance_1500 = errors_1500['mean']['mean_ground_reflectance']
+    mean_ground_reflectance = np.mean(np.asarray([mean_ground_reflectance_1000, mean_ground_reflectance_1230, mean_ground_reflectance_1500]), axis=0)
+
+    mean_uncorrected_reflectance_1000 = errors_1000['mean']['mean_uncorrected_reflectance']
+    mean_uncorrected_reflectance_1230 = errors_1230['mean']['mean_uncorrected_reflectance']
+    mean_uncorrected_reflectance_1500 = errors_1500['mean']['mean_uncorrected_reflectance']
+    mean_uncorrected_reflectance = np.mean(np.asarray([mean_uncorrected_reflectance_1000, mean_uncorrected_reflectance_1230, mean_uncorrected_reflectance_1500]), axis=0)
+
+    mean_corrected_reflectance_1000 = errors_1000['mean']['mean_corrected_reflectance']
+    mean_corrected_reflectance_1230 = errors_1230['mean']['mean_corrected_reflectance']
+    mean_corrected_reflectance_1500 = errors_1500['mean']['mean_corrected_reflectance']
+    mean_corrected_reflectance = np.mean(np.asarray([mean_corrected_reflectance_1000, mean_corrected_reflectance_1230, mean_corrected_reflectance_1500]), axis=0)
+
+    fig = plt.figure()
+    plt.plot(C.wavelengths, mean_ground_reflectance, color=C.ground_plot_color, label='Ground')
+    plt.plot(C.wavelengths, mean_uncorrected_reflectance, color=C.uncor_plot_color, label='Uncorrected')
+    plt.plot(C.wavelengths, mean_corrected_reflectance, color=C.NNcor_plot_color, label='NN-corrected')
+    plt.legend()
+    plt.savefig(Path(savefolder, 'mean_reflectances.png'))
+    plt.close(fig)
+
+    print('test')
+
 
 
