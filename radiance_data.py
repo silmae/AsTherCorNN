@@ -7,7 +7,6 @@ several radiances from reflectances.
 import numpy as np
 import matplotlib.pyplot as plt
 import random
-import os
 from pathlib import Path
 
 import constants as C
@@ -90,7 +89,7 @@ def reflected_radiance(reflectance: np.ndarray, irradiance: np.ndarray, incidenc
     reflrad = np.zeros((len(wavelength), 2))
     reflrad[:, 0] = wavelength
 
-    # BRDF with Lommel-Seeliger
+    # Spectral BRDF with Lommel-Seeliger
     reflrad[:, 1] = (reflectance / (4 * np.pi)) * (1 / (np.cos(np.deg2rad(incidence_angle)) + np.cos(np.deg2rad(emission_angle))))
 
     # Reflected radiance from incident irradiance and BRDF

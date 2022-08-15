@@ -5,7 +5,6 @@ This file houses all the constants, including the physical constants and paths, 
 import os
 from pathlib import Path
 import numpy as np
-import time
 import scipy.constants
 
 ##########################################################################
@@ -119,3 +118,8 @@ hyperparameter_path = 'hyperparameter_tuning'  # KerasTuner wants the path as a 
 uncor_plot_color = '#1f77b4'  # Blue
 NNcor_plot_color = '#ff7f0e'  # Orange
 ground_plot_color = '#2ca02c'  # Green
+
+ideal_result_line_color = 'r'
+mean_std_temp_color = 'k'
+
+temperature_plot_ylim = (140, 380)

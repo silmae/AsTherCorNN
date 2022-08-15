@@ -1,14 +1,12 @@
 """
-Methods for building and using neural networks for separating reflected and thermally emitted radiances.
+Methods for building, tuning, and using 1D convolutional neural networks
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.stats import norm
 import os
 import time
 from pathlib import Path
-import pickle
 from contextlib import redirect_stdout  # For saving keras prints into text files
 import tensorflow as tf
 from tensorflow.keras.layers import Input, Dense, Flatten, Conv1D, MaxPooling1D, Dropout, Concatenate, Reshape
