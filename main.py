@@ -30,6 +30,8 @@ if __name__ == '__main__':
 
     ############################
     # HIEKKALAATIKKO
+    maxtemp = utils.calculate_subsolar_temperature(C.d_S_min + 0.1)
+    maxtemp = utils.calculate_subsolar_temperature(C.d_S_min)
     val.error_plots('./validation_and_testing/validation-run_epoch-470_time-test/synthetic_validation')
     val.plot_Bennu_errors('./validation_and_testing/validation-run_epoch-470_time-test/bennu_validation')
 

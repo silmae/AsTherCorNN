@@ -15,7 +15,8 @@ import radiance_data as rad
 def calculate_subsolar_temperature(heliocentric_distance: float, albedo=0, emissivity=1, beaming_param=1):
     """
     Calculate subsolar temperature of an asteroid's surface, using Eq. (2) of article "A Thermal Model For Near
-    Earth Asteroids", A. W. Harris (1998), the article that introduced NEATM.
+    Earth Asteroids", A. W. Harris (1998), the article that introduced NEATM. A similar equation can be found in
+    "Theory of Reflectance and Emittance Spectroscopy" (2nd ed.) by B. Hapke, on page 452.
 
     If no albedo, emissivity, and beaming parameter give as arguments, method calculates the blackbody radiative
     equilibrium temperature at the given heliocentric distance.

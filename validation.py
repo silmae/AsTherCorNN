@@ -46,7 +46,7 @@ def test_model(x_test, y_test, model, thermal_radiances, savefolder):
     print(f'Elapsed prediction time for {len(x_test[:, 0])} samples was {elapsed_time_s} seconds')
     print(f'Test with Keras resulted in a loss of {test_result}')
 
-    # Calculate some differences between ground truth and prediction vectors
+    # Calculate some differences between ground truth and prediction
     # Cosine of angle between two vectors
     def cosine_distance(s1, s2):
         s1_norm = np.sqrt(np.dot(s1, s1))
