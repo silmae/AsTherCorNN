@@ -70,12 +70,12 @@ def thermal_radiance(T: float, emissivity: float or list or np.ndarray, waveleng
 def reflected_radiance(reflectance: np.ndarray, irradiance: np.ndarray, incidence_angle: float, emission_angle: float):
     """
     Calculate spectral radiance reflected from a surface, based on the surface reflectance, irradiance incident on it,
-    and the phase angle of the measurement. Angle dependence (BRDF) is calculated using the Lommel-Seeliger model.
+    and the phase angle of the measurement. Angle dependence (bidirectional reflectance) is calculated using the Lommel-Seeliger model.
 
     :param reflectance:
         Spectral reflectance, calculated using estimation for single-scattering albedo
     :param irradiance:
-        Spectral irradiance incident on the surface.
+        Collimated spectral irradiance incident on the surface.
     :param incidence_angle:
         Incidence angle of light in degrees, measured from surface normal
     :param emission_angle:
@@ -89,10 +89,10 @@ def reflected_radiance(reflectance: np.ndarray, irradiance: np.ndarray, incidenc
     reflrad = np.zeros((len(wavelength), 2))
     reflrad[:, 0] = wavelength
 
-    # Spectral BRDF with Lommel-Seeliger
-    reflrad[:, 1] = (reflectance / (4 * np.pi)) * (1 / (np.cos(np.deg2rad(incidence_angle)) + np.cos(np.deg2rad(emission_angle))))
+    # Spectral bidirectional reflectance with Lommel-Seeliger
+    reflrad[:, 1] = (reflectance / (4 * np.pi)) * (np.cos(np.deg2rad(incidence_angle)) / (np.cos(np.deg2rad(incidence_angle)) + np.cos(np.deg2rad(emission_angle))))
 
-    # Reflected radiance from incident irradiance and BRDF
+    # Reflected radiance from incident collimated irradiance and bidirectional reflectance
     reflrad[:, 1] = irradiance[:, 1] * reflrad[:, 1]
 
     return reflrad
@@ -224,7 +224,7 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
         plt.plot(C.wavelengths, reflectance)
         plt.xlabel('Wavelength [µm]')
         plt.ylabel('Reflectance')
-        figpath = figfolder.joinpath(filename + '_reflectance.png')
+        figpath = Path(C.rad_plots_path, f'{filename}_reflectance.png')
         plt.savefig(figpath)
         plt.close(fig)
 
