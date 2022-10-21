@@ -1,8 +1,17 @@
 
 import os
-
+import utils
+import csv
+from pathlib import Path
 import numpy as np
 from matplotlib import pyplot as plt
+
+import constants as C
+import reflectance_data as refl
+import radiance_data as rad
+import file_handling as FH
+import neural_network as NN
+import validation as val
 
 # PyPlot settings to be used in all plots
 plt.rcParams.update({'font.size': 16})
@@ -11,14 +20,9 @@ plt.rcParams.update({'savefig.dpi': 600})
 # LaTeX font for all text in all figures
 plt.rcParams['mathtext.fontset'] = 'stix'
 plt.rcParams['font.family'] = 'STIXGeneral'
+# Set marker size for scatter plots
+plt.rcParams['lines.markersize'] = 4
 
-import utils
-import constants as C
-import reflectance_data as refl
-import radiance_data as rad
-import file_handling as FH
-import neural_network as NN
-import validation as val
 
 if __name__ == '__main__':
 
@@ -26,14 +30,19 @@ if __name__ == '__main__':
     # For running with GPU on server (having these lines here shouldn't hurt when running locally without GPU)
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     # Check available GPU with command nvidia-smi in terminal, pick one that is not in use
-    os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
     ############################
-    # HIEKKALAATIKKO
-    maxtemp = utils.calculate_subsolar_temperature(C.d_S_min + 0.1)
-    maxtemp = utils.calculate_subsolar_temperature(C.d_S_min)
-    val.error_plots('./validation_and_testing/validation-run_epoch-470_time-test/synthetic_validation')
-    val.plot_Bennu_errors('./validation_and_testing/validation-run_epoch-470_time-test/bennu_validation')
+    # # PRELIMINARIES
+    # # Plotting approximate reflectance error at 2.45 µm caused by thermal emission as function of heliocentric distance
+    # utils.thermal_error_from_hc_distance(distance_min=1, distance_max=3, samples=20, log_y=False)
+    #
+    # # Maximum temperature: subsolar temperature of ideal blackbody placed at the perihelion distance given in
+    # # constants.py (d_S_min)
+    # maxtemp = utils.calculate_subsolar_temperature(C.d_S_min)
+    #
+    # # Create training and validation data
+    # NN.prepare_training_data()
 
     ############################
     # # HYPERPARAMETER OPTIMIZATION
@@ -41,7 +50,6 @@ if __name__ == '__main__':
 
     ############################
     # # TRAINING
-    # # NN.prepare_training_data()
     # # Create a neural network model
     # untrained = NN.create_model(
     #     conv_filters=C.conv_filters,
@@ -60,8 +68,15 @@ if __name__ == '__main__':
     # # Train the model
     # model = NN.train_network(untrained, early_stop=False, checkpoints=True, save_history=True, create_new_data=False)
 
+    # # Plot training and validation loss history saved in a log file
+    # NN.plot_loss_history(21)
+
     ##############################
-    # # VALIDATION
+    # # VALIDATION / TEST
     # # Run validation with synthetic data and test with real data
-    # last_epoch = 470
+    # last_epoch = 178
     # val.validate_and_test(last_epoch)
+
+    # # Make new plots from existing validation/test results
+    # val.error_plots('./validation_and_testing/validation-run_epoch-178_time-20220901-135921/synthetic_validation')
+    # val.plot_Bennu_errors('./validation_and_testing/validation-run_epoch-178_time-20220901-135921/bennu_validation')
