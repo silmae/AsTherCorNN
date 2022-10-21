@@ -31,6 +31,8 @@ def test_model(x_test, y_test, model, thermal_radiances, savefolder):
         A trained Keras model with weights loaded
     :param thermal_radiances:
         Thermal spectral radiances for all test data
+    :param emissivities:
+        Ground truth emissivities of the thermal radiances
     :param savefolder:
         Path to folder where results and plots will be saved
 
@@ -94,6 +96,7 @@ def test_model(x_test, y_test, model, thermal_radiances, savefolder):
         temperature_pred.append(pred_temperature)
         ground_temperature = y_test[i, 0]
         temperature_ground.append(ground_temperature)
+        ground_emissivity = y_test[i, 1]
 
         print(f'Ground temperature: {ground_temperature}')
         print(f'Prediction temperature: {pred_temperature}')
@@ -112,7 +115,9 @@ def test_model(x_test, y_test, model, thermal_radiances, savefolder):
 
         # Plot some results for closer inspection from randomly chosen test spectra
         if i in plot_indices:
-            plot_val_test_results(test_sample, ground_refl, ground_therm, pred_refl, pred_therm, savefolder, i+1)
+            temperature_error = abs(pred_temperature - ground_temperature)
+            emissivity_error = abs(eps - ground_emissivity)
+            plot_val_test_results(test_sample, ground_refl, ground_therm, pred_refl, pred_therm, savefolder, i+1, temperature_error, emissivity_error)
 
         # Calculate normalized reflectance from uncorrected, NN-corrected, and ground truth reflected radiances
         reflectance_ground = rad.radiance2norm_reflectance(ground_refl)
@@ -230,7 +235,8 @@ def _calculate_temperature_pred_mean_and_std(temperature_ground, temperature_pre
 
     return temperature_pred_mean_std
 
-def plot_val_test_results(test_sample, ground1, ground2, pred1, pred2, savefolder, index):
+
+def plot_val_test_results(test_sample, ground1, ground2, pred1, pred2, savefolder, index, temp_error, eps_error):
     """
     Plotting some results for test with one sample radiance, and saving plots on disc.
 
@@ -248,6 +254,10 @@ def plot_val_test_results(test_sample, ground1, ground2, pred1, pred2, savefolde
         Path to folder where plots will be saved
     :param index:
         Index of the plotted sample, used in filename of plots
+    :param temp_error:
+        Error of temperature prediction, in Kelvin
+    :param eps_error:
+        Error of emissivity when predicting thermal radiance
     """
 
     fig = plt.figure()
@@ -279,7 +289,7 @@ def plot_val_test_results(test_sample, ground1, ground2, pred1, pred2, savefolde
     plt.ylabel('Normalized reflectance')
     plt.legend(('Uncorrected', 'Ground truth', 'NN-corrected'))
 
-    fig_filename = C.training_run_name + f'_test_{index + 1}_reflectance.png'
+    fig_filename = C.training_run_name + f'_test_{index + 1}_reflectance_temp-error_{temp_error}K_emiss-error_{eps_error}.png'
     fig_path = Path(savefolder, fig_filename)
     plt.savefig(fig_path)
     plt.close(fig)
@@ -327,13 +337,13 @@ def validate_synthetic(model, validation_run_folder: Path):
     max_indices = np.where(y_test[:, 0] == max_temperature)
     max_index = max_indices[0][-1]
 
-    x_test = x_test[min_index:max_index, :]
-    y_test = y_test[min_index:max_index, :]
+    # x_test = x_test[min_index:max_index, :]
+    # y_test = y_test[min_index:max_index, :]
 
     # Shuffle the data
     x_test, y_test = sklearn.utils.shuffle(x_test, y_test, random_state=0)
 
-    sample_percentage = 15  # percentage of validation data samples used for error calculation, takes less time
+    sample_percentage = 100  # percentage of validation data samples used for error calculation, takes less time
     indices = range(int(len(x_test[:, 0]) * (sample_percentage * 0.01)))
     x_test = x_test[indices]
     y_test = y_test[indices]
@@ -568,7 +578,7 @@ def validate_and_test(last_epoch):
 
     # Generate a unique folder name for results of test based on time the test was run
     timestr = time.strftime("%Y%m%d-%H%M%S")
-    timestr = 'test'  # Folder name for test runs, otherwise a new folder is always created
+    # timestr = 'test'  # Folder name for test runs, otherwise a new folder is always created
 
     # Create folder for results
     validation_run_folder = Path(C.val_and_test_path, f'validation-run_epoch-{last_epoch}_time-{timestr}')
@@ -599,7 +609,6 @@ def validate_and_test(last_epoch):
     # Testing with real asteroid data
     validate_bennu(model, validation_run_folder)
 
-# TODO add to temperature plot mean and std of predtemp as function of groundtemp, using this:
 
 def _plot_with_shadow(ax_obj, x_data, y_data, y_data_std, color, label, ls='-') -> None:
     """ Method by K.A. Riihiaho, copied (with permission) from
@@ -623,7 +632,7 @@ def _plot_with_shadow(ax_obj, x_data, y_data, y_data_std, color, label, ls='-') 
         Line style. See pyplot linestyle documentation.
     """
 
-    ax_obj.fill_between(x_data, y_data - (y_data_std / 2), y_data + (y_data_std / 2), alpha=0.1,
+    ax_obj.fill_between(x_data, y_data - (y_data_std / 2), y_data + (y_data_std / 2), alpha=0.2,
                         color=color)
     ax_obj.plot(x_data, y_data, color=color, ls=ls, label=label)
 
@@ -683,13 +692,14 @@ def error_plots(folderpath):
 
     # Predicted temperature as function of ground truth temperature
     fig = plt.figure()
-    plt.scatter(temperature_ground, temperature_pred, alpha=0.1, color=C.NNcor_plot_color)
+    plt.scatter(temperature_ground, temperature_pred, alpha=C.scatter_alpha, marker=C.scatter_marker, color=C.NNcor_plot_color)
     plt.xlabel('Ground truth temperature [K]')
     plt.ylabel('Predicted temperature [K]')
     # Plot a reference line with slope 1: ideal result
-    plt.plot(range(min_temperature, max_temperature), range(min_temperature, max_temperature), color=C.ideal_result_line_color)
+    plt.plot(range(min_temperature, max_temperature+1), range(min_temperature, max_temperature+1), color=C.ideal_result_line_color)
     _plot_with_shadow(plt, temperature_pred_mean_std[0, :], temperature_pred_mean_std[1, :], temperature_pred_mean_std[2, :], color=C.mean_std_temp_color, label='Mean and std')
-    plt.ylim(C.temperature_plot_ylim)
+    if not C.temperature_plot_ylim == (0, 0):
+        plt.ylim(C.temperature_plot_ylim)
     plt.savefig(Path(folderpath, 'predtemp-groundtemp.png'))
     plt.close(fig)
 
@@ -697,15 +707,17 @@ def error_plots(folderpath):
     fig = plt.figure()
     plt.plot(C.wavelengths, mean_ground_reflectance, color=C.ground_plot_color, label='Ground')
     plt.plot(C.wavelengths, mean_uncorrected_reflectance, color=C.uncor_plot_color, label='Uncorrected')
-    plt.plot(C.wavelengths, mean_corrected_reflectance, color=C.NNcor_plot_color, label='NN-corrected')
+    plt.plot(C.wavelengths, mean_corrected_reflectance, color=C.NNcor_plot_color, label='NN-corrected')  # , linestyle='dashed')
     plt.legend()
+    plt.xlabel('Wavelength [µm]')
+    plt.ylabel('Normalized reflectance')
     plt.savefig(Path(folderpath, 'mean_reflectances.png'))
     plt.close(fig)
 
     def double_plot(uncorrected, corrected, label, filename, limit=(0,0)):
         fig = plt.figure()
-        plt.scatter(temperature_ground, uncorrected, alpha=0.1, color=C.uncor_plot_color)
-        plt.scatter(temperature_ground, corrected, alpha=0.1, color=C.NNcor_plot_color)
+        plt.scatter(temperature_ground, uncorrected, alpha=C.scatter_alpha, marker=C.scatter_marker, color=C.uncor_plot_color)
+        plt.scatter(temperature_ground, corrected, alpha=C.scatter_alpha, marker=C.scatter_marker, color=C.NNcor_plot_color)
         plt.xlabel('Ground truth temperature [K]')
         plt.ylabel(label)
         if limit != (0, 0):
@@ -718,20 +730,20 @@ def error_plots(folderpath):
 
     # Cosine distance of reflected radiance from ideally corrected result as function of ground truth temperature,
     # for corrected and uncorrected
-    double_plot(reflrad_cos_uncorrected, reflrad_cos_corrected, 'Reflected radiance cosine distance', 'reflrad_SAM_groundtemp')
+    double_plot(reflrad_cos_uncorrected, reflrad_cos_corrected, 'Reflected radiance cosine distance', 'reflrad_SAM_groundtemp', limit=C.reflrad_sam_plot_ylim)
 
     # The same as above, but from reflectance instead of reflected radiance
-    double_plot(reflectance_cos_uncorrected, reflectance_cos_corrected, 'Reflectance cosine distance', 'reflectance_SAM_groundtemp')
+    double_plot(reflectance_cos_uncorrected, reflectance_cos_corrected, 'Reflectance cosine distance', 'reflectance_SAM_groundtemp', limit=C.reflectance_sam_plot_ylim)
 
     # Mean absolute error of reflected radiance from both corrected and uncorrected, as function of ground truth temp
-    double_plot(reflrad_mae_uncorrected, reflrad_mae_corrected, 'Reflected radiance MAE', 'reflrad_MAE_groundtemp')
+    double_plot(reflrad_mae_uncorrected, reflrad_mae_corrected, 'Reflected radiance MAE', 'reflrad_MAE_groundtemp', limit=C.reflrad_mae_plot_ylim)
 
     # Same as above, but from reflectance
-    double_plot(reflectance_mae_uncorrected, reflectance_mae_corrected, 'Reflectance MAE', 'reflectance_MAE_groundtemp')
+    double_plot(reflectance_mae_uncorrected, reflectance_mae_corrected, 'Reflectance MAE', 'reflectance_MAE_groundtemp', limit=C.reflectance_mae_plot_ylim)
 
     # Cosine distance of estimated thermal radiance from ideal result, as function of ground truth temperature
     fig = plt.figure()
-    plt.scatter(temperature_ground, thermrad_cos, alpha=0.1, color=C.NNcor_plot_color)
+    plt.scatter(temperature_ground, thermrad_cos, alpha=C.scatter_alpha, marker=C.scatter_marker, color=C.NNcor_plot_color)
     plt.xlabel('Ground truth temperature [K]')
     plt.ylabel('Thermal cosine distance')
     plt.savefig(Path(folderpath, 'thermSAM_groundtemp.png'))
@@ -739,7 +751,7 @@ def error_plots(folderpath):
 
     # Same as above, but mean absolute error instead of cosine
     fig = plt.figure()
-    plt.scatter(temperature_ground, thermrad_mae, alpha=0.1, color=C.NNcor_plot_color)
+    plt.scatter(temperature_ground, thermrad_mae, alpha=C.scatter_alpha, marker=C.scatter_marker, color=C.NNcor_plot_color)
     plt.xlabel('Ground truth temperature [K]')
     plt.ylabel('Thermal MAE')
     plt.savefig(Path(folderpath, 'thermMAE_groundtemp.png'))
@@ -747,7 +759,7 @@ def error_plots(folderpath):
 
     # def plot_and_save(data, label, filename):
     #     fig = plt.figure()
-    #     plt.scatter(temperature_ground, data, alpha=0.1)
+    #     plt.scatter(temperature_ground, data, alpha=C.scatter_alpha, marker=C.scatter_marker)
     #     plt.xlabel('Ground truth temperature')
     #     # plt.ylim(0,0.02)
     #     plt.ylabel(label)
@@ -803,26 +815,31 @@ def plot_Bennu_errors(folderpath):
         ground_temps_1500, data_1500 = fetch_data(errors_1500, data_name)
 
         fig = plt.figure()
-        plt.scatter(ground_temps_1000, data_1000, alpha=0.1)
-        plt.scatter(ground_temps_1230, data_1230, alpha=0.1)
-        plt.scatter(ground_temps_1500, data_1500, alpha=0.1)
+        plt.scatter(ground_temps_1000, data_1000, alpha=C.scatter_alpha, marker=C.scatter_marker)
+        plt.scatter(ground_temps_1230, data_1230, alpha=C.scatter_alpha, marker=C.scatter_marker)
+        plt.scatter(ground_temps_1500, data_1500, alpha=C.scatter_alpha, marker=C.scatter_marker)
         plt.xlabel('Ground truth temperature [K]')
         plt.ylabel(label)
         leg = plt.legend(('10:00', '12:30', '15:00'), title='Local time on Bennu')
         for lh in leg.legendHandles:
             lh.set_alpha(1)
         if data_name == 'predicted_temperature':
-            plt.plot(range(300, 350), range(300, 350), color=C.ideal_result_line_color)  # Plot a reference line with slope 1: ideal result
 
             ground_temps = errors_1000['temperature']['ground_temperature'] + errors_1230['temperature']['ground_temperature'] + errors_1500['temperature']['ground_temperature']
             pred_temps = errors_1000['temperature']['predicted_temperature'] + errors_1230['temperature']['predicted_temperature'] + errors_1500['temperature']['predicted_temperature']
 
+            # Min and max temperatures, used to plot a reference line corresponding to ideal result
+            min_temperature = int(min(ground_temps))
+            max_temperature = int(max(ground_temps))
+            plt.plot(range(min_temperature, max_temperature+1), range(min_temperature, max_temperature+1),
+                     color=C.ideal_result_line_color)  # Plot a reference line with slope 1: ideal result
+
             mean_and_std = _calculate_temperature_pred_mean_and_std(ground_temps, pred_temps)
 
             _plot_with_shadow(plt, mean_and_std[0, :], mean_and_std[1, :], mean_and_std[2, :], color=C.mean_std_temp_color, label='Prediction mean and std')
-
-            plt.ylim(C.temperature_plot_ylim)
-        plt.savefig(Path(savefolder, f'{data_name}.png'))
+            if not C.temperature_plot_ylim == (0, 0):
+                plt.ylim(C.temperature_plot_ylim)
+        plt.savefig(Path(savefolder, f'{data_name}_Bennu.png'))
         plt.close(fig)
 
     savefolder = folderpath
@@ -857,32 +874,32 @@ def plot_Bennu_errors(folderpath):
 
         fig = plt.figure()
         # Use one color for uncorrected and other for corrected, with their hex codes determined in constants.py
-        uncor_scatter1 = plt.scatter(ground_temps_1000, uncorrected_1000, alpha=0.1, color=C.uncor_plot_color)
-        uncor_scatter2 = plt.scatter(ground_temps_1230, uncorrected_1230, alpha=0.1, color=C.uncor_plot_color)
-        uncor_scatter3 = plt.scatter(ground_temps_1500, uncorrected_1500, alpha=0.1, color=C.uncor_plot_color)
+        uncor_scatter1 = plt.scatter(ground_temps_1000, uncorrected_1000, alpha=C.scatter_alpha, marker=C.scatter_marker, color=C.uncor_plot_color)
+        uncor_scatter2 = plt.scatter(ground_temps_1230, uncorrected_1230, alpha=C.scatter_alpha, marker=C.scatter_marker, color=C.uncor_plot_color)
+        uncor_scatter3 = plt.scatter(ground_temps_1500, uncorrected_1500, alpha=C.scatter_alpha, marker=C.scatter_marker, color=C.uncor_plot_color)
 
-        cor_scatter1 = plt.scatter(ground_temps_1000, corrected_1000, alpha=0.1, color=C.NNcor_plot_color)
-        cor_scatter2 = plt.scatter(ground_temps_1230, corrected_1230, alpha=0.1, color=C.NNcor_plot_color)
-        cor_scatter3 = plt.scatter(ground_temps_1500, corrected_1500, alpha=0.1, color=C.NNcor_plot_color)
+        cor_scatter1 = plt.scatter(ground_temps_1000, corrected_1000, alpha=C.scatter_alpha, marker=C.scatter_marker, color=C.NNcor_plot_color)
+        cor_scatter2 = plt.scatter(ground_temps_1230, corrected_1230, alpha=C.scatter_alpha, marker=C.scatter_marker, color=C.NNcor_plot_color)
+        cor_scatter3 = plt.scatter(ground_temps_1500, corrected_1500, alpha=C.scatter_alpha, marker=C.scatter_marker, color=C.NNcor_plot_color)
 
         # If a limit other than (0,0) is given in arguments, use it for limiting the shown y-axis values
         if lim != (0, 0):
             plt.ylim(lim)
 
-        leg = plt.legend([cor_scatter1, uncor_scatter1], ['NN-corrected', 'Uncorrected'])
+        leg = plt.legend([uncor_scatter1, cor_scatter1], ['Uncorrected', 'NN-corrected'])
         for lh in leg.legendHandles:
             lh.set_alpha(1)
         plt.xlabel('Ground truth temperature [K]')
         plt.ylabel(label)
-        plt.savefig(Path(savefolder, f'{corrected_name}_{uncorrected_name}.png'))
+        plt.savefig(Path(savefolder, f'{corrected_name}_{uncorrected_name}_Bennu.png'))
         plt.close(fig)
 
-    Bennu_comparison_plots('reflected_MAE', 'reflected_MAE_uncorrected', 'Reflected radiance MAE')  # , lim=(0, 0.005))
+    Bennu_comparison_plots('reflected_MAE', 'reflected_MAE_uncorrected', 'Reflected radiance MAE', lim=C.reflrad_mae_plot_ylim)
     Bennu_comparison_plots('reflected_SAM', 'reflected_SAM_uncorrected',
-                           'Reflected radiance cosine distance')  # , lim=(0.9999, 1.0))
-    Bennu_comparison_plots('reflectance_MAE', 'reflectance_MAE_uncorrected', 'Reflectance MAE')  # , lim=(0, 0.01))
+                           'Reflected radiance cosine distance', lim=C.reflrad_sam_plot_ylim)
+    Bennu_comparison_plots('reflectance_MAE', 'reflectance_MAE_uncorrected', 'Reflectance MAE' , lim=C.reflectance_mae_plot_ylim)
     Bennu_comparison_plots('reflectance_SAM', 'reflectance_SAM_uncorrected',
-                           'Reflectance cosine distance')  # , lim=(0.999, 1.0))
+                           'Reflectance cosine distance', lim=C.reflectance_sam_plot_ylim)
 
     # Plot of mean reflectances:
     mean_ground_reflectance_1000 = errors_1000['mean']['mean_ground_reflectance']
@@ -900,12 +917,15 @@ def plot_Bennu_errors(folderpath):
     mean_corrected_reflectance_1500 = errors_1500['mean']['mean_corrected_reflectance']
     mean_corrected_reflectance = np.mean(np.asarray([mean_corrected_reflectance_1000, mean_corrected_reflectance_1230, mean_corrected_reflectance_1500]), axis=0)
 
+    # Mean reflectance spectral over all samples, from ground truth, uncorrected and corrected reflectances
     fig = plt.figure()
     plt.plot(C.wavelengths, mean_ground_reflectance, color=C.ground_plot_color, label='Ground')
     plt.plot(C.wavelengths, mean_uncorrected_reflectance, color=C.uncor_plot_color, label='Uncorrected')
-    plt.plot(C.wavelengths, mean_corrected_reflectance, color=C.NNcor_plot_color, label='NN-corrected')
+    plt.plot(C.wavelengths, mean_corrected_reflectance, color=C.NNcor_plot_color, label='NN-corrected')  # , linestyle='dashed')
     plt.legend()
-    plt.savefig(Path(savefolder, 'mean_reflectances.png'))
+    plt.xlabel('Wavelength [µm]')
+    plt.ylabel('Normalized reflectance')
+    plt.savefig(Path(savefolder, 'mean_reflectances_Bennu.png'))
     plt.close(fig)
 
     print('test')
