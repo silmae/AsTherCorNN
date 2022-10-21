@@ -9,9 +9,10 @@ import time
 from pathlib import Path
 from contextlib import redirect_stdout  # For saving keras prints into text files
 import tensorflow as tf
-from tensorflow.keras.layers import Input, Dense, Flatten, Conv1D, MaxPooling1D, Dropout, Concatenate, Reshape
+from tensorflow.keras.layers import Input, Dense, Flatten, Conv1D
 from tensorflow.keras.models import Model, load_model
 import keras_tuner as kt
+from tensorflow.keras.callbacks import CSVLogger
 import sklearn.utils
 
 import constants as C
@@ -32,9 +33,9 @@ def prepare_training_data():
     """
 
     '''
-    Meteorite reflectances (Gaffey, for example) can be used for simulating reflected radiances, but they are likely 
+    Meteorite reflectances (Gaffey, for example) could be used for simulating reflected radiances, but they are likely 
     not very good stand-ins for asteroid reflectance: no space weathering, and possible changes from atmospheric shock.
-    They could simulate fresh regolith.
+    They could possibly simulate fresh regolith in a future version.
     '''
 
     # Load asteroid reflectances
@@ -164,10 +165,10 @@ def create_model(conv_filters: int, conv_kernel: int, encoder_start: int, encode
     input_data = Input(shape=(input_length, 1))
 
     # 1D convolution layer(s)
-    conv1 = Conv1D(filters=conv_filters, kernel_size=conv_kernel, padding='same', strides=1, activation=C.activation)(input_data)
-    conv1 = Conv1D(filters=int(conv_filters/2), kernel_size=conv_kernel, padding='same', strides=1, activation=C.activation)(conv1)
-    conv1 = Conv1D(filters=int(conv_filters/4), kernel_size=conv_kernel, padding='same', strides=1, activation=C.activation)(conv1)
-    conv1 = Conv1D(filters=int(conv_filters/8), kernel_size=conv_kernel, padding='same', strides=1, activation=C.activation)(conv1)
+    conv1 = Conv1D(filters=conv_filters, kernel_size=conv_kernel, padding='same', activation=C.activation, strides=1)(input_data)
+    conv1 = Conv1D(filters=int(conv_filters/2), kernel_size=conv_kernel, padding='same', activation=C.activation, strides=1)(conv1)
+    conv1 = Conv1D(filters=int(conv_filters/4), kernel_size=conv_kernel, padding='same', activation=C.activation, strides=1)(conv1)
+    conv1 = Conv1D(filters=int(conv_filters/8), kernel_size=conv_kernel, padding='same', activation=C.activation, strides=1)(conv1)
 
     # Flatted to make conv output compatible with following dense layer
     conv1 = Flatten()(conv1)
@@ -249,7 +250,7 @@ def load_training_validation_data():
     return x_train, y_train, x_val, y_val
 
 
-def train_network(model, early_stop=True, checkpoints=True, save_history=True, create_new_data=False):
+def train_network(model, early_stop=True, checkpoints=True, save_history=True, create_new_data=False, logging=True):
     """
     Train deep learning model according to arguments and other parameters set in constants.py.
 
@@ -263,6 +264,8 @@ def train_network(model, early_stop=True, checkpoints=True, save_history=True, c
         Whether loss history will be saved in a file after training is complete
     :param create_new_data:
         Whether new data will be created or old data will be loaded from disc
+    :param logging:
+        Whether training loss outputs will be written into a csv file during training
 
     :return:
         Trained model
@@ -287,12 +290,18 @@ def train_network(model, early_stop=True, checkpoints=True, save_history=True, c
         verbose=1,
         save_freq='epoch')
 
+    # Logging callback, writes the training prints into a file and saves it
+    log_path = Path(C.training_run_path, 'training.log')
+    csv_logger = CSVLogger(log_path, append=True)
+
     # List of callbacks, append the ones to be used
     model_callbacks = []
     if early_stop == True:
         model_callbacks.append(early_stop_callback)
     if checkpoints == True:
         model_callbacks.append(model_checkpoint_callback)
+    if logging == True:
+        model_callbacks.append(csv_logger)
 
     # Create training and validation data from scratch, if specified in the arguments
     if create_new_data == True:
