@@ -74,11 +74,15 @@ def _maximum_temperatures(distance_min: float = 0.5, distance_max: float = 4.0, 
     return ss_temps_max
 
 
-def thermal_error_from_hc_distance(distance_min: float, distance_max: float, samples: int):
+def thermal_error_from_hc_distance(distance_min: float, distance_max: float, samples: int, log_y=False):
     """
     Calculate and plot error in reflectance at 2.45 µm caused by thermal emission, at different heliocentric distances.
+    Looking at a worst-case scenario: dark asteroid (T class, geom. albedo 0.035), temperature according to subsolar
+    temperature of an ideal blackbody.
     Result can be used to constrain the maximum heliocentric distance where this problem is significant enough to merit
     correction.
+    NB. Take care if actually using this result, as the models used when calculating it are not very accurate. Some
+    randomness is expected, since spectral radiance generation employed by this method will add noise to the spectra.
 
     :param distance_min: float
         Minimum heliocentric distance in astronomical units
@@ -86,10 +90,9 @@ def thermal_error_from_hc_distance(distance_min: float, distance_max: float, sam
         Maximum heliocentric distance in astronomical units
     :param samples:
         Number of samples to be calculated
+    :param log_y: Boolean
+        Whether y-axis of plot will be logarithmic or linear
     """
-    # FINDING BOUNDARY CONDITIONS FOR HELIOCENTRIC DISTANCE
-    # Looking at a worst-case scenario: dark asteroid (T class, p = 0.035), temperature according to subsolar temp of
-    # an ideal blackbody.
 
     # Loading a reflectance spectrum of type T asteroid
     aug_path = C.Penttila_aug_path  # Spectra augmented by Penttilä
@@ -132,7 +135,7 @@ def thermal_error_from_hc_distance(distance_min: float, distance_max: float, sam
                                               T=temperatures[i],
                                               reflectance=spectral_single_scattering_albedo,
                                               waves=C.wavelengths,
-                                              constant_emissivity=True,
+                                              emissivity=1-geom_albedo,
                                               filename='filename',
                                               test=True,
                                               save_file=False)
@@ -175,9 +178,11 @@ def thermal_error_from_hc_distance(distance_min: float, distance_max: float, sam
     plt.plot(distances, errors)
     plt.xlabel('Heliocentric distance [AU]')
     plt.ylabel('Reflectance error at 2.45 µm [%]')
-    plt.yscale('log')
+    if log_y == True:
+        plt.yscale('log')
     plt.grid()
     plt.savefig(Path(C.max_temp_plots_path, f'{i}_error_hc-distance.png'))
+    plt.show()
     plt.close(fig)
 
 
@@ -201,7 +206,7 @@ def solar_irradiance(distance: float, wavelengths, plot=False):
     sol_path = C.solar_path  # A collection of channels from 0.45 to 2.50 µm saved into a txt file
     solar = pd.read_table(sol_path).values
 
-    # # Convert from µm to nm, and 1/µm to 1/nm. Comment these away if working with IR wavelengths
+    # # Convert from µm to nm, and 1/µm to 1/nm. Comment these away if working with micrometers
     # solar[:, 0] = solar[:, 0] * 1000
     # solar[:, 1] = solar[:, 1] / 1000
 
@@ -228,7 +233,7 @@ def plot_example_radiance_reflectance(num: int):
     comparison. Calculate normalized reflectance from both and also plot them.
 
     :param num: int
-    Which radiance to plot, between 0 and the total number of generated test radiances.
+        Which radiance to plot, between 0 and the total number of generated test radiances.
     """
 
     rads = FH.load_toml(Path(C.radiance_test_path, f'rads_{num}.toml'))
