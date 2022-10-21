@@ -73,10 +73,10 @@ def _scale_asteroid_reflectances(normalized_frame: pd.DataFrame, albedos_per_ref
         asteroid_class, norm_reflectance = row[0], row[1:]
 
         for i in range(albedos_per_reflectance):
-            # Geometrical albedo, pulled from uniform distribution between min and max
+            # Geometric albedo, pulled from uniform distribution between min and max
             geom_albedo = random.uniform(C.p_min, C.p_max)
 
-            # Un-normalize reflectance by scaling it with visual geometrical albedo
+            # Un-normalize reflectance by scaling it with visual geometric albedo
             spectral_reflectance = norm_reflectance * geom_albedo
             # Convert reflectance to single-scattering albedo, using Lommel-Seeliger
             spectral_single_scattering_albedo = 8 * spectral_reflectance
