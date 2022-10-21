@@ -2,12 +2,14 @@
 Methods for building, tuning, and using 1D convolutional neural networks
 """
 
-import numpy as np
-import matplotlib.pyplot as plt
 import os
 import time
+import csv
 from pathlib import Path
 from contextlib import redirect_stdout  # For saving keras prints into text files
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.signal import medfilt
 import tensorflow as tf
 from tensorflow.keras.layers import Input, Dense, Flatten, Conv1D
 from tensorflow.keras.models import Model, load_model
@@ -331,3 +333,39 @@ def train_network(model, early_stop=True, checkpoints=True, save_history=True, c
 
     # Return model to make predictions elsewhere
     return model
+
+
+def plot_loss_history(filter_width=15):
+    """
+    Plot training and validation loss history. Load log file where the histories are stored, filter the noisy
+    signal with a median filter before plotting.
+
+    :param filter_width:
+        Width of median filter, accepts only odd integer values
+    """
+
+    # Plotting the loss history of the training to find out when overfitting started
+    # Load training log from file
+    logpath = Path(C.training_run_path, 'training.log')
+    with open(logpath, newline='') as csvfile:
+        reader = csv.reader(csvfile)
+        data = []
+        for row in reader:
+            data.append(row)  # Take first (and only) element in row, convert to int and append to list
+
+    data = np.asarray(data)
+    epoch = data[1:, 0].astype(int)
+    train_loss = data[1:, 1].astype(float)
+    val_loss = data[1:, 2].astype(float)
+
+    # Use a median filter to make sense out of the noisy loss history
+    val_loss = medfilt(val_loss, filter_width)
+
+    # Plot filtered loss histories to find out when overfitting starts
+    plt.figure()
+    plt.plot(epoch, train_loss)
+    plt.plot(epoch, val_loss)
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend(['Training', 'Validation'])
+    plt.show()
