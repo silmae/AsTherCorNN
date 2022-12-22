@@ -33,14 +33,24 @@ if __name__ == '__main__':
     os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
     ############################
-    # # PRELIMINARIES
+    # PRELIMINARIES
+
+    # # Plot percentage error caused by thermal emission at 1 au as a function of temperature, for three albedo values
+    # utils.thermal_error_from_temperature(albedo_min=0.02,
+    #                                      albedo_max=0.08,
+    #                                      temperature_min=250,
+    #                                      temperature_max=350,
+    #                                      hc_distance=1,
+    #                                      samples=100,
+    #                                      log_y=False)
+    #
     # # Plotting approximate reflectance error at 2.45 µm caused by thermal emission as function of heliocentric distance
     # utils.thermal_error_from_hc_distance(distance_min=1, distance_max=3, samples=20, log_y=False)
     #
     # # Maximum temperature: subsolar temperature of ideal blackbody placed at the perihelion distance given in
     # # constants.py (d_S_min)
     # maxtemp = utils.calculate_subsolar_temperature(C.d_S_min)
-    #
+
     # # Create training and validation data
     # NN.prepare_training_data()
 
@@ -69,14 +79,14 @@ if __name__ == '__main__':
     # model = NN.train_network(untrained, early_stop=False, checkpoints=True, save_history=True, create_new_data=False)
 
     # # Plot training and validation loss history saved in a log file
-    # NN.plot_loss_history(21)
+    # NN.plot_loss_history(3)
 
     ##############################
-    # # VALIDATION / TEST
+    # VALIDATION / TEST
     # # Run validation with synthetic data and test with real data
-    # last_epoch = 178
+    # last_epoch = 29
     # val.validate_and_test(last_epoch)
 
-    # # Make new plots from existing validation/test results
-    # val.error_plots('./validation_and_testing/validation-run_epoch-178_time-20220901-135921/synthetic_validation')
-    # val.plot_Bennu_errors('./validation_and_testing/validation-run_epoch-178_time-20220901-135921/bennu_validation')
+    # Make new plots from existing validation/test results
+    val.error_plots('./validation_and_testing/validation-run_epoch-29_time-20221219-121903/synthetic_validation')
+    val.plot_Bennu_errors('./validation_and_testing/validation-run_epoch-29_time-20221219-121903/bennu_validation')
