@@ -45,8 +45,8 @@ def prepare_training_data():
 
     # Calculate a number of radiances from each reflectance, save them on disc as toml, and return the radiances
     # and their temperature and emissivity
-    radiances_test, parameters_test = rad.calculate_radiances(test_reflectances, test=True, samples_per_temperature=int(len(test_reflectances)/5), emissivity_type='random')
-    radiances_training, parameters_training = rad.calculate_radiances(train_reflectances, test=False, samples_per_temperature=int(len(train_reflectances)/5), emissivity_type='random')
+    radiances_test, parameters_test = rad.calculate_radiances(test_reflectances, test=True, samples_per_temperature=int(len(test_reflectances)/2.5), emissivity_type='random')
+    radiances_training, parameters_training = rad.calculate_radiances(train_reflectances, test=False, samples_per_temperature=int(len(train_reflectances)/2.5), emissivity_type='random')
 
     # Create a "bunch" from training and testing radiances and save both in their own files. This is orders of
     # magnitude faster than reading each radiance from its own toml
