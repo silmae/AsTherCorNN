@@ -186,6 +186,87 @@ def thermal_error_from_hc_distance(distance_min: float, distance_max: float, sam
     plt.close(fig)
 
 
+def thermal_error_from_temperature(albedo_min: float, albedo_max: float, temperature_min: int, temperature_max: int,
+                                   hc_distance: float, samples: int, log_y=False):
+    """
+    Calculate and plot error in reflectance at 2.45 µm caused by thermal emission, at specified heliocentric distance,
+    with a series of temperatures, and three albedo values.
+
+    NB. Take care if actually using this result, as the models used when calculating it are not very accurate.
+    To disable adding noise in the radiances, change the standard deviation of added noise to zero in constants.py
+
+    :param albedo_min:
+        Minimum geometric albedo
+    :param albedo_max:
+        Maximum geometric albedo
+    :param temperature_min:
+        Minimum temperature, in Kelvin
+    :param temperature_max:
+        Maximum temperature, in Kelvin
+    :param hc_distance:
+        Heliocentric distance, in au
+    :param samples:
+        Number of samples to be calculated
+    :param log_y: Boolean
+        Whether y-axis of plot will be logarithmic or linear
+    """
+    # Geometric albedos: min and max given as parameters, and a value halfway between
+    geom_albedos = [albedo_min, (albedo_max+albedo_min)/2, albedo_max]
+
+    # Normalized reflectance: just a constant value, since spectral shape is not important, only the last channel
+    norm_reflectance = np.ones((len(C.wavelengths), 3))
+
+    # Un-normalize reflectance by scaling it with visual geometrical albedo
+    spectral_reflectances = norm_reflectance * geom_albedos
+    # Convert reflectance to single-scattering albedo, using Lommel-Seeliger
+    spectral_single_scattering_albedos = 8 * spectral_reflectances
+
+    # A vector of temperatures
+    temperatures = np.linspace(temperature_min, temperature_max, samples)
+
+    # Array for storing errors
+    errors = np.zeros((3, samples))
+
+    for i in range(0,3):
+        error_list = []
+        for temperature in temperatures:
+            # Simulate observed spectral radiance as sum of thermally emitted and reflected radiances
+            radiance_dict = rad.observed_radiance(d_S=hc_distance,
+                                                  incidence_ang=30,  # Standard viewing geometry: i=30 deg, e=0 deg
+                                                  emission_ang=0,
+                                                  T=temperature,
+                                                  reflectance=spectral_single_scattering_albedos[:, i],
+                                                  waves=C.wavelengths,
+                                                  emissivity=1-geom_albedos[i],
+                                                  filename='filename',
+                                                  test=True,
+                                                  save_file=False)
+            reflected_radiance = radiance_dict['reflected_radiance']
+            sum_radiance = radiance_dict['sum_radiance']
+
+            # Take the last element of both vectors and calculate the difference as percentage
+            reference = reflected_radiance[-1]
+            test = sum_radiance[-1]
+            error = 100 * (abs(reference - test)) / reference
+            error_list.append(error)
+
+        errors[i,:] = error_list
+
+    # Plot error as function of heliocentric distance
+    fig = plt.figure()
+    plt.plot(temperatures, errors[0,:])
+    plt.plot(temperatures, errors[1,:])
+    plt.plot(temperatures, errors[2,:])
+    plt.xlabel('Temperature [K]')
+    plt.ylabel('Radiance error at 2.45 µm [%]')
+    plt.legend((f'$p = {geom_albedos[0]}$', f'$p = {geom_albedos[1]}$', f'$p = {geom_albedos[2]}$'))
+    if log_y == True:
+        plt.yscale('log')
+    # plt.grid()
+    # plt.savefig(Path(C.max_temp_plots_path, f'{i}_error_hc-distance.png'))
+    plt.show()
+    plt.close(fig)
+
 def solar_irradiance(distance: float, wavelengths, plot=False):
     """
     Calculate solar spectral irradiance at a specified heliocentric distance, interpolated to match wl-vector.
