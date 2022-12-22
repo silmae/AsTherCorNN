@@ -63,13 +63,14 @@ training_path = Path('./training')
 # Gaussian distribution for noising generated data
 mu = 0  # mean value for added noise
 sigma = 0.0001  # standard deviation of noise distribution
+# sigma = 0  # alternative value for no added noise, for illustrative plots
 
 ##########################################################################
 # Constraints for modeled radiances
 # d_S_min, d_S_max = 0.7, 2.8  # Approximate heliocentric distance for asteroids where the problem is relevant, in AU
 d_S_min, d_S_max = 0.8968944004459729 - 0.1, 1.355887651343651 + 0.1  # Heliocentric distances for Bennu, in AU:
 # values from https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr=bennu, with added margin of 0.1 AU
-T_min, T_max = 150, 441  # Asteroid surface temperature range, in Kelvins. Min is arbitrary, max from subsolar
+T_min, T_max = 300, 441  # Asteroid surface temperature range, in Kelvins. Min is arbitrary, max from subsolar
 # temperature of ideal blackbody placed at perihelion (min d_s)
 i_min, i_max = 0, 89  # Incidence angle, angle between surface normal and incident light, in degrees
 e_min, e_max = 0, 89  # Emission angle, angle between surface normal and observer direction, in degrees
@@ -87,14 +88,14 @@ conv_kernel = 4
 encoder_start = 1024  # 800
 encoder_node_relation = 0.50
 encoder_stop = 4
-learning_rate = 9e-5
+learning_rate = 5e-5
 
 ##########################################################################
 # Neural network training parameters
 refl_test_partition = 0.1  # Part of reflectances to be used for test data
 activation = 'relu'
 batch_size = 32  # Size of minibatch in training
-epochs = 1500
+epochs = 1000
 # Early stop:
 min_delta = 0.0005
 patience = 50
@@ -126,17 +127,17 @@ mean_std_temp_color = 'k'
 scatter_alpha = 0.02
 scatter_marker = 'o'
 
-# Limits suitable for plotting both synth and Bennu data from Bennu ground temp range
-temperature_plot_ylim = (140, 380)
-reflectance_mae_plot_ylim = (0, 0.02)
-reflectance_sam_plot_ylim = (0.9997, 1)
-reflrad_mae_plot_ylim = (0, 0.007)
-reflrad_sam_plot_ylim = (0.999996, 1)
+# # Limits suitable for plotting both synth and Bennu data from Bennu ground temp range
+# temperature_plot_ylim = (280, 390)
+# reflectance_mae_plot_ylim = (-0.001, 0.025)
+# reflrad_mae_plot_ylim = (-0.00025, 0.008)
+# reflectance_sam_plot_ylim = (0.9997, 1)
+# reflrad_sam_plot_ylim = (0.999996, 1)
 
-# # No limits, for plotting the whole synthetic data temperature range
-# temperature_plot_ylim = (0, 0)
-# reflectance_mae_plot_ylim = (0, 0)
-# reflectance_sam_plot_ylim = (0, 0)
-# reflrad_mae_plot_ylim = (0, 0)
-# reflrad_sam_plot_ylim = (0, 0)
+# No limits, for plotting the whole synthetic data temperature range
+temperature_plot_ylim = (0, 0)
+reflectance_mae_plot_ylim = (0, 0)
+reflrad_mae_plot_ylim = (0, 0)
+reflectance_sam_plot_ylim = (0, 0)
+reflrad_sam_plot_ylim = (0, 0)
 
