@@ -19,6 +19,38 @@ import radiance_data as rad
 import file_handling as FH
 
 
+def cosine_distance(s1, s2):
+    """Cosine of angle between two vectors s1 and s2"""
+    s1_norm = np.sqrt(np.dot(s1, s1))
+    s2_norm = np.sqrt(np.dot(s2, s2))
+    sum_s1_s2 = np.dot(s1, s2)
+    cosangle = (sum_s1_s2 / (s1_norm * s2_norm))
+    return cosangle
+
+def spectral_angle(s1, s2):
+    """Spectral angle between two spectra s1 and s2"""
+    cos_similarity = cosine_distance(s1, s2)
+    angle = np.arccos(cos_similarity)
+    return angle
+
+def MAE(s1, s2):
+    """Mean absolute error between two vectors s1 and s2"""
+    return sum(abs(s1 - s2)) / len(s1)
+
+
+def tail_MAE(s1, s2):
+    """Same as MAE above, but using only the last quarter of the vectors: the errors from thermal tail are more visible"""
+    s1 = s1[-int(len(s1) / 4):]
+    s2 = s2[-int(len(s2) / 4):]
+    error = MAE(s1, s2)
+    return error
+
+
+def MAPE(ground, pred):
+    """Mean absolute percentage error between two vectors: ground truth and prediction"""
+    return 100 * sum(abs((ground - pred) / ground)) / len(ground)
+
+
 def test_model(x_test, y_test, model, thermal_radiances, savefolder):
     """
     Testing a trained Keras model with data given as parameters. Saving results of test as a toml and as several plots.
@@ -49,24 +81,6 @@ def test_model(x_test, y_test, model, thermal_radiances, savefolder):
     print(f'Test with Keras resulted in a loss of {test_result}')
 
     # Calculate some differences between ground truth and prediction
-    # Cosine of angle between two vectors
-    def cosine_distance(s1, s2):
-        s1_norm = np.sqrt(np.dot(s1, s1))
-        s2_norm = np.sqrt(np.dot(s2, s2))
-        sum_s1_s2 = np.dot(s1, s2)
-        cosangle = (sum_s1_s2 / (s1_norm * s2_norm))
-        return cosangle
-
-    # Mean absolute error between two vectors
-    def MAE(s1, s2):
-        return sum(abs(s1 - s2)) / len(s1)
-
-    # Same as MAE above, but using only the last quarter of the vectors: the errors from thermal tail are more visible
-    def tail_MAE(s1, s2):
-        s1 = s1[-int(len(s1)/4):]
-        s2 = s2[-int(len(s2)/4):]
-        error = MAE(s1, s2)
-        return error
 
     # Lists for storing the results of calculations
     reflrad_mae_corrected = []
@@ -280,16 +294,26 @@ def plot_val_test_results(test_sample, ground1, ground2, pred1, pred2, savefolde
     ground = rad.radiance2norm_reflectance(ground1)
     NN_corrected = rad.radiance2norm_reflectance(pred1)
 
+    reflectanceMAE = MAE(ground, NN_corrected)
+    reflectanceSAM = cosine_distance(ground, NN_corrected)
+
+    # Round values to be used in filenames to proper decimals
+    reflectanceMAE = round(reflectanceMAE, 5)
+    reflectanceSAM = round(reflectanceSAM, 7)
+    temp_error = round(temp_error, 2)
+    eps_error = round(eps_error, 2)
+
     fig = plt.figure()
     x = C.wavelengths
-    plt.plot(x, uncorrected, color=C.uncor_plot_color)
-    plt.plot(x, ground, color=C.ground_plot_color)
-    plt.plot(x, NN_corrected, color=C.NNcor_plot_color)
+    plt.plot(x, uncorrected, color=C.uncor_plot_color, linestyle=C.uncor_plot_linestyle)
+    plt.plot(x, ground, color=C.ground_plot_color, linestyle=C.ground_plot_linestyle)
+    plt.plot(x, NN_corrected, color=C.NNcor_plot_color, linestyle=C.NNcor_plot_linestyle)
     plt.xlabel('Wavelength [µm]')
     plt.ylabel('Normalized reflectance')
     plt.legend(('Uncorrected', 'Ground truth', 'NN-corrected'))
 
-    fig_filename = C.training_run_name + f'_test_{index + 1}_reflectance_temp-error_{temp_error}K_emiss-error_{eps_error}.png'
+    fig_filename = C.training_run_name + \
+                   f'_test_{index + 1}_reflectance_temp-error_{temp_error}K_emiss-error_{eps_error}_SAM_{reflectanceSAM}_MAE_{reflectanceMAE}.png'
     fig_path = Path(savefolder, fig_filename)
     plt.savefig(fig_path)
     plt.close(fig)
@@ -343,7 +367,7 @@ def validate_synthetic(model, validation_run_folder: Path):
     # Shuffle the data
     x_test, y_test = sklearn.utils.shuffle(x_test, y_test, random_state=0)
 
-    sample_percentage = 100  # percentage of validation data samples used for error calculation, takes less time
+    sample_percentage = 5  # percentage of validation data samples used for error calculation, takes less time
     indices = range(int(len(x_test[:, 0]) * (sample_percentage * 0.01)))
     x_test = x_test[indices]
     y_test = y_test[indices]
@@ -705,9 +729,9 @@ def error_plots(folderpath):
 
     # Mean reflectances of ground truth, uncorrected, and NN corrected
     fig = plt.figure()
-    plt.plot(C.wavelengths, mean_ground_reflectance, color=C.ground_plot_color, label='Ground')
-    plt.plot(C.wavelengths, mean_uncorrected_reflectance, color=C.uncor_plot_color, label='Uncorrected')
-    plt.plot(C.wavelengths, mean_corrected_reflectance, color=C.NNcor_plot_color, label='NN-corrected')  # , linestyle='dashed')
+    plt.plot(C.wavelengths, mean_uncorrected_reflectance, color=C.uncor_plot_color, linestyle=C.uncor_plot_linestyle, label='Uncorrected')
+    plt.plot(C.wavelengths, mean_ground_reflectance, color=C.ground_plot_color, linestyle=C.ground_plot_linestyle ,label='Ground')
+    plt.plot(C.wavelengths, mean_corrected_reflectance, color=C.NNcor_plot_color, linestyle=C.NNcor_plot_linestyle, label='NN-corrected')
     plt.legend()
     plt.xlabel('Wavelength [µm]')
     plt.ylabel('Normalized reflectance')
@@ -894,10 +918,12 @@ def plot_Bennu_errors(folderpath):
         plt.savefig(Path(savefolder, f'{corrected_name}_{uncorrected_name}_Bennu.png'))
         plt.close(fig)
 
-    Bennu_comparison_plots('reflected_MAE', 'reflected_MAE_uncorrected', 'Reflected radiance MAE', lim=C.reflrad_mae_plot_ylim)
+    Bennu_comparison_plots('reflected_MAE', 'reflected_MAE_uncorrected',
+                           'Reflected radiance MAE', lim=C.reflrad_mae_plot_ylim)
     Bennu_comparison_plots('reflected_SAM', 'reflected_SAM_uncorrected',
                            'Reflected radiance cosine distance', lim=C.reflrad_sam_plot_ylim)
-    Bennu_comparison_plots('reflectance_MAE', 'reflectance_MAE_uncorrected', 'Reflectance MAE' , lim=C.reflectance_mae_plot_ylim)
+    Bennu_comparison_plots('reflectance_MAE', 'reflectance_MAE_uncorrected',
+                           'Reflectance MAE', lim=C.reflectance_mae_plot_ylim)
     Bennu_comparison_plots('reflectance_SAM', 'reflectance_SAM_uncorrected',
                            'Reflectance cosine distance', lim=C.reflectance_sam_plot_ylim)
 
@@ -919,9 +945,9 @@ def plot_Bennu_errors(folderpath):
 
     # Mean reflectance spectral over all samples, from ground truth, uncorrected and corrected reflectances
     fig = plt.figure()
-    plt.plot(C.wavelengths, mean_ground_reflectance, color=C.ground_plot_color, label='Ground')
-    plt.plot(C.wavelengths, mean_uncorrected_reflectance, color=C.uncor_plot_color, label='Uncorrected')
-    plt.plot(C.wavelengths, mean_corrected_reflectance, color=C.NNcor_plot_color, label='NN-corrected')  # , linestyle='dashed')
+    plt.plot(C.wavelengths, mean_uncorrected_reflectance, color=C.uncor_plot_color, linestyle=C.uncor_plot_linestyle, label='Uncorrected')
+    plt.plot(C.wavelengths, mean_ground_reflectance, color=C.ground_plot_color, linestyle=C.ground_plot_linestyle, label='Ground')
+    plt.plot(C.wavelengths, mean_corrected_reflectance, color=C.NNcor_plot_color, linestyle=C.NNcor_plot_linestyle, label='NN-corrected')
     plt.legend()
     plt.xlabel('Wavelength [µm]')
     plt.ylabel('Normalized reflectance')
