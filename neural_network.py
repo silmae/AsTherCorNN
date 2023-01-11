@@ -1,5 +1,5 @@
 """
-Methods for building, tuning, and using 1D convolutional neural networks
+Functions for building, tuning, and using 1D convolutional neural networks
 """
 
 import os
@@ -103,8 +103,8 @@ def tune_model(epochs: int, max_trials: int, executions_per_trial: int):
 def create_hypermodel(hp):
     """
     Create and compile a neural network model for hyperparameter optimization. Model structure is similar to unadjustable
-    network: dense input, conv1d, dense autoencoder, conv1d, dense output, concatenate. This method calls the
-    create_model -method using the hyperparameters as arguments.
+    network: dense input, conv1d, dense autoencoder, conv1d, dense output, concatenate. This function calls the
+    create_model -function using the hyperparameters as arguments.
 
     Adjustable hyperparameters are:
     - convolution filter count (of first conv layer, reduces in subsequent) and kernel width (same for all conv layers),
@@ -175,7 +175,7 @@ def create_model(conv_filters: int, conv_kernel: int, encoder_start: int, encode
     # Flatted to make conv output compatible with following dense layer
     conv1 = Flatten()(conv1)
 
-    # Create dense encoder based on start, relation, and end. See docstring of this method for description of node
+    # Create dense encoder based on start, relation, and end. See docstring of this function for description of node
     # relation parameter
     node_count = encoder_start
     encoder = Dense(node_count, activation=C.activation)(conv1)
