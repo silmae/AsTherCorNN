@@ -1,5 +1,5 @@
 """
-Methods for working with reflectance data: loading and augmenting meteorite reflectances, loading asteroid reflectances
+Functions for working with reflectance data: loading and augmenting meteorite reflectances, loading asteroid reflectances
 and scaling them with appropriate albedo estimates.
 """
 
