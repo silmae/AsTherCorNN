@@ -1,5 +1,5 @@
 """
-Methods for working with spectral radiances: calculating thermal radiance and reflected radiance, and simulating
+Functions for working with spectral radiances: calculating thermal radiance and reflected radiance, and simulating
 observed radiance as their sum. Calculating normalized reflectance from radiance. Wrapper for calculating a dataset of
 several radiances from reflectances.
 """
@@ -16,7 +16,7 @@ import utils
 
 def thermal_radiance(T: float, emissivity: float or list or np.ndarray, wavelengths: np.ndarray):
     """
-    Calculate and return approximate thermal emission (blackbody, bb) radiance spectrum using Planck's law. Angle
+    Calculate and return approximate thermally emitted spectral radiance using Planck's law. Angle
     dependence of emitted radiance is approximated as Lambertian.
 
     :param T:
@@ -67,13 +67,14 @@ def thermal_radiance(T: float, emissivity: float or list or np.ndarray, waveleng
     return L_th
 
 
-def reflected_radiance(reflectance: np.ndarray, irradiance: np.ndarray, incidence_angle: float, emission_angle: float):
+def reflected_radiance(spectral_albedo: np.ndarray, irradiance: np.ndarray, incidence_angle: float, emission_angle: float):
     """
     Calculate spectral radiance reflected from a surface, based on the surface reflectance, irradiance incident on it,
-    and the phase angle of the measurement. Angle dependence (bidirectional reflectance) is calculated using the Lommel-Seeliger model.
+    and the phase angle of the measurement. Angle dependence (bidirectional reflectance) is calculated using the
+    Lommel-Seeliger model (from https://doi.org/10.1017/9781316443545).
 
-    :param reflectance:
-        Spectral reflectance, calculated using estimation for single-scattering albedo
+    :param spectral_albedo:
+        Spectral single-scattering albedo
     :param irradiance:
         Collimated spectral irradiance incident on the surface.
     :param incidence_angle:
@@ -90,7 +91,7 @@ def reflected_radiance(reflectance: np.ndarray, irradiance: np.ndarray, incidenc
     reflrad[:, 0] = wavelength
 
     # Spectral bidirectional reflectance with Lommel-Seeliger
-    reflrad[:, 1] = (reflectance / (4 * np.pi)) * (np.cos(np.deg2rad(incidence_angle)) / (np.cos(np.deg2rad(incidence_angle)) + np.cos(np.deg2rad(emission_angle))))
+    reflrad[:, 1] = (spectral_albedo / (4 * np.pi)) * (np.cos(np.deg2rad(incidence_angle)) / (np.cos(np.deg2rad(incidence_angle)) + np.cos(np.deg2rad(emission_angle))))
 
     # Reflected radiance from incident collimated irradiance and bidirectional reflectance
     reflrad[:, 1] = irradiance[:, 1] * reflrad[:, 1]
@@ -111,7 +112,7 @@ def radiance2norm_reflectance(radiance):
         Normalized reflectance
     """
 
-    # Insolation at 1.0, the heliocentric distance does not matter with normalized data
+    # Insolation at 1.0, the heliocentric distance does not matter with data that will be normalized
     insolation = utils.solar_irradiance(1.0, C.wavelengths)
     reflectance = radiance / insolation[:, 1]
 
@@ -154,7 +155,7 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
                       plots=False, save_file=True):
     """
     Simulate observed radiance with given parameters. Calculates reflected and thermally emitted radiances in separate
-    methods, and sums them to get observed radiance. Adds noise to the summed radiance. Saves separate and summed
+    functions, and sums them to get observed radiance. Adds noise to the summed radiance. Saves separate and summed
     radiances to a .toml file together with observation related metadata provided in function arguments. Also saves
     plots of reflectance and radiances, if specified in arguments.
 
@@ -167,7 +168,7 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
     :param T:
         Surface temperature in Kelvin
     :param reflectance:
-        Spectral reflectance
+        Spectral single scattering albedo
     :param waves:
         Wavelength vector in micrometers
     :param emissivity: float, list, or ndarray
@@ -201,10 +202,12 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
     # Applying noise to the summed data
     sumrad = noising(sumrad, C.mu, C.sigma)
 
-    # Collect the data into a dict
-    rad_dict = {}
+    # Metadata of the simulated measurement, will be saved together with the simulated data
     meta = {'heliocentric_distance': d_S, 'incidence_angle': incidence_ang, 'emission_angle': emission_ang, 'surface_temperature': T,
             'emissivity': emissivity}
+
+    # Collect the data into a dict
+    rad_dict = {}
     rad_dict['metadata'] = meta
     rad_dict['wavelength'] = waves
     rad_dict['reflected_radiance'] = reflrad[:, 1]
@@ -218,7 +221,6 @@ def observed_radiance(d_S: float, incidence_ang: float, emission_ang: float, T: 
     if plots == True:
 
         # Plotting reflectance and radiances, saving as .png
-        figfolder = C.figfolder
 
         fig = plt.figure()
         plt.plot(C.wavelengths, reflectance)
@@ -326,7 +328,7 @@ def calculate_radiances(reflectance_list: list, test: bool, samples_per_temperat
 
             j = j+1
 
-        # Place reflected and thermal spectra into one array for returning
+        # Place thermal parameters into one array for returning: these can be used as ground truth
         thermal_parameters = np.zeros((samples, 2))
         thermal_parameters[:, 0] = temperatures.flatten()
         thermal_parameters[:, 1] = emissivities.flatten()
