@@ -1,5 +1,5 @@
 """
-Methods that didn't fit right in other modules
+Functions that didn't fit right in other modules
 """
 
 from pathlib import Path
@@ -18,7 +18,7 @@ def calculate_subsolar_temperature(heliocentric_distance: float, albedo=0, emiss
     Earth Asteroids", A. W. Harris (1998), the article that introduced NEATM. A similar equation can be found in
     "Theory of Reflectance and Emittance Spectroscopy" (2nd ed.) by B. Hapke, on page 452.
 
-    If no albedo, emissivity, and beaming parameter give as arguments, method calculates the blackbody radiative
+    If no albedo, emissivity, and beaming parameter given as arguments, function calculates the blackbody radiative
     equilibrium temperature at the given heliocentric distance.
 
     :param heliocentric_distance: float
@@ -81,8 +81,10 @@ def thermal_error_from_hc_distance(distance_min: float, distance_max: float, sam
     temperature of an ideal blackbody.
     Result can be used to constrain the maximum heliocentric distance where this problem is significant enough to merit
     correction.
-    NB. Take care if actually using this result, as the models used when calculating it are not very accurate. Some
-    randomness is expected, since spectral radiance generation employed by this method will add noise to the spectra.
+
+    NB. Take care if actually using this result, as the models used when calculating it are not very accurate.
+    Set the noise std to zero in constants before calling this, otherwise the spectra used for calculation will
+    be noisy.
 
     :param distance_min: float
         Minimum heliocentric distance in astronomical units
@@ -213,7 +215,7 @@ def thermal_error_from_temperature(albedo_min: float, albedo_max: float, tempera
     # Geometric albedos: min and max given as parameters, and a value halfway between
     geom_albedos = [albedo_min, (albedo_max+albedo_min)/2, albedo_max]
 
-    # Normalized reflectance: just a constant value, since spectral shape is not important, only the last channel
+    # Normalized reflectance: just a constant value, spectral shape is not important, only the last channel is relevant
     norm_reflectance = np.ones((len(C.wavelengths), 3))
 
     # Un-normalize reflectance by scaling it with visual geometrical albedo
@@ -227,7 +229,7 @@ def thermal_error_from_temperature(albedo_min: float, albedo_max: float, tempera
     # Array for storing errors
     errors = np.zeros((3, samples))
 
-    for i in range(0,3):
+    for i in range(0, 3):
         error_list = []
         for temperature in temperatures:
             # Simulate observed spectral radiance as sum of thermally emitted and reflected radiances
@@ -237,7 +239,7 @@ def thermal_error_from_temperature(albedo_min: float, albedo_max: float, tempera
                                                   T=temperature,
                                                   reflectance=spectral_single_scattering_albedos[:, i],
                                                   waves=C.wavelengths,
-                                                  emissivity=1-geom_albedos[i],
+                                                  emissivity=1-spectral_single_scattering_albedos[:, i],  # Emissivity from Kirchhoff's law
                                                   filename='filename',
                                                   test=True,
                                                   save_file=False)
@@ -263,9 +265,10 @@ def thermal_error_from_temperature(albedo_min: float, albedo_max: float, tempera
     if log_y == True:
         plt.yscale('log')
     # plt.grid()
-    # plt.savefig(Path(C.max_temp_plots_path, f'{i}_error_hc-distance.png'))
+    plt.savefig(Path(C.figfolder, 'thermal_error_error_temperature_dependence.png'))
     plt.show()
     plt.close(fig)
+
 
 def solar_irradiance(distance: float, wavelengths, plot=False):
     """
@@ -331,6 +334,8 @@ def plot_example_radiance_reflectance(num: int):
     plt.xlabel('Wavelength [µm]')
     plt.ylabel('Radiance [W / m² / sr / µm]')
     plt.legend(('Reference', 'With thermal'))
+    # plt.xticks([])  # Hide axis ticks by setting them to empty list
+    # plt.yticks([])
 
     plt.figure()
     plt.plot(C.wavelengths, refR)
@@ -338,5 +343,7 @@ def plot_example_radiance_reflectance(num: int):
     plt.xlabel('Wavelength [µm]')
     plt.ylabel('Normalized reflectance')
     plt.legend(('Reference', 'With thermal'))
+    # plt.xticks([])  # Hide axis ticks by setting them to empty list
+    # plt.yticks([])
 
     plt.show()
