@@ -116,7 +116,7 @@ training_history_path = Path(training_run_path, f'{training_run_name}_trainHisto
 hyperparameter_path = 'hyperparameter_tuning'  # KerasTuner wants the path as a string
 
 ##########################################################################
-# Plot parameters, using default pyplot colors: '#1f77b4', '#ff7f0e', '#2ca02c'
+# Plot parameters, using default pyplot colors
 uncor_plot_color = '#1f77b4'  # Blue
 NNcor_plot_color = '#ff7f0e'  # Orange
 ground_plot_color = '#2ca02c'  # Green
@@ -124,20 +124,26 @@ ground_plot_color = '#2ca02c'  # Green
 ideal_result_line_color = 'r'
 mean_std_temp_color = 'k'
 
-scatter_alpha = 0.02
+uncor_plot_linestyle = '-'
+ground_plot_linestyle = '-'
+NNcor_plot_linestyle = '-'
+
+scatter_alpha = 0.01
 scatter_marker = 'o'
 
-# # Limits suitable for plotting both synth and Bennu data from Bennu ground temp range
-# temperature_plot_ylim = (280, 390)
-# reflectance_mae_plot_ylim = (-0.001, 0.025)
-# reflrad_mae_plot_ylim = (-0.00025, 0.008)
-# reflectance_sam_plot_ylim = (0.9997, 1)
+# Limits suitable for plotting both synth and Bennu data from Bennu ground temp range
+temperature_plot_ylim = (280, 390)
+reflectance_mae_plot_ylim = (-0.001, 0.025)
+reflrad_mae_plot_ylim = (-0.00025, 0.008)
+reflectance_sam_plot_ylim = (-0.001, 0.041)
+reflrad_sam_plot_ylim = (-0.0001, 0.0023)
+# reflectance_sam_plot_ylim = (0.99965, 1.00001)  # Use these limits if using cosine similarity in place of SAM
 # reflrad_sam_plot_ylim = (0.999996, 1)
 
-# No limits, for plotting the whole synthetic data temperature range
-temperature_plot_ylim = (0, 0)
-reflectance_mae_plot_ylim = (0, 0)
-reflrad_mae_plot_ylim = (0, 0)
-reflectance_sam_plot_ylim = (0, 0)
-reflrad_sam_plot_ylim = (0, 0)
+# # No limits, for plotting the whole synthetic data temperature range
+# temperature_plot_ylim = (0, 0)
+# reflectance_mae_plot_ylim = (0, 0)
+# reflrad_mae_plot_ylim = (0, 0)
+# reflectance_sam_plot_ylim = (0, 0)
+# reflrad_sam_plot_ylim = (0, 0)
 
