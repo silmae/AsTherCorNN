@@ -1,5 +1,5 @@
 """
-Methods for testing neural network performance, using both synthetic data and real data OVIRS data of Bennu.
+Functions for testing neural network performance, using both synthetic data and real data OVIRS data of Bennu.
 """
 
 import time
@@ -19,7 +19,7 @@ import radiance_data as rad
 import file_handling as FH
 
 
-def cosine_distance(s1, s2):
+def cosine_similarity(s1, s2):
     """Cosine of angle between two vectors s1 and s2"""
     s1_norm = np.sqrt(np.dot(s1, s1))
     s2_norm = np.sqrt(np.dot(s2, s2))
@@ -27,23 +27,17 @@ def cosine_distance(s1, s2):
     cosangle = (sum_s1_s2 / (s1_norm * s2_norm))
     return cosangle
 
+
 def spectral_angle(s1, s2):
-    """Spectral angle between two spectra s1 and s2"""
-    cos_similarity = cosine_distance(s1, s2)
+    """Spectral angle between two spectra s1 and s2, in radians"""
+    cos_similarity = cosine_similarity(s1, s2)
     angle = np.arccos(cos_similarity)
     return angle
+
 
 def MAE(s1, s2):
     """Mean absolute error between two vectors s1 and s2"""
     return sum(abs(s1 - s2)) / len(s1)
-
-
-def tail_MAE(s1, s2):
-    """Same as MAE above, but using only the last quarter of the vectors: the errors from thermal tail are more visible"""
-    s1 = s1[-int(len(s1) / 4):]
-    s2 = s2[-int(len(s2) / 4):]
-    error = MAE(s1, s2)
-    return error
 
 
 def MAPE(ground, pred):
@@ -136,44 +130,42 @@ def test_model(x_test, y_test, model, thermal_radiances, savefolder):
         # Calculate normalized reflectance from uncorrected, NN-corrected, and ground truth reflected radiances
         reflectance_ground = rad.radiance2norm_reflectance(ground_refl)
         ground_reflectances.append(reflectance_ground)
+
         reflectance_uncorrected = rad.radiance2norm_reflectance(uncorrected_refl)
         uncorrected_reflectances.append(reflectance_uncorrected)
+
         reflectance_corrected = rad.radiance2norm_reflectance(pred_refl)
         corrected_reflectances.append(reflectance_corrected)
 
         # Mean absolute errors from radiance
-        mae1_corrected = MAE(pred_refl, ground_refl)
-        mae1_uncorrected = MAE(uncorrected_refl, ground_refl)
-        mae2 = MAE(pred_therm, ground_therm)
-        # mae1_corrected = tail_MAE(pred_refl, ground_refl)
-        # mae1_uncorrected = tail_MAE(uncorrected_refl, ground_refl)
-        # mae2 = tail_MAE(pred_therm, ground_therm)
-        reflrad_mae_corrected.append(mae1_corrected)
-        reflrad_mae_uncorrected.append(mae1_uncorrected)
-        thermrad_mae.append(mae2)
+        mae_corrected = MAE(pred_refl, ground_refl)
+        mae_uncorrected = MAE(uncorrected_refl, ground_refl)
+        mae_thermal = MAE(pred_therm, ground_therm)
+        reflrad_mae_corrected.append(mae_corrected)
+        reflrad_mae_uncorrected.append(mae_uncorrected)
+        thermrad_mae.append(mae_thermal)
 
-        # Cosine distances from radiances
-        cosang1_corrected = cosine_distance(pred_refl, ground_refl)
-        cosang1_uncorrected = cosine_distance(uncorrected_refl, ground_refl)
-        cosang2 = cosine_distance(pred_therm, ground_therm)
-        reflrad_cos_corrected.append(cosang1_corrected)
-        reflrad_cos_uncorrected.append(cosang1_uncorrected)
-        thermrad_cos.append(cosang2)
+        # Spectral angles from radiances
+        cosang_corrected = spectral_angle(pred_refl, ground_refl)
+        cosang_uncorrected = spectral_angle(uncorrected_refl, ground_refl)
+        cosang_thermal = spectral_angle(pred_therm, ground_therm)
+        reflrad_cos_corrected.append(cosang_corrected)
+        reflrad_cos_uncorrected.append(cosang_uncorrected)
+        thermrad_cos.append(cosang_thermal)
 
-        # Mean absolute errors and cosine distance from reflectances
+        # Mean absolute errors from reflectances
         R_MAE_corrected = MAE(reflectance_corrected, reflectance_ground)
         R_MAE_uncorrected = MAE(reflectance_uncorrected, reflectance_ground)
-        # R_MAE_corrected = tail_MAE(reflectance_corrected, reflectance_ground)
-        # R_MAE_uncorrected = tail_MAE(reflectance_uncorrected, reflectance_ground)
         reflectance_mae_corrected.append(R_MAE_corrected)
         reflectance_mae_uncorrected.append(R_MAE_uncorrected)
 
-        R_cos_corrected = cosine_distance(reflectance_corrected, reflectance_ground)
-        R_cos_uncorrected = cosine_distance(reflectance_uncorrected, reflectance_ground)
+        # Spectral angles from reflectances
+        R_cos_corrected = spectral_angle(reflectance_corrected, reflectance_ground)
+        R_cos_uncorrected = spectral_angle(reflectance_uncorrected, reflectance_ground)
         reflectance_cos_corrected.append(R_cos_corrected)
         reflectance_cos_uncorrected.append(R_cos_uncorrected)
 
-        print(f'Calculated MAE and cosine angle for sample {i} out of {len(indices)}')
+        print(f'Calculated sample {i} / {len(indices)}')
 
     # Normalized Root Mean Square Error (NRMSE) from temperature predictions
     temperature_errors = np.asarray(temperature_ground) - np.asarray(temperature_pred)
@@ -187,7 +179,7 @@ def test_model(x_test, y_test, model, thermal_radiances, savefolder):
     mean_reflectance_uncorrected = np.mean(np.asarray(uncorrected_reflectances), axis=0)
     mean_reflectance_corrected = np.mean(np.asarray(corrected_reflectances), axis=0)
 
-    # Gather all calculated errors in a single dictionary and save that as toml
+    # Gather all calculated errors in a single dictionary and save to disc as toml
     mean_dict = {}
     mean_dict['samples'] = i+1
     mean_dict['NN_test_result'] = test_result
@@ -233,7 +225,20 @@ def test_model(x_test, y_test, model, thermal_radiances, savefolder):
     return error_dict
 
 
-def _calculate_temperature_pred_mean_and_std(temperature_ground, temperature_pred):
+def _calculate_temperature_pred_mean_and_std(temperature_ground: list, temperature_pred: list):
+    """
+    Takes a list of ground truth temperatures and a list of corresponding predicted temperatures.
+    Calculates mean and std of all predicted temperatures corresponding to one ground truth temperature.
+
+    :param temperature_ground:
+        List of ground truth temperatures
+    :param temperature_pred:
+        List of predicted temperatures corresponding to the ground truth temperatures
+    :return:
+        ndarray where first column is unique ground truth temperatures, second is mean predicted temperatures, and
+        third is std of predictions
+    """
+
     # Mean predicted temperature and its std for each unique value of ground temperature
     temperature_ground = np.asarray(temperature_ground)
     temperature_pred = np.asarray(temperature_pred)
@@ -274,6 +279,7 @@ def plot_val_test_results(test_sample, ground1, ground2, pred1, pred2, savefolde
         Error of emissivity when predicting thermal radiance
     """
 
+    # Plots of spectral radiance, ground truth and predicted for both reflected and thermal in the same figure
     fig = plt.figure()
     x = C.wavelengths
     plt.plot(x, ground1)
@@ -295,7 +301,7 @@ def plot_val_test_results(test_sample, ground1, ground2, pred1, pred2, savefolde
     NN_corrected = rad.radiance2norm_reflectance(pred1)
 
     reflectanceMAE = MAE(ground, NN_corrected)
-    reflectanceSAM = cosine_distance(ground, NN_corrected)
+    reflectanceSAM = spectral_angle(ground, NN_corrected)
 
     # Round values to be used in filenames to proper decimals
     reflectanceMAE = round(reflectanceMAE, 5)
@@ -343,7 +349,7 @@ def validate_synthetic(model, validation_run_folder: Path):
     :param model:
         Trained Keras model with weights loaded
     :param validation_run_folder:
-        Path to folder where results will be saved. Method will create a sub-folder inside for results from synthetic.
+        Path to folder where results will be saved. Function will create a sub-folder inside for results from synthetic.
     """
 
     # Load test radiances from one file as dicts, separate ground truth and test samples
@@ -361,13 +367,13 @@ def validate_synthetic(model, validation_run_folder: Path):
     max_indices = np.where(y_test[:, 0] == max_temperature)
     max_index = max_indices[0][-1]
 
-    # x_test = x_test[min_index:max_index, :]
-    # y_test = y_test[min_index:max_index, :]
+    x_test = x_test[min_index:max_index, :]
+    y_test = y_test[min_index:max_index, :]
 
-    # Shuffle the data
+    # Shuffle the data (this is probably unnecessary at this stage)
     x_test, y_test = sklearn.utils.shuffle(x_test, y_test, random_state=0)
 
-    sample_percentage = 5  # percentage of validation data samples used for error calculation, takes less time
+    sample_percentage = 100  # percentage of validation data samples used for error calculation (adjust for tests)
     indices = range(int(len(x_test[:, 0]) * (sample_percentage * 0.01)))
     x_test = x_test[indices]
     y_test = y_test[indices]
@@ -400,15 +406,16 @@ def bennu_refine(fitslist: list, time: int, discard_indices, plots=False):
     Return uncorrected spectral radiance, thermal tail subtracted spectral radiance, and the thermal tail spectral
     radiance.
 
-    :param fitslist: list
+    :param fitslist:
         List of spectral measurements in FITS format
-    :param time: int
+    :param time:
         Local time on Bennu where the measurement was taken, can be 1000, 1230, or 1500. Affects save locations
-    :param discard_indices
+    :param discard_indices:
         Indices of datapoints that will be discarded as erroneous
-    :param plots: boolean
+    :param plots:
         Whether plots will be made and saved
     :return: uncorrected_Bennu, corrected_Bennu, thermal_tail_Bennu:
+        Spectral radiances from Bennu, with bad datapoints removed, and conforming to rest of the data
     """
 
     uncorrected_fits = fitslist[0]
@@ -588,8 +595,8 @@ def validate_bennu(model, validation_run_folder):
     errors_Bennu['errors_1500'] = errors_1500
     FH.save_toml(errors_Bennu, Path(validation_plots_Bennu_path, 'errors_Bennu.toml'))
 
-    # Plotting errors from all three local times. Plots for individual times are made in the test_model -method
-    plot_Bennu_errors(validation_plots_Bennu_path)
+    # Plotting errors from all three local times. Plots for individual times are made in the test_model -function
+    error_plots_bennu(validation_plots_Bennu_path)
 
 
 def validate_and_test(last_epoch):
@@ -635,7 +642,7 @@ def validate_and_test(last_epoch):
 
 
 def _plot_with_shadow(ax_obj, x_data, y_data, y_data_std, color, label, ls='-') -> None:
-    """ Method by K.A. Riihiaho, copied (with permission) from
+    """ Function by K.A. Riihiaho, copied (with permission) from
     https://github.com/silmae/HyperBlend/blob/master/src/plotter.py
 
     Plot data with standard deviation as shadow.
@@ -752,12 +759,12 @@ def error_plots(folderpath):
         plt.savefig(Path(folderpath, f'{filename}.png'))
         plt.close(fig)
 
-    # Cosine distance of reflected radiance from ideally corrected result as function of ground truth temperature,
+    # Spectral angle of reflected radiance from ideally corrected result as function of ground truth temperature,
     # for corrected and uncorrected
-    double_plot(reflrad_cos_uncorrected, reflrad_cos_corrected, 'Reflected radiance cosine distance', 'reflrad_SAM_groundtemp', limit=C.reflrad_sam_plot_ylim)
+    double_plot(reflrad_cos_uncorrected, reflrad_cos_corrected, 'Reflected radiance spectral angle', 'reflrad_SAM_groundtemp', limit=C.reflrad_sam_plot_ylim)
 
     # The same as above, but from reflectance instead of reflected radiance
-    double_plot(reflectance_cos_uncorrected, reflectance_cos_corrected, 'Reflectance cosine distance', 'reflectance_SAM_groundtemp', limit=C.reflectance_sam_plot_ylim)
+    double_plot(reflectance_cos_uncorrected, reflectance_cos_corrected, 'Reflectance spectral angle', 'reflectance_SAM_groundtemp', limit=C.reflectance_sam_plot_ylim)
 
     # Mean absolute error of reflected radiance from both corrected and uncorrected, as function of ground truth temp
     double_plot(reflrad_mae_uncorrected, reflrad_mae_corrected, 'Reflected radiance MAE', 'reflrad_MAE_groundtemp', limit=C.reflrad_mae_plot_ylim)
@@ -765,15 +772,15 @@ def error_plots(folderpath):
     # Same as above, but from reflectance
     double_plot(reflectance_mae_uncorrected, reflectance_mae_corrected, 'Reflectance MAE', 'reflectance_MAE_groundtemp', limit=C.reflectance_mae_plot_ylim)
 
-    # Cosine distance of estimated thermal radiance from ideal result, as function of ground truth temperature
+    # Spectral angle of estimated thermal radiance from ideal result, as function of ground truth temperature
     fig = plt.figure()
     plt.scatter(temperature_ground, thermrad_cos, alpha=C.scatter_alpha, marker=C.scatter_marker, color=C.NNcor_plot_color)
     plt.xlabel('Ground truth temperature [K]')
-    plt.ylabel('Thermal cosine distance')
+    plt.ylabel('Thermal spectral angle')
     plt.savefig(Path(folderpath, 'thermSAM_groundtemp.png'))
     plt.close(fig)
 
-    # Same as above, but mean absolute error instead of cosine
+    # Same as above, but mean absolute error instead of angle
     fig = plt.figure()
     plt.scatter(temperature_ground, thermrad_mae, alpha=C.scatter_alpha, marker=C.scatter_marker, color=C.NNcor_plot_color)
     plt.xlabel('Ground truth temperature [K]')
@@ -781,24 +788,8 @@ def error_plots(folderpath):
     plt.savefig(Path(folderpath, 'thermMAE_groundtemp.png'))
     plt.close(fig)
 
-    # def plot_and_save(data, label, filename):
-    #     fig = plt.figure()
-    #     plt.scatter(temperature_ground, data, alpha=C.scatter_alpha, marker=C.scatter_marker)
-    #     plt.xlabel('Ground truth temperature')
-    #     # plt.ylim(0,0.02)
-    #     plt.ylabel(label)
-    #     plt.savefig(Path(folderpath, filename))
-    #     plt.show()
-    #     plt.close(fig)
-    #
-    # # plot_and_save(np.asarray(refl_MAE_uncor) - np.asarray(refl_MAE), r'MAE($L_{th}$) improvement', 'refl-MAE-improvement_groundtemp.png')
-    # # plot_and_save(np.asarray(R_MAE_uncor) - np.asarray(R_MAE), r'MAE($R$) improvement', 'R-MAE-improvement_groundtemp.png')
-    #
-    # plot_and_save(np.asarray(refl_SAM_uncor) - np.asarray(refl_SAM), r'SAM($L_{th}$) improvement', 'refl-SAM-improvement_groundtemp.png')
-    # plot_and_save(np.asarray(R_SAM_uncor) - np.asarray(R_SAM), r'SAM($R$) improvement', 'R-SAM-improvement_groundtemp.png')
 
-
-def plot_Bennu_errors(folderpath):
+def error_plots_bennu(folderpath):
     """
     Plot errors using test results from all three local times on Bennu. Loads a dictionary of errors from a toml file,
     and saves the plot in the folder where the toml is located.
@@ -897,7 +888,7 @@ def plot_Bennu_errors(folderpath):
         uncorrected_1500 = dict_1500[uncorrected_name]
 
         fig = plt.figure()
-        # Use one color for uncorrected and other for corrected, with their hex codes determined in constants.py
+        # Use one color for uncorrected and other for corrected, colors determined in constants.py
         uncor_scatter1 = plt.scatter(ground_temps_1000, uncorrected_1000, alpha=C.scatter_alpha, marker=C.scatter_marker, color=C.uncor_plot_color)
         uncor_scatter2 = plt.scatter(ground_temps_1230, uncorrected_1230, alpha=C.scatter_alpha, marker=C.scatter_marker, color=C.uncor_plot_color)
         uncor_scatter3 = plt.scatter(ground_temps_1500, uncorrected_1500, alpha=C.scatter_alpha, marker=C.scatter_marker, color=C.uncor_plot_color)
@@ -921,11 +912,11 @@ def plot_Bennu_errors(folderpath):
     Bennu_comparison_plots('reflected_MAE', 'reflected_MAE_uncorrected',
                            'Reflected radiance MAE', lim=C.reflrad_mae_plot_ylim)
     Bennu_comparison_plots('reflected_SAM', 'reflected_SAM_uncorrected',
-                           'Reflected radiance cosine distance', lim=C.reflrad_sam_plot_ylim)
+                           'Reflected radiance spectral angle', lim=C.reflrad_sam_plot_ylim)
     Bennu_comparison_plots('reflectance_MAE', 'reflectance_MAE_uncorrected',
                            'Reflectance MAE', lim=C.reflectance_mae_plot_ylim)
     Bennu_comparison_plots('reflectance_SAM', 'reflectance_SAM_uncorrected',
-                           'Reflectance cosine distance', lim=C.reflectance_sam_plot_ylim)
+                           'Reflectance spectral angle', lim=C.reflectance_sam_plot_ylim)
 
     # Plot of mean reflectances:
     mean_ground_reflectance_1000 = errors_1000['mean']['mean_ground_reflectance']
@@ -943,7 +934,7 @@ def plot_Bennu_errors(folderpath):
     mean_corrected_reflectance_1500 = errors_1500['mean']['mean_corrected_reflectance']
     mean_corrected_reflectance = np.mean(np.asarray([mean_corrected_reflectance_1000, mean_corrected_reflectance_1230, mean_corrected_reflectance_1500]), axis=0)
 
-    # Mean reflectance spectral over all samples, from ground truth, uncorrected and corrected reflectances
+    # Mean spectral reflectance over all samples, from ground truth, uncorrected and corrected reflectances
     fig = plt.figure()
     plt.plot(C.wavelengths, mean_uncorrected_reflectance, color=C.uncor_plot_color, linestyle=C.uncor_plot_linestyle, label='Uncorrected')
     plt.plot(C.wavelengths, mean_ground_reflectance, color=C.ground_plot_color, linestyle=C.ground_plot_linestyle, label='Ground')
