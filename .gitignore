@@ -3,7 +3,9 @@ __pycache__
 *.fit
 spectral_data
 figs
-training
+training/*
+!/training/1000epochs_1024start_4stop_5e-05lr/training.log
+!/training/1000epochs_1024start_4stop_5e-05lr/weights/weights_29.hdf5
 hyperparameter_tuning
 validation_and_testing
 old_trash.py
