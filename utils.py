@@ -194,6 +194,10 @@ def thermal_error_from_temperature(albedo_min: float, albedo_max: float, tempera
     Calculate and plot error in reflectance at 2.45 µm caused by thermal emission, at specified heliocentric distance,
     with a series of temperatures, and three albedo values.
 
+    Emissivity for thermal component is calculated with Kirchhoff's law, from Modest, M.F., "Radiative Heat Transfer"
+    (2013). Formula for calculating directional-hemispherical reflectance needed for Kirchhoff comes from Shepard,
+    "Introduction to Planetary Photometry" (2017).
+
     NB. Take care if actually using this result, as the models used when calculating it are not very accurate.
     To disable adding noise in the radiances, change the standard deviation of added noise to zero in constants.py
 
@@ -223,6 +227,9 @@ def thermal_error_from_temperature(albedo_min: float, albedo_max: float, tempera
     # Convert reflectance to single-scattering albedo, using Lommel-Seeliger
     spectral_single_scattering_albedos = 8 * spectral_reflectances
 
+    # Calculate emissivities with Kirchhoff's law: emissivity = 1 - directional-hemispherical reflectance
+    emissivities = 1 - ((spectral_single_scattering_albedos / 2) * (1 - np.log(2)))
+
     # A vector of temperatures
     temperatures = np.linspace(temperature_min, temperature_max, samples)
 
@@ -239,7 +246,7 @@ def thermal_error_from_temperature(albedo_min: float, albedo_max: float, tempera
                                                   T=temperature,
                                                   reflectance=spectral_single_scattering_albedos[:, i],
                                                   waves=C.wavelengths,
-                                                  emissivity=1-spectral_single_scattering_albedos[:, i],  # Emissivity from Kirchhoff's law
+                                                  emissivity=emissivities[:, i],
                                                   filename='filename',
                                                   test=True,
                                                   save_file=False)
