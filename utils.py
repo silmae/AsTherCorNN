@@ -191,8 +191,8 @@ def thermal_error_from_hc_distance(distance_min: float, distance_max: float, sam
 def thermal_error_from_temperature(albedo_min: float, albedo_max: float, temperature_min: int, temperature_max: int,
                                    hc_distance: float, samples: int, log_y=False):
     """
-    Calculate and plot error in reflectance at 2.45 µm caused by thermal emission, at specified heliocentric distance,
-    with a series of temperatures, and three albedo values.
+    Calculate and percentage thermal emission from total radiance at 2.45 µm caused by thermal emission,
+    at specified heliocentric distance, with a series of temperatures, and three albedo values.
 
     Emissivity for thermal component is calculated with Kirchhoff's law, from Modest, M.F., "Radiative Heat Transfer"
     (2013). Formula for calculating directional-hemispherical reflectance needed for Kirchhoff comes from Shepard,
@@ -250,13 +250,11 @@ def thermal_error_from_temperature(albedo_min: float, albedo_max: float, tempera
                                                   filename='filename',
                                                   test=True,
                                                   save_file=False)
-            reflected_radiance = radiance_dict['reflected_radiance']
-            sum_radiance = radiance_dict['sum_radiance']
+            reflected_radiance = radiance_dict['reflected_radiance'][-1]
+            thermal_radiance = radiance_dict['emitted_radiance'][-1]
 
-            # Take the last element of both vectors and calculate the difference as percentage
-            reference = reflected_radiance[-1]
-            test = sum_radiance[-1]
-            error = 100 * (abs(reference - test)) / reference
+            # Take the last element of both vectors and calculate the ratio
+            error = 100 * (abs(thermal_radiance) / (thermal_radiance + reflected_radiance))
             error_list.append(error)
 
         errors[i,:] = error_list
@@ -267,7 +265,7 @@ def thermal_error_from_temperature(albedo_min: float, albedo_max: float, tempera
     plt.plot(temperatures, errors[1,:])
     plt.plot(temperatures, errors[2,:])
     plt.xlabel('Temperature [K]')
-    plt.ylabel('Radiance error at 2.45 µm [%]')
+    plt.ylabel('Percentage of thermal from total radiance [%]')
     plt.legend((f'$p = {geom_albedos[0]}$', f'$p = {geom_albedos[1]}$', f'$p = {geom_albedos[2]}$'))
     if log_y == True:
         plt.yscale('log')
