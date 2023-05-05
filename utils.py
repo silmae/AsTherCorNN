@@ -265,7 +265,8 @@ def thermal_error_from_temperature(albedo_min: float, albedo_max: float, tempera
     plt.plot(temperatures, errors[1,:])
     plt.plot(temperatures, errors[2,:])
     plt.xlabel('Temperature [K]')
-    plt.ylabel('Percentage of thermal from total radiance [%]')
+    # plt.ylabel('Percentage of thermal from total radiance [%]')
+    plt.ylabel('Thermal component of total radiance [%]')
     plt.legend((f'$p = {geom_albedos[0]}$', f'$p = {geom_albedos[1]}$', f'$p = {geom_albedos[2]}$'))
     if log_y == True:
         plt.yscale('log')
