@@ -6,7 +6,10 @@ predict surface temperatures from said radiances. The temperature predictions
 are used to correct spectral radiance observations for thermal contribution,
 in order to accurately determine the spectral reflectance. 
 The software is published under the MIT license. 
-This repository is related to a paper currently in the process of writing. 
+This repository is related to a journal article titled "Deep learning-based asteroid 
+surface temperature evaluation from disk-resolved near-infrared spectra for 
+thermal excess correction", published in the journal Planetary and Space Science 
+in 2023. The article is freely available through this link: https://doi.org/10.1016/j.pss.2023.105738
 
 
 ## Working principle
@@ -86,7 +89,20 @@ contains a log of the loss history for the final training run.
 
 
 ## Citing this work
-This work has currently not been published in a peer reviewed journal, but 
-hopefully will be shortly. If you find the code published here useful in your
-own research and wish to cite it, please check back here soon for 
-info on how to do that!
+We have published an article related to this work in the journal Planetary and Space Science, and you can find it here: https://doi.org/10.1016/j.pss.2023.105738
+
+If you use the code found in this repository for your own research, please cite the article for example using this bibtex entry:
+```
+@article{Lind2023,
+title = {Deep learning-based asteroid surface temperature evaluation from disk-resolved near-infrared spectra for thermal excess correction},
+journal = {Planetary and Space Science},
+volume = {235},
+pages = {105738},
+year = {2023},
+issn = {0032-0633},
+doi = {https://doi.org/10.1016/j.pss.2023.105738},
+url = {https://www.sciencedirect.com/science/article/pii/S0032063323001071},
+author = {Leevi Lind and Antti Penttilä and Kimmo A. Riihiaho and Eric MacLennan and Ilkka Pölönen},
+keywords = {Asteroid, Near-infrared, Disk-resolved, Reflectance spectroscopy, Thermal excess, Neural network},
+}
+```
